@@ -1,11 +1,19 @@
 import { AFFINITY_NAMES } from '../content/affinities';
 import { getEquipment, getItem } from '../content/items';
+import { getWeapon } from '../content/weapons';
 import { getTechnique } from '../content/techniques';
 import { xpToNext } from '../core/combat';
-import type { TechniquePreview } from '../core/engine';
 import type { GameState } from '../core/types';
 
 const STATUS_NAMES: Record<string, string> = { quemadura: 'Quemadura', aturdido: 'Aturdido', protegido: 'Protegido' };
+/** Información del modo de apuntado para mostrar en el panel. */
+export interface AimInfo {
+  title: string;
+  detail: string;
+  valid: boolean;
+  message?: string;
+}
+
 export const TECHNIQUE_KEYS = ['Z', 'X', 'C'] as const;
 export const ITEM_SLOTS: readonly { key: string; itemId: string }[] = [
   { key: '1', itemId: 'tonico_kiro' },
@@ -30,7 +38,7 @@ function lines(container: HTMLElement, texts: string[], tag: 'div' | 'p' = 'div'
 
 /** HUD en DOM: recursos, estados, acciones, minimapa, aviso de coste, registro y pantalla de resultado. */
 export class Hud {
-  update(state: GameState, targeting: { techniqueId: string; preview: TechniquePreview } | null): void {
+  update(state: GameState, targeting: AimInfo | null): void {
     const p = state.player;
     el('hp-text').textContent = `${p.hp}/${p.maxHp}`;
     el('hp-fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
@@ -40,7 +48,7 @@ export class Hud {
     el('xp-text').textContent = `Nv ${p.level} · ${p.xp}/${need}`;
     el('xp-fill').style.width = `${(p.xp / need) * 100}%`;
 
-    const weapon = getEquipment(p.equipment.weapon);
+    const weapon = getWeapon(p.equipment.weapon);
     const armor = getEquipment(p.equipment.armor);
     el('meta').textContent = [
       `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}`,
@@ -52,11 +60,9 @@ export class Hud {
 
     const out: string[] = [];
     if (targeting) {
-      const def = getTechnique(targeting.techniqueId);
-      const pv = targeting.preview;
-      out.push(`Apuntando: ${def?.name ?? targeting.techniqueId}`);
-      out.push(`Coste: ${pv.kiroCost} kiro · Casillas: ${pv.cells.length}`);
-      out.push(pv.valid ? 'Enter: confirmar · Esc: cancelar' : `✗ ${pv.message ?? 'No válido'}`);
+      out.push(`Apuntando: ${targeting.title}`);
+      out.push(targeting.detail);
+      out.push(targeting.valid ? 'Enter: confirmar · Esc: cancelar' : `✗ ${targeting.message ?? 'No válido'}`);
     } else {
       out.push('Flechas/WASD: mover o atacar · Espacio: esperar');
       out.push('E: interactuar (cofre, escalera)');
