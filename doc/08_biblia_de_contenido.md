@@ -77,18 +77,39 @@ Un enemigo solo persigue si el camino hasta el jugador mide menos que su alcance
 - Fase 3 opcional: convoca dos ecos menores.
 - Recompensa: sello antiguo y acceso a una nueva ruta.
 
+## 5.5 Sigilo, arbustos y puertas **[Implementado]**
+Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan la visión; esconderse tiene un precio (ves menos); los enemigos solo actúan al verte; atacar a quien no te ha visto hace ×2.
+
 ## 6. Objetos y equipo **[Implementado parcialmente]**
 Consumibles implementados:
 - Tónico de Kiro: recupera 5 de kiro. (tecla 1)
 - Ungüento de Musgo: recupera 8 de vida. (tecla 2; se empieza con uno)
 
-Equipo implementado (dos ranuras de las cuatro previstas: arma y vestimenta; se equipa solo lo que mejora lo actual):
-| Arma | Bonus de poder | Aparece desde | Vestimenta | Bonus de defensa | Aparece desde |
+Equipo implementado (dos ranuras de las cuatro previstas: arma y vestimenta). La vestimenta se equipa sola si mejora la actual; las armas nuevas se guardan y se equipan desde el menú o con Q.
+
+**Armas cuerpo a cuerpo** (se llevan varias, una equipada):
+| Arma | Tipo | Poder | Alcance | Aparece desde | Nota |
 |---|---|---|---|---|---|
-| Tanto gastado (inicial) | +0 | — | — | — | — |
-| Kunai de hierro | +1 | Sector 1 | Chaleco acolchado | +1 | Sector 1 |
-| Hoja afilada | +2 | Sector 2 | Cota de láminas | +2 | Sector 2 |
-| Hoja de ceniza | +3 | Sector 3 | Coraza de pizarra | +3 | Sector 3 |
+| Tanto gastado (inicial) | Hoja | +0 | 1 | — | |
+| Kunai de hierro | Hoja | +1 | 1 | Sector 1 | |
+| Hoja afilada | Hoja | +2 | 1 | Sector 2 | |
+| Hoja de ceniza | Hoja | +3 | 1 | Sector 3 | |
+| Látigo de cadena | Látigo | +0 | 2 | Sector 1 | Línea recta; golpea al primero |
+| Lanza de bambú | Lanza | +1 | 2 | Sector 2 | Línea recta; atraviesa |
+
+**Armas arrojadizas** (consumibles; tecla G, se lanzan a una casilla visible y se detienen en el primer enemigo):
+| Arma | Daño | Alcance | Probabilidad de perderse | Aparece desde | Nota |
+|---|---|---|---|---|---|
+| Shuriken (se empieza con 5) | 3 | 5 | 25% | Sector 1 | El resto cae al suelo y se recoge al pisarlo |
+| Kunai arrojadizo | 4 | 4 | 15% | Sector 2 | |
+| Senbon | 2 | 6 | 100% | Sector 1 | Ignora la defensa; se gasta siempre |
+
+**Vestimenta:**
+| Vestimenta | Defensa | Aparece desde |
+|---|---|---|
+| Chaleco acolchado | +1 | Sector 1 |
+| Cota de láminas | +2 | Sector 2 |
+| Coraza de pizarra | +3 | Sector 3 |
 
 Pendientes de la biblia original: Pergamino de Ceniza (ataque de área de un uso), Sello de Retorno (extracción bajo condición), Talismán de Piedra (talismán), Aguja de Resonancia (revela trampas), Máscara del Eco (modifica una técnica con coste). Cuando existan las ranuras de talismán y sello se incorporarán.
 
@@ -102,10 +123,10 @@ Botín de cofres: tabla ponderada por sector (consumibles frecuentes, equipo mej
 
 ## 8. Estructura de una expedición y mapas **[Implementado]**
 - Una expedición tiene 3 sectores (por ahora; el último tendrá al Campanero). Cruzar la escalera lleva al siguiente sector conservando el personaje; en el último, gana.
-- Cada sector es un mapa grande (64×44 casillas, estilo Pixel Dungeon): hasta 12 salas rectangulares unidas por pasillos de una casilla, más algunos bucles. La entrada está en una sala al azar y la escalera en la sala más lejana por camino.
+- Cada sector es un mapa grande (64×44 casillas, estilo Pixel Dungeon): hasta 12 salas rectangulares unidas por pasillos de una casilla, más algunos bucles, con grupos de arbustos en las salas y puertas en la boca de algunos pasillos. La entrada está en una sala al azar y la escalera en la sala más lejana por camino.
 - Enemigos repartidos por salas (de 4 a 9 por sector), siempre al menos a 6 casillas de la entrada. De 1 a 5 cofres por sector, colocados de modo que nunca corten un camino.
 - El tamaño de casilla en pantalla no es fijo: la cámara hace zoom y sigue al jugador; el mapa y las reglas no dependen de él.
-- Niebla de guerra: solo se ve lo ya recorrido, y los enemigos solo si están a la vista (radio 7 con línea de visión).
+- Niebla de guerra: solo se ve lo ya recorrido, y los enemigos solo si están a la vista (radio 7 con línea de visión; los arbustos y puertas cerradas la cortan).
 - Misma semilla y sector producen siempre el mismo mapa.
 
 ## 9. Transformaciones futuras

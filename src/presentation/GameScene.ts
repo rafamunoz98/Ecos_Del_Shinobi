@@ -65,6 +65,7 @@ export class GameScene extends Phaser.Scene {
       this.world.zoomBy(dy > 0 ? 0.9 : 1.1);
     });
     this.scale.on('resize', () => this.rebuildTexture());
+    this.events.on('update', () => this.tick());
     this.hud.onAction = (a) => this.perform(a);
     this.rebuildTexture();
     this.startRun(this.initialSeed);
@@ -86,7 +87,8 @@ export class GameScene extends Phaser.Scene {
     this.world.resize(w, h, dpr);
   }
 
-  update(): void {
+  /** Un fotograma: dibuja el mundo en el lienzo y lo sube a la textura. */
+  private tick(): void {
     if (!this.ctx || !this.tex || !this.state) return;
     this.world.render(this.ctx, now(), this.overlay());
     this.tex.refresh();

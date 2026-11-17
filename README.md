@@ -56,13 +56,19 @@ npm run build
 
 | Tecla | Acción |
 |---|---|
-| Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo |
+| Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo (con el arma equipada) |
 | Espacio | Esperar (recupera 1 de kiro) |
 | E | Interactuar: abrir cofre, bajar la escalera |
 | Z / X / C | Técnica de la ranura 1 / 2 / 3. Las que se apuntan abren el modo de apuntado: flechas, Enter confirma, Esc cancela. En las de línea, las flechas eligen la dirección |
 | 1 / 2 | Tónico de Kiro / Ungüento de Musgo |
+| F | Ataque de alcance (látigo y lanza): flechas para la dirección, Enter confirma |
+| G | Lanzar un arma arrojadiza: flechas mueven el cursor, Tab cambia de arrojadiza, Enter lanza |
+| Q | Cambiar a la siguiente arma de la mochila (gasta un turno) |
+| Tab / I | Menú: Estado, Técnicas, Objetos, Armas y Mapa (también con el botón «Menú») |
 | Rueda del ratón, + / − | Zoom |
 | R | Nueva expedición |
+
+En pantallas táctiles aparece una cruceta (mover, esperar/confirmar, cancelar, interactuar) y todos los botones de la barra de acciones son pulsables.
 
 ### Estado frente a la hoja de ruta
 
@@ -72,12 +78,15 @@ npm run build
 - **Hito 3** Vida, daño, ataque básico, kiro, técnicas con coste y área visibles, muerte y pantalla de resultado.
 - **Hito 4** Cofres con botín por sector, consumibles, equipo (arma y vestimenta), experiencia y niveles, escalera al siguiente sector (3 por expedición).
 - **Hito 5** Generador procedural de mapas grandes (64×44) con salas y pasillos, entrada/salida alcanzables, enemigos y cofres colocados sin bloquear caminos, semilla reproducible, pruebas sobre 150 semillas × 3 sectores.
+- **Hito 5.5** Sigilo (arbustos y puertas que tapan la visión, alerta, golpe furtivo), armas cuerpo a cuerpo (hoja, látigo, lanza) y arrojadizas (se gastan o se recogen), menú de personaje y motor gráfico propio (arte vectorial por sector, luz y efectos).
 - Siguiente: Hito 6 (vertical slice: jefe, evento, maestro, resumen de expedición).
 
 ### Contenido
 
 - **Afinidades:** Ascua, Marea, Vendaval, Piedra y Rayo. Se sortea una al empezar cada expedición con la semilla; cada una tiene una técnica de iniciación y una avanzada que se aprende al nivel 3. Detalle en `doc/08_biblia_de_contenido.md`.
 - **Enemigos:** Acechador de Hollín, Cuervo de Sal, Larva de Piedra y Tirador de Junco.
+- **Armas:** tanto, kunai, hojas, látigo de cadena y lanza de bambú; shuriken, kunai arrojadizo y senbon (arrojadizas).
+- **Sigilo:** los arbustos y las puertas cerradas tapan la visión; escóndete, sorprende (×2 de daño) o rodea.
 - **Mapas:** el tamaño de casilla en pantalla (`TILE` en `src/presentation/GameScene.ts`) es solo de presentación; la cámara sigue al jugador y hace zoom, y las reglas no dependen de él. El tamaño del mapa se configura en `src/content/balance.ts`.
 
 ### Estructura
@@ -86,8 +95,8 @@ npm run build
 src/core/          reglas puras: estado, comandos, turnos, combate, grid, rng
 src/content/       datos: técnicas, afinidades, objetos y equipo, enemigos, balance
 src/dungeon/       generador de sectores, colocación de enemigos, parser de salas ASCII
-src/presentation/  escena Phaser
-src/ui/            HUD en DOM y estilos
+src/presentation/  escena Phaser y motor gráfico propio (art/: tiles, personajes, iconos, efectos, renderizador)
+src/ui/            HUD, menú, minimapa y estilos (DOM)
 src/tests/         pruebas (Vitest)
 ```
 
@@ -109,4 +118,4 @@ El estado es JSON plano, listo para guardado versionado (`schemaVersion`).
 ### Originalidad
 
 Universo, nombres, técnicas y diseños propios. No se usan recursos de Naruto ni de otras franquicias.
-Los gráficos actuales son rectángulos de marcador: el pixel art propio se registrará con autor y licencia.
+Todo el arte está dibujado por código dentro del proyecto (`src/presentation/art`): sin assets externos ni licencias de terceros.

@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (17-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio). Siguiente: Hito 6.
+**Estado (17-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte). Siguiente: Hito 6.
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*
@@ -53,6 +53,15 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 - [x] Pruebas sobre muchas semillas. *(150 semillas × 3 sectores.)*
 **Aceptación:** mapas conectados y sin entidades dentro de paredes.
 
+## Hito 5.5 — Sigilo, armas y arte (tras probar el prototipo)
+- [x] Arbustos y puertas: tapan la visión, se puede esconder uno, los enemigos solo actúan si te ven (alerta, rastro, golpe furtivo ×2).
+- [x] Armas cuerpo a cuerpo: hoja, látigo (alcance 2) y lanza (atraviesa); equipar gasta un turno.
+- [x] Armas arrojadizas: shuriken, kunai arrojadizo y senbon; se gastan o se recogen del suelo.
+- [x] Menú de personaje (Tab): Estado, Técnicas, Objetos, Armas y Mapa, con descripciones y acciones.
+- [x] Motor gráfico propio (vectorial, por sector), personajes y enemigos animados, luz/niebla, efectos de técnicas y armas.
+- [x] Controles con ratón/táctil: barra de acciones pulsable y cruceta en pantallas táctiles.
+**Aceptación:** esconderse y sorprender es una opción real; el aspecto ya no es de rectángulos de marcador.
+
 ## Hito 6 — Vertical slice ninja
 - [ ] Un estilo de combate. *(Hoja Errante ya es la base.)*
 - [ ] Dos afinidades disponibles o una afinidad completa. *(Hay cinco con dos técnicas cada una; falta pulir y equilibrar.)*
@@ -88,5 +97,7 @@ Multijugador, PvP, ranking online, tienda con dinero real, cuentas, mundo abiert
 ## Pendientes conocidos del prototipo
 - Equilibrio: simulaciones con un bot sencillo muestran que el sector 2 (primer encuentro con Tirador y Larva) es el pico de dificultad; revisar con jugadores reales.
 - Un tirador que retrocede puede alargar la persecución si el jugador no tiene kiro; valorar si debe dejar de huir al quedarse sin espacio o tras N retrocesos.
-- Controles táctiles: el prototipo solo se maneja con teclado; el maquetado ya se adapta a pantallas estrechas.
-- Gráficos de marcador (rectángulos): sustituir por pixel art propio registrando autoría y licencia.
+- Controles táctiles: hay cruceta y barra de acciones pulsables; falta pulirlos con pruebas en dispositivos reales (Hito 8).
+- Arte: ya es propio y procedural (ver `05_direccion_artistica_audio.md`). Faltan más fotogramas de animación, altar, sprites de jefe y audio.
+- Sigilo: revisar con jugadores si el alcance de percepción (8) y las 8 rondas de alerta son justos; los arbustos podrían tener un coste adicional.
+- Fabricación de armas (crafteo): no implementada; decidir si se quiere (materiales, mejora) o si basta con encontrarlas en cofres.
