@@ -31,10 +31,16 @@ body {
 
 #game {
   flex: 1;
+  /* Sin min-width/min-height 0 el lienzo (que Phaser ajusta al contenedor) impide que el contenedor
+     se encoja y empuja el HUD fuera de la pantalla, sobre todo en móvil. */
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 #game canvas {
+  display: block;
   image-rendering: pixelated;
 }
 
@@ -165,7 +171,8 @@ kbd {
   }
   #hud {
     width: 100%;
-    max-height: 38%;
+    flex: 0 0 auto;
+    max-height: 42%;
     border-left: none;
     border-top: 1px solid #25253a;
   }
