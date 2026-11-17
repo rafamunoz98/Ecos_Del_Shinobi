@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Ecos del Shinobi</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game"></div>
+      <aside id="hud">
+        <section>
+          <div class="label">Vida <span id="hp-text"></span></div>
+          <div class="bar"><div id="hp-fill" class="fill hp"></div></div>
+          <div class="label">Kiro <span id="kiro-text"></span></div>
+          <div class="bar"><div id="kiro-fill" class="fill kiro"></div></div>
+          <div id="meta"></div>
+          <div id="statuses"></div>
+        </section>
+        <section id="actions"></section>
+        <section id="notice" role="status" aria-live="polite"></section>
+        <section id="log" aria-live="polite"></section>
+        <section id="help"></section>
+      </aside>
+      <div id="result" hidden>
+        <div class="card">
+          <h1 id="result-title"></h1>
+          <p id="result-text"></p>
+          <p>Pulsa <kbd>R</kbd> para una nueva expedición.</p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
