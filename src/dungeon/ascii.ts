@@ -1,3 +1,4 @@
+import { BALANCE } from '../content/balance';
 import { ENEMIES } from '../content/enemies';
 import type { Chest, Enemy, GameMap, TerrainKind, Vec } from '../core/types';
 import { createEnemy } from './spawn';
@@ -34,6 +35,12 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
         case '>':
           tiles.push('exit');
           break;
+        case 'b':
+          tiles.push('bush');
+          break;
+        case '+':
+          tiles.push('door');
+          break;
         case '@':
           if (playerStart) throw new Error('Hay más de un jugador (@) en la sala.');
           playerStart = { x, y };
@@ -64,7 +71,8 @@ export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerSt
   return {
     map: room.map,
     playerStart: room.playerStart,
-    enemies: room.enemyStarts.map((pos, i) => createEnemy(def, `enemy-${i}`, pos, 1)),
+    // Los enemigos de una sala de prototipo/prueba ya están alerta (no esperan a verte).
+    enemies: room.enemyStarts.map((pos, i) => ({ ...createEnemy(def, `enemy-${i}`, pos, 1), alert: BALANCE.alertTurns })),
     chests: room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),
   };
 }

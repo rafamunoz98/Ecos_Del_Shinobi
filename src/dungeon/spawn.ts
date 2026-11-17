@@ -16,6 +16,8 @@ export function createEnemy(def: EnemyDef, id: string, pos: Vec, floor: number):
     power: def.power + Math.floor(scale / BALANCE.enemyScale.powerEvery),
     defense: def.defense,
     aggroRange: def.aggroRange,
+    alert: 0,
+    lastSeen: null,
     statuses: [],
   };
 }

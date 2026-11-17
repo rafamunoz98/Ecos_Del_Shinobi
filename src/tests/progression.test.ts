@@ -67,33 +67,51 @@ describe('equipo', () => {
     expect(r.state.player.hp).toBe(20 - 1); // 4 - 3
   });
 
-  it('un cofre equipa lo mejor y descarta lo peor, en ambas ranuras', () => {
+  it('un cofre equipa la vestimenta si mejora y la descarta si no', () => {
     let equipped = 0;
     let discarded = 0;
-    for (let seed = 1; seed <= 200; seed++) {
+    for (let seed = 1; seed <= 300; seed++) {
       const s = makeGame(['#####', '#@C.#', '#####'], (g) => {
-        g.floor = 3; // en el sector 3 puede salir equipo mejor que el actual
+        g.floor = 3; // en el sector 3 puede salir vestimenta mejor que la actual
         g.rngState = seed;
-        g.player.equipment.weapon = 'hoja_afilada';
-        g.player.equipment.armor = 'chaleco_acolchado';
+        g.player.equipment.armor = 'cota_de_laminas';
       });
       const r = applyCommand(s, interact({ x: 2, y: 1 }));
       const ev = r.events.find((e) => e.type === 'EquipmentEquipped');
       if (ev && ev.type === 'EquipmentEquipped') {
         equipped++;
-        const before = ev.slot === 'weapon' ? 2 : 1;
-        const after = r.state.player.equipment[ev.slot];
-        expect(after).toBe(ev.itemId);
-        expect(['hoja_de_ceniza', 'coraza_de_pizarra', 'cota_de_laminas']).toContain(after);
-        expect(before).toBeLessThan(3);
+        expect(r.state.player.equipment.armor).toBe('coraza_de_pizarra');
       }
       if (r.state.log[r.state.log.length - 1].includes('equipo actual es mejor')) {
         discarded++;
-        expect(r.state.player.equipment.weapon).toBe('hoja_afilada');
+        expect(r.state.player.equipment.armor).toBe('cota_de_laminas');
       }
     }
     expect(equipped).toBeGreaterThan(0);
     expect(discarded).toBeGreaterThan(0);
+  });
+
+  it('un cofre da armas nuevas sin equiparlas y no repite las que ya tienes', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 400; seed++) {
+      const s = makeGame(['#####', '#@C.#', '#####'], (g) => {
+        g.floor = 3;
+        g.rngState = seed;
+      });
+      const r = applyCommand(s, interact({ x: 2, y: 1 }));
+      for (const w of r.state.player.weapons) seen.add(w);
+      expect(r.state.player.equipment.weapon).toBe('tanto_gastado');
+      expect(r.state.player.weapons.length).toBeLessThanOrEqual(2);
+    }
+    expect(seen.size).toBeGreaterThan(3);
+    const owned = makeGame(['#####', '#@C.#', '#####'], (g) => {
+      g.player.weapons = ['tanto_gastado', 'kunai_de_hierro', 'latigo_de_cadena'];
+    });
+    for (let seed = 1; seed <= 100; seed++) {
+      owned.rngState = seed;
+      const r = applyCommand(owned, interact({ x: 2, y: 1 }));
+      expect(new Set(r.state.player.weapons).size).toBe(r.state.player.weapons.length);
+    }
   });
 });
 

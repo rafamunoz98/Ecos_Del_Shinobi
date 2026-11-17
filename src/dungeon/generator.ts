@@ -210,6 +210,47 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number): Gen
   }
   for (let guard = 0; chests.length === 0 && guard < 20; guard++) tryPlaceChest(rooms[rng.pick(others)]);
 
+  // 6. Decoración con efecto en el juego: arbustos (esconden y tapan la vista) y puertas (tapan la vista).
+  const inRoom = (c: Vec): boolean => rooms.some((r) => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h);
+  const clusters = BALANCE.level.bushClusters + (floor >= 2 ? 1 : 0);
+  for (let k = 0; k < clusters; k++) {
+    const room = rooms[rng.int(0, rooms.length - 1)];
+    const centerCell = randomCell(room);
+    const radius = rng.int(1, 2);
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const c = { x: centerCell.x + dx, y: centerCell.y + dy };
+        if (Math.abs(dx) + Math.abs(dy) > radius || !inBounds(map, c) || !inRoom(c)) continue;
+        const i = idx(map, c);
+        if (tiles[i] !== 'floor' || used.has(i) || !rng.chance(0.8)) continue;
+        if (manhattan(c, playerStart) <= 1) continue;
+        tiles[i] = 'bush';
+      }
+    }
+  }
+  const wallAt = (c: Vec): boolean => !inBounds(map, c) || tiles[idx(map, c)] === 'wall';
+  const doorCandidates: Vec[] = [];
+  for (const r of rooms) {
+    const ring: Vec[] = [];
+    for (let x = r.x; x < r.x + r.w; x++) ring.push({ x, y: r.y - 1 }, { x, y: r.y + r.h });
+    for (let y = r.y; y < r.y + r.h; y++) ring.push({ x: r.x - 1, y }, { x: r.x + r.w, y });
+    for (const c of ring) {
+      if (!inBounds(map, c) || tiles[idx(map, c)] !== 'floor' || inRoom(c)) continue;
+      const sideWalls = wallAt({ x: c.x - 1, y: c.y }) && wallAt({ x: c.x + 1, y: c.y });
+      const endWalls = wallAt({ x: c.x, y: c.y - 1 }) && wallAt({ x: c.x, y: c.y + 1 });
+      if (sideWalls !== endWalls) doorCandidates.push(c); // un pasillo de una casilla, no un cruce
+    }
+  }
+  let doors = 0;
+  for (const c of rng.shuffle(doorCandidates)) {
+    if (doors >= BALANCE.level.maxDoors) break;
+    const i = idx(map, c);
+    if (tiles[i] !== 'floor' || !rng.chance(0.6)) continue;
+    if (DIRS.some((d) => tiles[idx(map, { x: c.x + d.x, y: c.y + d.y })] === 'door')) continue;
+    tiles[i] = 'door';
+    doors++;
+  }
+
   return { map, playerStart, exit, enemies, chests, rooms };
 }
 

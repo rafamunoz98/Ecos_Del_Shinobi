@@ -2,10 +2,12 @@ import { BALANCE } from '../content/balance';
 import { getEnemy, type EnemyDef } from '../content/enemies';
 import { getEquipment, getItem, lootTableFor } from '../content/items';
 import { getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { getThrowable, getWeapon, WEAPONS, type WeaponDef } from '../content/weapons';
 import { generateLevel } from '../dungeon/generator';
 import { calcDamage, effectiveDefense, effectivePower, xpToNext } from './combat';
-import { computeVisible, DIRS, equals, findPath, hasLineOfSight, inBounds, isWalkable, manhattan, terrainAt } from './grid';
+import { DIRS, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, terrainAt } from './grid';
 import { nextRandom } from './rng';
+import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
   Chest,
   Command,
@@ -44,6 +46,8 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   not_aligned: 'Debe estar en línea recta: arriba, abajo, izquierda o derecha.',
   unknown_item: 'Ese objeto no existe.',
   no_item: 'No te quedan de ese objeto.',
+  not_throwable: 'Eso no se puede lanzar.',
+  already_equipped: 'Ya la llevas equipada.',
   nothing_to_interact: 'No hay nada con lo que interactuar ahí.',
   already_opened: 'Ya está abierto.',
   extraction_unavailable: 'Aún no puedes extraerte de la expedición.',
@@ -63,10 +67,8 @@ function cellFree(s: GameState, p: Vec): boolean {
   );
 }
 
-/** Casillas que el jugador ve ahora mismo (los enemigos solo se muestran si están aquí). */
-export function visibleCells(state: GameState): Set<number> {
-  return computeVisible(state.map, state.player.pos, BALANCE.visionRadius);
-}
+// La visión y el sigilo viven en sight.ts; se reexportan para la presentación.
+export { canSeeEntity, enemySees, openDoors, visibleCells };
 
 const sign = (n: number): number => (n > 0 ? 1 : n < 0 ? -1 : 0);
 
@@ -94,7 +96,7 @@ function diamond(s: GameState, origin: Vec, radius: number, needLos: boolean): V
       if (Math.abs(dx) + Math.abs(dy) > radius) continue;
       const p = { x: origin.x + dx, y: origin.y + dy };
       if (!inBounds(s.map, p) || !isWalkable(s.map, p)) continue;
-      if (needLos && !hasLineOfSight(s.map, origin, p)) continue;
+      if (needLos && !hasLineOfSight(s.map, origin, p, openDoors(s))) continue;
       cells.push(p);
     }
   }
@@ -158,12 +160,107 @@ function validateTechnique(s: GameState, techniqueId: string, target: Vec): Inva
       if (!isWalkable(s.map, target)) return 'blocked';
       if (manhattan(p.pos, target) > t.range) return 'out_of_range';
       const needLos = t.kind === 'area' ? t.lineOfSight : true;
-      if (needLos && !hasLineOfSight(s.map, p.pos, target)) return 'no_line_of_sight';
+      if (needLos && !hasLineOfSight(s.map, p.pos, target, openDoors(s))) return 'no_line_of_sight';
       if (t.kind === 'blink' && !cellFree(s, target)) return 'occupied';
       if (t.kind === 'barrier' && techniqueCells(s, def, target).length === 0) return 'occupied';
       return null;
     }
   }
+}
+
+// ---------- Armas ----------
+
+interface AttackPlan {
+  reason: InvalidReason | null;
+  cells: Vec[];
+  hits: Enemy[];
+  weapon: WeaponDef;
+}
+
+/** Qué casillas y enemigos alcanza el arma equipada al atacar hacia `target`. */
+function attackPlan(s: GameState, target: Vec): AttackPlan {
+  const weapon = getWeapon(s.player.equipment.weapon) ?? WEAPONS.tanto_gastado;
+  const p = s.player.pos;
+  const fail = (reason: InvalidReason): AttackPlan => ({ reason, cells: [], hits: [], weapon });
+  if (weapon.kind === 'blade') {
+    if (manhattan(p, target) !== 1) return fail('not_adjacent');
+    const e = enemyAt(s, target);
+    return e ? { reason: null, cells: [target], hits: [e], weapon } : fail('no_target');
+  }
+  const dir = alignedDir(p, target);
+  if (!dir) return fail('not_aligned');
+  if (manhattan(p, target) > weapon.reach) return fail('out_of_range');
+  const cells: Vec[] = [];
+  const hits: Enemy[] = [];
+  for (let i = 1; i <= weapon.reach; i++) {
+    const c = { x: p.x + dir.x * i, y: p.y + dir.y * i };
+    if (!inBounds(s.map, c) || !isWalkable(s.map, c) || barrierAt(s, c) || chestAt(s, c)) break;
+    cells.push(c);
+    const e = enemyAt(s, c);
+    if (e) {
+      hits.push(e);
+      if (weapon.kind === 'whip') break; // el látigo golpea al primero
+    }
+  }
+  return { reason: hits.length > 0 ? null : 'no_target', cells, hits, weapon };
+}
+
+export interface AttackPreview {
+  valid: boolean;
+  reason?: InvalidReason;
+  message?: string;
+  cells: Vec[];
+}
+
+/** Aviso previo del ataque con el arma equipada (para armas de alcance), sin gastar turno. */
+export function previewAttack(state: GameState, target: Vec): AttackPreview {
+  const plan = attackPlan(state, target);
+  return plan.reason
+    ? { valid: false, reason: plan.reason, message: REASON_TEXT[plan.reason], cells: plan.cells }
+    : { valid: true, cells: plan.cells };
+}
+
+/** Recorrido de un proyectil: se detiene en el primer enemigo, o antes de pared/barrera. */
+function throwPath(s: GameState, target: Vec): { landing: Vec; victim: Enemy | undefined; cells: Vec[] } {
+  let landing = s.player.pos;
+  const cells: Vec[] = [];
+  for (const c of lineCells(s.player.pos, target)) {
+    if (!inBounds(s.map, c) || !isWalkable(s.map, c) || barrierAt(s, c)) break;
+    landing = c;
+    cells.push(c);
+    const victim = enemyAt(s, c);
+    if (victim) return { landing, victim, cells };
+  }
+  return { landing, victim: undefined, cells };
+}
+
+function validateThrow(s: GameState, itemId: string, target: Vec): InvalidReason | null {
+  const def = getThrowable(itemId);
+  if (!def) return 'not_throwable';
+  if ((s.player.inventory[itemId] ?? 0) <= 0) return 'no_item';
+  if (!inBounds(s.map, target)) return 'out_of_bounds';
+  if (equals(target, s.player.pos)) return 'blocked';
+  if (manhattan(s.player.pos, target) > def.range) return 'out_of_range';
+  if (!hasLineOfSight(s.map, s.player.pos, target, openDoors(s))) return 'no_line_of_sight';
+  if (equals(throwPath(s, target).landing, s.player.pos)) return 'blocked';
+  return null;
+}
+
+export interface ThrowPreview {
+  valid: boolean;
+  reason?: InvalidReason;
+  message?: string;
+  /** Casillas del recorrido, y casilla donde caerá. */
+  cells: Vec[];
+  landing: Vec;
+}
+
+export function previewThrow(state: GameState, itemId: string, target: Vec): ThrowPreview {
+  const reason = validateThrow(state, itemId, target);
+  const path = inBounds(state.map, target) ? throwPath(state, target) : { landing: state.player.pos, cells: [] as Vec[] };
+  return reason
+    ? { valid: false, reason, message: REASON_TEXT[reason], cells: path.cells, landing: path.landing }
+    : { valid: true, cells: path.cells, landing: path.landing };
 }
 
 export interface TechniquePreview {
@@ -203,13 +300,18 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
     case 'Wait':
       return null;
     case 'BasicAttack':
-      if (manhattan(p.pos, cmd.target) !== 1) return 'not_adjacent';
-      return enemyAt(state, cmd.target) ? null : 'no_target';
+      return attackPlan(state, cmd.target).reason;
     case 'UseTechnique':
       return validateTechnique(state, cmd.techniqueId, cmd.target);
     case 'UseItem':
       if (!getItem(cmd.itemId)) return 'unknown_item';
       return (p.inventory[cmd.itemId] ?? 0) > 0 ? null : 'no_item';
+    case 'Throw':
+      return validateThrow(state, cmd.itemId, cmd.target);
+    case 'EquipWeapon':
+      if (!getWeapon(cmd.weaponId)) return 'unknown_item';
+      if (!p.weapons.includes(cmd.weaponId)) return 'no_item';
+      return p.equipment.weapon === cmd.weaponId ? 'already_equipped' : null;
     case 'Interact': {
       if (manhattan(p.pos, cmd.target) > 1) return 'not_adjacent';
       const chest = chestAt(state, cmd.target);
@@ -234,9 +336,17 @@ function say(ctx: Ctx, text: string): void {
   if (over > 0) ctx.state.log.splice(0, over);
 }
 
+/** Un enemigo que recibe daño sabe dónde estás, aunque no te viera. */
+function alertEnemy(ctx: Ctx, enemy: Enemy): void {
+  if (enemy.alert === 0) ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
+  enemy.alert = BALANCE.alertTurns;
+  enemy.lastSeen = { ...ctx.state.player.pos };
+}
+
 function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string): void {
   enemy.hp = Math.max(0, enemy.hp - amount);
   ctx.events.push({ type: 'DamageApplied', targetId: enemy.id, amount, source });
+  alertEnemy(ctx, enemy);
 }
 
 function defeatPlayer(ctx: Ctx): void {
@@ -304,7 +414,8 @@ function reapDead(ctx: Ctx): void {
 }
 
 function rollLoot(ctx: Ctx) {
-  const table = lootTableFor(ctx.state.floor);
+  const owned = ctx.state.player.weapons;
+  const table = lootTableFor(ctx.state.floor).filter((e) => !(e.kind === 'weapon' && owned.includes(e.id)));
   const total = table.reduce((sum, e) => sum + e.weight, 0);
   const r = nextRandom(ctx.state.rngState);
   ctx.state.rngState = r.state;
@@ -378,21 +489,56 @@ function openChest(ctx: Ctx, chest: Chest): void {
   chest.opened = true;
   const entry = rollLoot(ctx);
   ctx.events.push({ type: 'ChestOpened', chestId: chest.id, itemId: entry.id });
-  if (entry.kind === 'item') {
-    p.inventory[entry.id] = (p.inventory[entry.id] ?? 0) + 1;
-    say(ctx, `Abres el cofre y encuentras: ${getItem(entry.id)?.name ?? entry.id}.`);
-    return;
+  switch (entry.kind) {
+    case 'item':
+      p.inventory[entry.id] = (p.inventory[entry.id] ?? 0) + 1;
+      say(ctx, `Abres el cofre y encuentras: ${getItem(entry.id)?.name ?? entry.id}.`);
+      return;
+    case 'throwable': {
+      const n = entry.amount ?? 3;
+      p.inventory[entry.id] = (p.inventory[entry.id] ?? 0) + n;
+      say(ctx, `Abres el cofre y encuentras: ${n}× ${getThrowable(entry.id)?.name ?? entry.id}.`);
+      return;
+    }
+    case 'weapon': {
+      const w = getWeapon(entry.id);
+      if (!w) return;
+      if (!p.weapons.includes(w.id)) p.weapons.push(w.id);
+      say(ctx, `Abres el cofre y encuentras: ${w.name}. Puedes equiparla desde el menú (Tab).`);
+      return;
+    }
+    case 'equipment': {
+      const def = getEquipment(entry.id);
+      if (!def) return;
+      const current = getEquipment(p.equipment[def.slot])?.bonus ?? -1;
+      if (def.bonus > current) {
+        p.equipment[def.slot] = def.id;
+        ctx.events.push({ type: 'EquipmentEquipped', slot: def.slot, itemId: def.id });
+        say(ctx, `Abres el cofre y te equipas: ${def.name} (${def.description}).`);
+      } else {
+        say(ctx, `Abres el cofre y hallas ${def.name}, pero tu equipo actual es mejor.`);
+      }
+    }
   }
-  const def = getEquipment(entry.id);
-  if (!def) return;
-  const current = getEquipment(p.equipment[def.slot])?.bonus ?? -1;
-  if (def.bonus > current) {
-    p.equipment[def.slot] = def.id;
-    ctx.events.push({ type: 'EquipmentEquipped', slot: def.slot, itemId: def.id });
-    say(ctx, `Abres el cofre y te equipas: ${def.name} (${def.description}).`);
-  } else {
-    say(ctx, `Abres el cofre y hallas ${def.name}, pero tu equipo actual es mejor.`);
+}
+
+function placeDrop(s: GameState, pos: Vec, itemId: string): void {
+  const existing = s.drops.find((d) => d.itemId === itemId && equals(d.pos, pos));
+  if (existing) existing.count += 1;
+  else s.drops.push({ pos: { ...pos }, itemId, count: 1 });
+}
+
+/** Recoge lo que haya en el suelo bajo el jugador. */
+function pickUp(ctx: Ctx): void {
+  const s = ctx.state;
+  const here = s.drops.filter((d) => equals(d.pos, s.player.pos));
+  if (here.length === 0) return;
+  for (const d of here) {
+    s.player.inventory[d.itemId] = (s.player.inventory[d.itemId] ?? 0) + d.count;
+    ctx.events.push({ type: 'ItemPickedUp', itemId: d.itemId, count: d.count });
+    say(ctx, `Recoges ${d.count}× ${getThrowable(d.itemId)?.name ?? d.itemId}.`);
   }
+  s.drops = s.drops.filter((d) => !equals(d.pos, s.player.pos));
 }
 
 function descend(ctx: Ctx): void {
@@ -404,6 +550,7 @@ function descend(ctx: Ctx): void {
   s.enemies = level.enemies;
   s.chests = level.chests;
   s.barriers = [];
+  s.drops = [];
   s.explored = new Array<boolean>(level.map.width * level.map.height).fill(false);
   ctx.events.push({ type: 'FloorChanged', floor: s.floor });
   say(ctx, `Desciendes al sector ${s.floor}.`);
@@ -427,10 +574,52 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       return;
     }
     case 'BasicAttack': {
-      const enemy = enemyAt(s, cmd.target) as Enemy;
-      const dmg = calcDamage(effectivePower(p), 0, enemy.defense);
-      damageEnemy(ctx, enemy, dmg, 'ataque_basico');
-      say(ctx, `Golpeas a ${enemyName(enemy)} (${dmg} de daño).`);
+      const plan = attackPlan(s, cmd.target);
+      ctx.events.push({ type: 'PlayerAttacked', weaponId: plan.weapon.id, cells: plan.cells, targets: plan.hits.map((e) => e.pos) });
+      for (const enemy of plan.hits) {
+        let dmg = calcDamage(effectivePower(p), 0, enemy.defense);
+        if (enemy.alert === 0) {
+          dmg *= BALANCE.sneakMultiplier;
+          ctx.events.push({ type: 'SneakAttack', enemyId: enemy.id });
+          say(ctx, `¡Golpe furtivo a ${enemyName(enemy)}! (${dmg} de daño).`);
+        } else {
+          say(ctx, `Golpeas a ${enemyName(enemy)} (${dmg} de daño).`);
+        }
+        damageEnemy(ctx, enemy, dmg, 'ataque_basico');
+      }
+      return;
+    }
+    case 'Throw': {
+      const def = getThrowable(cmd.itemId) as NonNullable<ReturnType<typeof getThrowable>>;
+      const left = (p.inventory[def.id] ?? 0) - 1;
+      if (left > 0) p.inventory[def.id] = left;
+      else delete p.inventory[def.id];
+      const { landing, victim } = throwPath(s, cmd.target);
+      ctx.events.push({ type: 'ItemThrown', itemId: def.id, from: p.pos, to: landing, hit: Boolean(victim) });
+      if (victim) {
+        const bonus = Math.floor((p.level - 1) / 2);
+        let dmg = calcDamage(def.damage, bonus, def.ignoreDefense ? 0 : victim.defense);
+        if (victim.alert === 0) {
+          dmg *= BALANCE.sneakMultiplier;
+          ctx.events.push({ type: 'SneakAttack', enemyId: victim.id });
+          say(ctx, `¡Lanzamiento furtivo! ${def.name} hiere a ${enemyName(victim)} (${dmg} de daño).`);
+        } else {
+          say(ctx, `${def.name} hiere a ${enemyName(victim)} (${dmg} de daño).`);
+        }
+        damageEnemy(ctx, victim, dmg, def.id);
+      } else {
+        say(ctx, `Lanzas ${def.name}.`);
+      }
+      const roll = nextRandom(s.rngState);
+      s.rngState = roll.state;
+      if (roll.value >= def.breakChance) placeDrop(s, landing, def.id);
+      else say(ctx, `${def.name} se pierde.`);
+      return;
+    }
+    case 'EquipWeapon': {
+      p.equipment.weapon = cmd.weaponId;
+      ctx.events.push({ type: 'WeaponEquipped', weaponId: cmd.weaponId });
+      say(ctx, `Equipas: ${getWeapon(cmd.weaponId)?.name ?? cmd.weaponId}.`);
       return;
     }
     case 'UseTechnique':
@@ -492,7 +681,7 @@ function enemyCanEnter(s: GameState, self: Enemy, p: Vec): boolean {
   );
 }
 
-function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult {
+function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepResult {
   const s = ctx.state;
   const p = s.player;
   const dist = manhattan(enemy.pos, p.pos);
@@ -504,37 +693,42 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult {
     return 'attacked';
   };
 
-  if (def.behavior === 'ranged') {
-    const range = def.range ?? 5;
-    const keepAway = def.keepAway ?? 2;
-    if (dist <= keepAway) {
-      // Retrocede a la vecina libre que más lo aleje (orden fijo de DIRS: desempate determinista).
-      let best: Vec | null = null;
-      let bestD = dist;
-      for (const d of DIRS) {
-        const n = { x: enemy.pos.x + d.x, y: enemy.pos.y + d.y };
-        if (!enemyCanEnter(s, enemy, n)) continue;
-        const nd = manhattan(n, p.pos);
-        if (nd > bestD) {
-          best = n;
-          bestD = nd;
+  if (sees) {
+    if (def.behavior === 'ranged') {
+      const range = def.range ?? 5;
+      const keepAway = def.keepAway ?? 2;
+      if (dist <= keepAway) {
+        // Retrocede a la vecina libre que más lo aleje (orden fijo de DIRS: desempate determinista).
+        let best: Vec | null = null;
+        let bestD = dist;
+        for (const d of DIRS) {
+          const n = { x: enemy.pos.x + d.x, y: enemy.pos.y + d.y };
+          if (!enemyCanEnter(s, enemy, n)) continue;
+          const nd = manhattan(n, p.pos);
+          if (nd > bestD) {
+            best = n;
+            bestD = nd;
+          }
+        }
+        if (best) {
+          const from = enemy.pos;
+          enemy.pos = best;
+          ctx.events.push({ type: 'EnemyMoved', enemyId: enemy.id, from, to: best });
+          return 'moved';
         }
       }
-      if (best) {
-        const from = enemy.pos;
-        enemy.pos = best;
-        ctx.events.push({ type: 'EnemyMoved', enemyId: enemy.id, from, to: best });
-        return 'moved';
-      }
+      if (dist <= range && hasLineOfSight(s.map, enemy.pos, p.pos, openDoors(s))) return hit('te dispara');
+    } else if (dist === 1) {
+      return hit('te golpea');
     }
-    if (dist <= range && hasLineOfSight(s.map, enemy.pos, p.pos)) return hit('te dispara');
-  } else if (dist === 1) {
-    return hit('te golpea');
   }
 
+  // Sin verte, va a donde te vio por última vez.
+  const goal = sees ? p.pos : enemy.lastSeen;
+  if (!goal || equals(goal, enemy.pos)) return 'none';
   const blocked = (q: Vec): boolean => !enemyCanEnter(s, enemy, q);
-  const path = findPath(s.map, enemy.pos, p.pos, blocked);
-  if (!path || path.length > enemy.aggroRange) return 'none';
+  const path = findPath(s.map, enemy.pos, goal, blocked);
+  if (!path || path.length > enemy.aggroRange * 2) return 'none';
   const next = path[0];
   if (equals(next, p.pos)) return 'none';
   const from = enemy.pos;
@@ -550,10 +744,27 @@ function enemyAct(ctx: Ctx, enemy: Enemy, index: number): void {
     say(ctx, `${enemyName(enemy)} está aturdido y pierde su acción.`);
     return;
   }
+  // Percepción: te nota si te ve (distancia, línea de visión, arbustos y puertas). Al perderte, sigue alerta unas rondas.
+  const sees = enemySees(ctx.state, enemy);
+  if (sees) {
+    if (enemy.alert === 0) {
+      ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
+      say(ctx, `${enemyName(enemy)} te ha visto.`);
+    }
+    enemy.alert = BALANCE.alertTurns;
+    enemy.lastSeen = { ...ctx.state.player.pos };
+  } else if (enemy.alert > 0) {
+    enemy.alert -= 1;
+    if (enemy.alert === 0) {
+      enemy.lastSeen = null;
+      ctx.events.push({ type: 'EnemyLostTrack', enemyId: enemy.id });
+    }
+  }
+  if (enemy.alert === 0) return; // no sabe de ti: permanece quieto
   // Los lentos actúan una de cada N rondas; el índice escalona a los de la misma clase (determinista).
   if (def.actEvery > 1 && (ctx.state.turn + index) % def.actEvery !== 0) return;
   for (let n = 0; n < def.actionsPerTurn; n++) {
-    if (enemyStep(ctx, enemy, def) !== 'moved') break;
+    if (enemyStep(ctx, enemy, def, sees) !== 'moved') break;
   }
 }
 
@@ -573,6 +784,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
   const s = ctx.state;
 
   resolvePlayerAction(ctx, cmd); // pasos 4-5
+  if (s.status === 'playing') pickUp(ctx);
   reapDead(ctx);
 
   if (s.status === 'playing') {

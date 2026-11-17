@@ -8,7 +8,8 @@ import { makeGame, wait } from './helpers';
 
 /** Sustituye al enemigo 0 de la sala por otro tipo en la misma posición. */
 const asKind = (kind: keyof typeof ENEMIES, floor = 1) => (g: GameState) => {
-  g.enemies[0] = createEnemy(ENEMIES[kind], 'enemy-0', g.enemies[0].pos, floor);
+  // Alerta de partida: estos enemigos ya saben de ti (el sigilo se prueba en stealth.test.ts).
+  g.enemies[0] = { ...createEnemy(ENEMIES[kind], 'enemy-0', g.enemies[0].pos, floor), alert: 8 };
 };
 const moves = (events: { type: string }[]) => events.filter((e) => e.type === 'EnemyMoved').length;
 
@@ -61,7 +62,7 @@ describe('Tirador de Junco (a distancia)', () => {
     expect(r.state.enemies[0].pos).toEqual({ x: 4, y: 1 });
   });
 
-  it('no dispara a través de paredes: se acerca', () => {
+  it('no dispara a través de paredes', () => {
     const s = makeGame(['#########', '#@.#E...#', '#########'], kind);
     const r = applyCommand(s, wait());
     expect(r.state.player.hp).toBe(20);

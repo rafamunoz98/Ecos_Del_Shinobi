@@ -3,6 +3,7 @@ import { AFFINITIES } from '../content/affinities';
 import { ENEMIES } from '../content/enemies';
 import { EQUIPMENT, ITEMS, LOOT_TABLE } from '../content/items';
 import { getTechnique, needsAim, TECHNIQUES, techniquesFor } from '../content/techniques';
+import { THROWABLES, WEAPONS } from '../content/weapons';
 
 describe('coherencia del contenido', () => {
   it('cada afinidad tiene una técnica de iniciación (nivel 1) y una avanzada (nivel 3)', () => {
@@ -20,12 +21,13 @@ describe('coherencia del contenido', () => {
     }
     for (const [k, e] of Object.entries(ENEMIES)) expect(e.id).toBe(k);
     for (const [k, e] of Object.entries(EQUIPMENT)) expect(e.id).toBe(k);
+    for (const [k, e] of Object.entries(WEAPONS)) expect(e.id).toBe(k);
+    for (const [k, e] of Object.entries(THROWABLES)) expect(e.id).toBe(k);
   });
 
   it('la tabla de botín solo referencia contenido existente', () => {
-    for (const e of LOOT_TABLE) {
-      expect(e.kind === 'item' ? ITEMS[e.id] : EQUIPMENT[e.id], e.id).toBeDefined();
-    }
+    const table = { item: ITEMS, equipment: EQUIPMENT, weapon: WEAPONS, throwable: THROWABLES } as const;
+    for (const e of LOOT_TABLE) expect(table[e.kind][e.id], e.id).toBeDefined();
     expect(LOOT_TABLE.some((e) => e.minFloor === 1)).toBe(true);
   });
 

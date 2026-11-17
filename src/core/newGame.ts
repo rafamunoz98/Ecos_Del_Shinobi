@@ -4,10 +4,11 @@ import { techniquesFor } from '../content/techniques';
 import { generateLevel } from '../dungeon/generator';
 import { levelFromRoom } from '../dungeon/ascii';
 import { computeVisible } from './grid';
+import { visionRadiusOf } from './sight';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions } from './types';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export function createGame(opts: NewGameOptions): GameState {
   let rngState = opts.seed >>> 0;
@@ -43,19 +44,21 @@ export function createGame(opts: NewGameOptions): GameState {
       xp: 0,
       affinity,
       techniques: techniquesFor(affinity, 1),
-      inventory: { unguento_musgo: 1 },
+      weapons: ['tanto_gastado'],
+      inventory: { unguento_musgo: 1, shuriken: 5 },
       equipment: { weapon: 'tanto_gastado', armor: null },
       statuses: [],
     },
     enemies: level.enemies,
     chests: level.chests,
     barriers: [],
+    drops: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),
     status: 'playing',
     log: ['Entras en la cripta. El aire huele a ceniza.'],
   };
 
-  for (const i of computeVisible(state.map, state.player.pos, BALANCE.visionRadius)) {
+  for (const i of computeVisible(state.map, state.player.pos, visionRadiusOf(state))) {
     state.explored[i] = true;
   }
   return state;

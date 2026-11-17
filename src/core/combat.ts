@@ -1,5 +1,6 @@
 import { BALANCE } from '../content/balance';
 import { getEquipment } from '../content/items';
+import { getWeapon } from '../content/weapons';
 import type { Player } from './types';
 
 /** Fórmula inicial del documento de reglas: daño = max(1, poder + bonificación - defensa). */
@@ -9,7 +10,7 @@ export function calcDamage(power: number, bonus: number, defense: number): numbe
 
 /** Poder base + bonificación del arma equipada. */
 export function effectivePower(p: Player): number {
-  return p.power + (getEquipment(p.equipment.weapon)?.bonus ?? 0);
+  return p.power + (getWeapon(p.equipment.weapon)?.bonus ?? 0);
 }
 
 /** Defensa base + vestimenta + estado "protegido". */

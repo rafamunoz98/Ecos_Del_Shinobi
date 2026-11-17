@@ -1,5 +1,5 @@
 import { createGame } from '../core/newGame';
-import type { Affinity, Command, GameState, Vec } from '../core/types';
+import type { Affinity, Command, GameState, TerrainKind, Vec } from '../core/types';
 
 /** Crea una partida sobre una sala ASCII; `tweak` permite ajustar el estado recién creado. */
 export function makeGame(
@@ -11,6 +11,11 @@ export function makeGame(
   tweak?.(s);
   return s;
 }
+
+/** Cambia el terreno de una casilla (arbusto, puerta...) en una partida de prueba. */
+export const setTile = (g: GameState, x: number, y: number, kind: TerrainKind): void => {
+  g.map.tiles[y * g.map.width + x] = kind;
+};
 
 export const move = (dx: number, dy: number): Command => ({ type: 'Move', dx, dy });
 export const wait = (): Command => ({ type: 'Wait' });

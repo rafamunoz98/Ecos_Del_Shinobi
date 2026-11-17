@@ -207,8 +207,8 @@ describe('objetos, cofres y salida', () => {
     const r = applyCommand(s, interact({ x: 2, y: 1 }));
     expect(r.ok).toBe(true);
     const count = (inv: Record<string, number>) => Object.values(inv).reduce((a, b) => a + b, 0);
-    const gotItem = count(r.state.player.inventory) === count(s.player.inventory) + 1;
-    const gotGear = r.events.some((e) => e.type === 'EquipmentEquipped');
+    const gotItem = count(r.state.player.inventory) > count(s.player.inventory);
+    const gotGear = r.events.some((e) => e.type === 'EquipmentEquipped') || r.state.player.weapons.length > s.player.weapons.length;
     const betterGear = r.state.log[r.state.log.length - 1].includes('equipo actual es mejor');
     expect(gotItem || gotGear || betterGear).toBe(true);
     expect(r.state.chests[0].opened).toBe(true);

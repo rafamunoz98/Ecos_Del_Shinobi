@@ -24,12 +24,12 @@ export function terrainAt(map: GameMap, p: Vec): TerrainKind {
 
 export const isWalkable = (map: GameMap, p: Vec): boolean => terrainAt(map, p) !== 'wall';
 
-/**
- * Línea de visión por Bresenham. Las paredes intermedias bloquean;
- * los extremos no cuentan (una pared es visible si la línea llega hasta ella).
- * Nota: no es perfectamente simétrica (a→b puede diferir de b→a); es suficiente para el prototipo.
- */
-export function hasLineOfSight(map: GameMap, a: Vec, b: Vec): boolean {
+/** ¿Este tipo de casilla tapa la visión? Las puertas solo mientras están cerradas (ver `open`). */
+export const blocksSight = (kind: TerrainKind): boolean => kind === 'wall' || kind === 'bush' || kind === 'door';
+
+/** Casillas intermedias de la recta de a a b (Bresenham), sin a y con b. */
+export function lineCells(a: Vec, b: Vec): Vec[] {
+  const cells: Vec[] = [];
   let x = a.x;
   let y = a.y;
   const dx = Math.abs(b.x - a.x);
@@ -37,8 +37,7 @@ export function hasLineOfSight(map: GameMap, a: Vec, b: Vec): boolean {
   const sx = a.x < b.x ? 1 : -1;
   const sy = a.y < b.y ? 1 : -1;
   let err = dx - dy;
-  for (;;) {
-    if (x === b.x && y === b.y) return true;
+  while (x !== b.x || y !== b.y) {
     const e2 = 2 * err;
     if (e2 > -dy) {
       err -= dy;
@@ -48,13 +47,29 @@ export function hasLineOfSight(map: GameMap, a: Vec, b: Vec): boolean {
       err += dx;
       y += sy;
     }
-    if (x === b.x && y === b.y) return true;
-    if (terrainAt(map, { x, y }) === 'wall') return false;
+    cells.push({ x, y });
   }
+  return cells;
+}
+
+/**
+ * Línea de visión por Bresenham. Las casillas intermedias opacas (pared, arbusto, puerta cerrada) bloquean;
+ * los extremos no cuentan (una pared o un arbusto son visibles si la línea llega hasta ellos).
+ * `open` son índices de puertas abiertas (hay alguien dentro) y no bloquean.
+ * Nota: no es perfectamente simétrica (a→b puede diferir de b→a); es suficiente para el prototipo.
+ */
+export function hasLineOfSight(map: GameMap, a: Vec, b: Vec, open?: ReadonlySet<number>): boolean {
+  for (const c of lineCells(a, b)) {
+    if (c.x === b.x && c.y === b.y) return true;
+    if (!inBounds(map, c)) return false;
+    const kind = terrainAt(map, c);
+    if (blocksSight(kind) && !(kind === 'door' && open?.has(idx(map, c)))) return false;
+  }
+  return true;
 }
 
 /** Casillas visibles desde `origin` dentro de un radio (círculo + línea de visión). */
-export function computeVisible(map: GameMap, origin: Vec, radius: number): Set<number> {
+export function computeVisible(map: GameMap, origin: Vec, radius: number, open?: ReadonlySet<number>): Set<number> {
   const out = new Set<number>();
   const r2 = radius * radius;
   for (let y = origin.y - radius; y <= origin.y + radius; y++) {
@@ -64,7 +79,7 @@ export function computeVisible(map: GameMap, origin: Vec, radius: number): Set<n
       const dx = x - origin.x;
       const dy = y - origin.y;
       if (dx * dx + dy * dy > r2) continue;
-      if (hasLineOfSight(map, origin, p)) out.add(idx(map, p));
+      if (hasLineOfSight(map, origin, p, open)) out.add(idx(map, p));
     }
   }
   return out;

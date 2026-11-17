@@ -69,6 +69,30 @@ describe('generador de mapas grandes', () => {
     }
   });
 
+  it('coloca arbustos y puertas: existen, son transitables y las puertas están en un hueco de pared', () => {
+    let bushes = 0;
+    let doors = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (let floor = 1; floor <= 3; floor++) {
+        const { map } = generateLevel({ seed, floor });
+        const t = (x: number, y: number) => map.tiles[y * map.width + x];
+        for (let y = 1; y < map.height - 1; y++) {
+          for (let x = 1; x < map.width - 1; x++) {
+            if (t(x, y) === 'bush') bushes++;
+            if (t(x, y) === 'door') {
+              doors++;
+              const horizontal = t(x - 1, y) === 'wall' && t(x + 1, y) === 'wall';
+              const vertical = t(x, y - 1) === 'wall' && t(x, y + 1) === 'wall';
+              expect(horizontal || vertical, `puerta suelta en ${x},${y} (semilla ${seed})`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+    expect(bushes).toBeGreaterThan(40);
+    expect(doors).toBeGreaterThan(40);
+  });
+
   it('es reproducible: misma semilla y sector dan el mismo mapa; otra semilla, otro mapa', () => {
     expect(generateLevel({ seed: 42, floor: 2 })).toEqual(generateLevel({ seed: 42, floor: 2 }));
     expect(generateLevel({ seed: 42, floor: 1 }).map.tiles).not.toEqual(generateLevel({ seed: 43, floor: 1 }).map.tiles);

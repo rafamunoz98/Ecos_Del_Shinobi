@@ -5,7 +5,8 @@ export interface Vec {
   readonly y: number;
 }
 
-export type TerrainKind = 'floor' | 'wall' | 'exit';
+/** bush: arbusto (transitable, tapa la visión y esconde); door: puerta (transitable, tapa la visión salvo que alguien esté en ella). */
+export type TerrainKind = 'floor' | 'wall' | 'exit' | 'bush' | 'door';
 
 export interface GameMap {
   readonly width: number;
@@ -37,6 +38,9 @@ export interface Player {
   xp: number;
   affinity: Affinity;
   techniques: string[];
+  /** Armas cuerpo a cuerpo que posee (la equipada es equipment.weapon). */
+  weapons: string[];
+  /** Consumibles y arrojadizas: id → cantidad. */
   inventory: Record<string, number>;
   equipment: Record<EquipSlot, string | null>;
   statuses: StatusEffect[];
@@ -50,7 +54,12 @@ export interface Enemy {
   maxHp: number;
   power: number;
   defense: number;
+  /** Distancia máxima a la que puede notar al jugador (con línea de visión). */
   aggroRange: number;
+  /** Rondas de alerta que le quedan (0 = no sabe de ti). Mientras sea >0 te persigue. */
+  alert: number;
+  /** Última posición donde te vio. */
+  lastSeen: Vec | null;
   statuses: StatusEffect[];
 }
 
@@ -64,6 +73,13 @@ export interface Chest {
 export interface Barrier {
   pos: Vec;
   turns: number;
+}
+
+/** Objeto en el suelo (arrojadizas recuperables). Se recoge al pisarlo. */
+export interface Drop {
+  pos: Vec;
+  itemId: string;
+  count: number;
 }
 
 export type RunStatus = 'playing' | 'won' | 'lost';
@@ -83,6 +99,7 @@ export interface GameState {
   enemies: Enemy[];
   chests: Chest[];
   barriers: Barrier[];
+  drops: Drop[];
   /** Casillas ya vistas (niebla de guerra). Mismo índice que map.tiles. */
   explored: boolean[];
   status: RunStatus;
@@ -97,6 +114,8 @@ export type Command =
   | { type: 'BasicAttack'; target: Vec }
   | { type: 'UseTechnique'; techniqueId: string; target: Vec }
   | { type: 'UseItem'; itemId: string }
+  | { type: 'Throw'; itemId: string; target: Vec }
+  | { type: 'EquipWeapon'; weaponId: string }
   | { type: 'Interact'; target: Vec }
   | { type: 'Extract' };
 
@@ -117,6 +136,8 @@ export type InvalidReason =
   | 'not_aligned'
   | 'unknown_item'
   | 'no_item'
+  | 'not_throwable'
+  | 'already_equipped'
   | 'nothing_to_interact'
   | 'already_opened'
   | 'extraction_unavailable';
@@ -132,6 +153,13 @@ export type GameEvent =
   | { type: 'StatusApplied'; targetId: string; status: StatusId; turns: number }
   | { type: 'BarrierRaised'; cells: Vec[] }
   | { type: 'ItemUsed'; itemId: string }
+  | { type: 'PlayerAttacked'; weaponId: string; cells: Vec[]; targets: Vec[] }
+  | { type: 'ItemThrown'; itemId: string; from: Vec; to: Vec; hit: boolean }
+  | { type: 'ItemPickedUp'; itemId: string; count: number }
+  | { type: 'WeaponEquipped'; weaponId: string }
+  | { type: 'EnemyAlerted'; enemyId: string }
+  | { type: 'EnemyLostTrack'; enemyId: string }
+  | { type: 'SneakAttack'; enemyId: string }
   | { type: 'HealApplied'; amount: number; resource: 'hp' | 'kiro' }
   | { type: 'ChestOpened'; chestId: string; itemId: string }
   | { type: 'EquipmentEquipped'; slot: EquipSlot; itemId: string }
