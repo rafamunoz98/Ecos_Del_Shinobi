@@ -75,10 +75,23 @@ body {
   background: var(--kiro);
 }
 
+.fill.xp {
+  background: #4caf7d;
+}
+
+#minimap {
+  width: 100%;
+  max-width: 256px;
+  background: #07070c;
+  border: 1px solid #2a2a40;
+  image-rendering: pixelated;
+}
+
 #meta,
 #help {
   color: var(--muted);
   font-size: 12px;
+  white-space: pre-line;
 }
 
 #statuses {

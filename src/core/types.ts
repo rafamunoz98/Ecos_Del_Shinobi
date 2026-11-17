@@ -15,7 +15,8 @@ export interface GameMap {
 }
 
 export type Affinity = 'ascua' | 'marea' | 'vendaval' | 'piedra' | 'rayo';
-export type StatusId = 'quemadura';
+export type StatusId = 'quemadura' | 'aturdido' | 'protegido';
+export type EquipSlot = 'weapon' | 'armor';
 
 export interface StatusEffect {
   id: StatusId;
@@ -28,11 +29,16 @@ export interface Player {
   maxHp: number;
   kiro: number;
   maxKiro: number;
+  /** Poder base; el arma suma su bonificación (ver combat.effectivePower). */
   power: number;
+  /** Defensa base; la vestimenta y el estado "protegido" suman (ver combat.effectiveDefense). */
   defense: number;
+  level: number;
+  xp: number;
   affinity: Affinity;
   techniques: string[];
   inventory: Record<string, number>;
+  equipment: Record<EquipSlot, string | null>;
   statuses: StatusEffect[];
 }
 
@@ -54,6 +60,12 @@ export interface Chest {
   opened: boolean;
 }
 
+/** Obstáculo temporal creado por una técnica: bloquea el paso de todos, no la visión. */
+export interface Barrier {
+  pos: Vec;
+  turns: number;
+}
+
 export type RunStatus = 'playing' | 'won' | 'lost';
 
 export interface GameState {
@@ -62,10 +74,15 @@ export interface GameState {
   /** Estado del generador pseudoaleatorio (se avanza dentro del core). */
   rngState: number;
   turn: number;
+  /** Sector actual (1 = el primero). */
+  floor: number;
+  /** Sector final: su salida gana la expedición (hasta que exista el jefe, Hito 6). */
+  maxFloor: number;
   map: GameMap;
   player: Player;
   enemies: Enemy[];
   chests: Chest[];
+  barriers: Barrier[];
   /** Casillas ya vistas (niebla de guerra). Mismo índice que map.tiles. */
   explored: boolean[];
   status: RunStatus;
@@ -97,6 +114,7 @@ export type InvalidReason =
   | 'not_enough_kiro'
   | 'out_of_range'
   | 'no_line_of_sight'
+  | 'not_aligned'
   | 'unknown_item'
   | 'no_item'
   | 'nothing_to_interact'
@@ -112,11 +130,16 @@ export type GameEvent =
   | { type: 'KiroSpent'; amount: number }
   | { type: 'DamageApplied'; targetId: string; amount: number; source: string }
   | { type: 'StatusApplied'; targetId: string; status: StatusId; turns: number }
+  | { type: 'BarrierRaised'; cells: Vec[] }
   | { type: 'ItemUsed'; itemId: string }
   | { type: 'HealApplied'; amount: number; resource: 'hp' | 'kiro' }
   | { type: 'ChestOpened'; chestId: string; itemId: string }
+  | { type: 'EquipmentEquipped'; slot: EquipSlot; itemId: string }
+  | { type: 'XpGained'; amount: number }
+  | { type: 'LevelUp'; level: number; learned: string[] }
   | { type: 'EnemyMoved'; enemyId: string; from: Vec; to: Vec }
   | { type: 'EnemyDefeated'; enemyId: string }
+  | { type: 'FloorChanged'; floor: number }
   | { type: 'PlayerDefeated' }
   | { type: 'RunWon' };
 
@@ -132,7 +155,10 @@ export interface CommandResult {
 
 export interface NewGameOptions {
   seed: number;
+  /** Si se omite, se sortea una de las cinco con la semilla (decisión de diseño). */
   affinity?: Affinity;
-  /** Sala en ASCII; por defecto, la sala del prototipo. */
+  /** Sala en ASCII (pruebas y prototipos). Sin ella, se genera el sector 1 proceduralmente. */
   room?: readonly string[];
+  /** Número de sectores. Por defecto 3 (o 1 si se usa `room`). */
+  floors?: number;
 }

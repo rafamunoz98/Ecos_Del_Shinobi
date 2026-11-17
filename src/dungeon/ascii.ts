@@ -1,4 +1,6 @@
-import type { GameMap, TerrainKind, Vec } from '../core/types';
+import { ENEMIES } from '../content/enemies';
+import type { Chest, Enemy, GameMap, TerrainKind, Vec } from '../core/types';
+import { createEnemy } from './spawn';
 
 export interface ParsedRoom {
   map: GameMap;
@@ -53,4 +55,16 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
 
   if (!playerStart) throw new Error('Falta la posición inicial del jugador (@).');
   return { map: { width, height: rows.length, tiles }, playerStart, enemyStarts, chestStarts };
+}
+
+/** Sala ASCII → nivel jugable (las 'E' son Acechadores de Hollín del sector 1). */
+export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerStart: Vec; enemies: Enemy[]; chests: Chest[] } {
+  const room = parseRoom(rows);
+  const def = ENEMIES.acechador_hollin;
+  return {
+    map: room.map,
+    playerStart: room.playerStart,
+    enemies: room.enemyStarts.map((pos, i) => createEnemy(def, `enemy-${i}`, pos, 1)),
+    chests: room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),
+  };
 }

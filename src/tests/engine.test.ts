@@ -153,7 +153,14 @@ describe('kiro y técnicas', () => {
   });
 
   it('rechaza una afinidad que no corresponde', () => {
-    const s = makeGame(OPEN_ROOM, undefined, { affinity: 'marea' });
+    // Se fuerza el aprendizaje para comprobar la comprobación de afinidad (sin ella, falla antes con not_known).
+    const s = makeGame(
+      OPEN_ROOM,
+      (g) => {
+        g.player.techniques.push('brasa_circular');
+      },
+      { affinity: 'marea' },
+    );
     expect(applyCommand(s, cast({ x: 5, y: 2 })).reason).toBe('wrong_affinity');
   });
 
@@ -195,12 +202,15 @@ describe('objetos, cofres y salida', () => {
     expect(applyCommand(s, { type: 'UseItem', itemId: 'tonico_kiro' }).state.player.kiro).toBe(6);
   });
 
-  it('el cofre da exactamente un objeto y no se abre dos veces', () => {
+  it('el cofre da un objeto o equipo y no se abre dos veces', () => {
     const s = makeGame(['#####', '#@C.#', '#####']);
     const r = applyCommand(s, interact({ x: 2, y: 1 }));
     expect(r.ok).toBe(true);
     const count = (inv: Record<string, number>) => Object.values(inv).reduce((a, b) => a + b, 0);
-    expect(count(r.state.player.inventory)).toBe(count(s.player.inventory) + 1);
+    const gotItem = count(r.state.player.inventory) === count(s.player.inventory) + 1;
+    const gotGear = r.events.some((e) => e.type === 'EquipmentEquipped');
+    const betterGear = r.state.log[r.state.log.length - 1].includes('equipo actual es mejor');
+    expect(gotItem || gotGear || betterGear).toBe(true);
     expect(r.state.chests[0].opened).toBe(true);
     expect(applyCommand(r.state, interact({ x: 2, y: 1 })).reason).toBe('already_opened');
   });

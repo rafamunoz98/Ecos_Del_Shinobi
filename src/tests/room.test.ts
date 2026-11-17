@@ -36,7 +36,7 @@ describe('sala del prototipo', () => {
   });
 
   it('se puede completar la expedición simulando a un jugador (bucle completo)', () => {
-    let s = createGame({ seed: 7 });
+    let s = createGame({ seed: 7, room: PROTOTYPE_ROOM, affinity: 'ascua' });
     for (let i = 0; i < 300 && s.status === 'playing'; i++) {
       const p = s.player.pos;
       const adjacent = s.enemies.find((e) => manhattan(e.pos, p) === 1);
@@ -46,7 +46,8 @@ describe('sala del prototipo', () => {
       } else if (manhattan(exit, p) <= 1) {
         cmd = { type: 'Interact', target: exit };
       } else {
-        const blocked = (q: Vec) => s.enemies.some((e) => e.pos.x === q.x && e.pos.y === q.y) || s.chests.some((c) => c.pos.x === q.x && c.pos.y === q.y);
+        const blocked = (q: Vec) =>
+          s.enemies.some((e) => e.pos.x === q.x && e.pos.y === q.y) || s.chests.some((c) => c.pos.x === q.x && c.pos.y === q.y);
         const path = findPath(s.map, p, exit, blocked);
         expect(path).not.toBeNull();
         const next = (path as Vec[])[0];

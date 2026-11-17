@@ -7,7 +7,7 @@ export function makeGame(
   tweak?: (s: GameState) => void,
   opts: { seed?: number; affinity?: Affinity } = {},
 ): GameState {
-  const s = createGame({ seed: opts.seed ?? 1, room: rows, affinity: opts.affinity });
+  const s = createGame({ seed: opts.seed ?? 1, room: rows, affinity: opts.affinity ?? 'ascua' });
   tweak?.(s);
   return s;
 }

@@ -22,27 +22,34 @@ npm run build
 |---|---|
 | Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo |
 | Espacio | Esperar (recupera 1 de kiro) |
-| E | Inspeccionar / interactuar (cofre, salida) |
-| T | Apuntar la técnica; flechas mueven el cursor, Enter confirma, Esc cancela |
+| E | Interactuar: abrir cofre, bajar la escalera |
+| Z / X / C | Técnica de la ranura 1 / 2 / 3. Las que se apuntan abren el modo de apuntado: flechas, Enter confirma, Esc cancela. En las de línea, las flechas eligen la dirección |
 | 1 / 2 | Tónico de Kiro / Ungüento de Musgo |
-| Rueda del ratón | Zoom |
+| Rueda del ratón, + / − | Zoom |
 | R | Nueva expedición |
 
 ## Estado frente a la hoja de ruta
 
 - **Hito 0** Proyecto base, scripts, lint, CI.
 - **Hito 1** Mapa de tiles, movimiento ortogonal, colisiones, cámara con zoom, teclado, niebla de guerra.
-- **Hito 2** Motor de turnos con comandos validados, enemigo que persigue (Acechador de Hollín), esperar, registro de combate.
-- **Hito 3** Vida, daño, ataque básico, kiro, técnica Brasa Circular (área, coste visible, quemadura), muerte y pantalla de resultado.
-- **Hito 4 (parcial)** Cofre con botín por tabla, consumibles, salida. Faltan experiencia, equipo y cambio de sector.
-- Siguiente: Hito 4 restante y Hito 5 (generación procedural).
+- **Hito 2** Motor de turnos con comandos validados, enemigos que persiguen, esperar, registro de combate.
+- **Hito 3** Vida, daño, ataque básico, kiro, técnicas con coste y área visibles, muerte y pantalla de resultado.
+- **Hito 4** Cofres con botín por sector, consumibles, equipo (arma y vestimenta), experiencia y niveles, escalera al siguiente sector (3 por expedición).
+- **Hito 5** Generador procedural de mapas grandes (64×44) con salas y pasillos, entrada/salida alcanzables, enemigos y cofres colocados sin bloquear caminos, semilla reproducible, pruebas sobre 150 semillas × 3 sectores.
+- Siguiente: Hito 6 (vertical slice: jefe, evento, maestro, resumen de expedición).
+
+## Contenido
+
+- **Afinidades:** Ascua, Marea, Vendaval, Piedra y Rayo. Se sortea una al empezar cada expedición con la semilla; cada una tiene una técnica de iniciación y una avanzada que se aprende al nivel 3. Detalle en `08_biblia_de_contenido.md` del proyecto.
+- **Enemigos:** Acechador de Hollín, Cuervo de Sal, Larva de Piedra y Tirador de Junco.
+- **Mapas:** el tamaño de casilla en pantalla (`TILE` en `src/presentation/GameScene.ts`) es solo de presentación; la cámara sigue al jugador y hace zoom, y las reglas no dependen de él. El tamaño del mapa se configura en `src/content/balance.ts`.
 
 ## Estructura
 
 ```text
 src/core/          reglas puras: estado, comandos, turnos, combate, grid, rng
-src/content/       datos: técnicas, objetos, enemigos, balance, sala del prototipo
-src/dungeon/       parser de salas ASCII (y, más adelante, generador)
+src/content/       datos: técnicas, afinidades, objetos y equipo, enemigos, balance
+src/dungeon/       generador de sectores, colocación de enemigos, parser de salas ASCII
 src/presentation/  escena Phaser
 src/ui/            HUD en DOM y estilos
 src/tests/         pruebas (Vitest)
@@ -54,11 +61,12 @@ src/tests/         pruebas (Vitest)
 - Extracción voluntaria no disponible (`Extract` se rechaza con mensaje).
 - Mapa con niebla: solo se ve lo visitado; los enemigos solo se dibujan dentro del rango de visión.
 - Combate en el mismo mapa, sin pantallas aparte.
-- Tamaño de tile: `TILE = 32` en `src/presentation/GameScene.ts`, fácil de cambiar.
+- Sin tamaño de tile fijo: mapas grandes con cámara y zoom.
 
 ## Reglas de calidad del núcleo
 
 Una acción inválida devuelve el mismo estado y no consume turno; una válida activa una sola ronda enemiga.
+La regeneración natural de vida es de 1 cada 10 rondas.
 La aleatoriedad usa una semilla guardada en el estado (nunca `Math.random()`).
 El estado es JSON plano, listo para guardado versionado (`schemaVersion`).
 
