@@ -34,6 +34,11 @@ El título **Ecos del Shinobi** es provisional. Los nombres, números y sistemas
 Roguelike RPG táctico por turnos y casillas, de vista cenital, con ambientación ninja original.
 Stack: TypeScript + Phaser 3 + Vite + Vitest. El núcleo de reglas (`src/core`) no depende de Phaser ni del DOM.
 
+### Jugar en el navegador
+
+Una vez activado GitHub Pages (Settings → Pages → Source: *GitHub Actions*), el juego se publica solo en
+<https://rafamunoz98.github.io/Ecos_Del_Shinobi/> cada vez que se sube código a `main`.
+
 ### Cómo ejecutarlo
 
 ```bash
