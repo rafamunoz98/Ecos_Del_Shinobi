@@ -1,0 +1,179 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0b12;
+  --panel: #14141f;
+  --text: #e6e3f0;
+  --muted: #8d89a3;
+  --hp: #c0392b;
+  --kiro: #5b8def;
+  --accent: #9b6bff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  height: 100%;
+}
+
+#game {
+  flex: 1;
+  /* Sin min-width/min-height 0 el lienzo (que Phaser ajusta al contenedor) impide que el contenedor
+     se encoja y empuja el HUD fuera de la pantalla, sobre todo en móvil. */
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+#game canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+#hud {
+  width: 300px;
+  padding: 12px;
+  background: var(--panel);
+  border-left: 1px solid #25253a;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.bar {
+  height: 10px;
+  background: #07070c;
+  border: 1px solid #2a2a40;
+  margin-bottom: 8px;
+}
+
+.fill {
+  height: 100%;
+  transition: width 0.15s;
+}
+
+.fill.hp {
+  background: var(--hp);
+}
+
+.fill.kiro {
+  background: var(--kiro);
+}
+
+.fill.xp {
+  background: #4caf7d;
+}
+
+#minimap {
+  width: 100%;
+  max-width: 256px;
+  background: #07070c;
+  border: 1px solid #2a2a40;
+  image-rendering: pixelated;
+}
+
+#meta,
+#help {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: pre-line;
+}
+
+#statuses {
+  min-height: 1.2em;
+  color: #ff9a4a;
+}
+
+#actions div {
+  padding: 2px 0;
+}
+
+#notice {
+  min-height: 1.4em;
+  color: #ffd166;
+}
+
+#log {
+  flex: 1;
+  min-height: 80px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid #25253a;
+  padding-top: 8px;
+}
+
+#log p {
+  margin: 0 0 4px;
+}
+
+#log p:last-child {
+  color: var(--text);
+}
+
+kbd {
+  border: 1px solid #3a3a55;
+  border-radius: 3px;
+  padding: 0 4px;
+  background: #1c1c2c;
+}
+
+#result {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 5, 10, 0.78);
+}
+
+#result[hidden] {
+  display: none;
+}
+
+#result .card {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  padding: 24px 32px;
+  text-align: center;
+  max-width: 420px;
+}
+
+#result h1 {
+  margin: 0 0 8px;
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  #app {
+    flex-direction: column;
+  }
+  #hud {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 42%;
+    border-left: none;
+    border-top: 1px solid #25253a;
+  }
+}
