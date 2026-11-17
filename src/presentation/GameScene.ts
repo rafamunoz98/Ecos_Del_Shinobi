@@ -6,7 +6,8 @@ import { DIRS, equals, inBounds, manhattan, terrainAt } from '../core/grid';
 import { createGame } from '../core/newGame';
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { Command, GameEvent, GameState, Vec } from '../core/types';
-import { Hud, ITEM_SLOTS, TECHNIQUE_KEYS, type AimInfo } from '../ui/hud';
+import { Hud, ITEM_SLOTS, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
+import { Menu } from '../ui/menu';
 import { type Overlay, WorldRenderer, affinityColor } from './art/renderer';
 
 const KEY_DIRS: Record<string, Vec> = {
@@ -39,6 +40,12 @@ export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private readonly world = new WorldRenderer();
   private readonly hud = new Hud();
+  private readonly menu = new Menu({
+    cast: (slot) => this.castSlot(slot),
+    useItem: (itemId) => void this.dispatch({ type: 'UseItem', itemId }),
+    throwItem: (itemId) => this.startThrow(itemId),
+    equipWeapon: (weaponId) => void this.dispatch({ type: 'EquipWeapon', weaponId }),
+  });
   private aim: Aim | null = null;
   private facing: Vec = DIRS[1];
   private throwSel = 'shuriken';
@@ -58,6 +65,7 @@ export class GameScene extends Phaser.Scene {
       this.world.zoomBy(dy > 0 ? 0.9 : 1.1);
     });
     this.scale.on('resize', () => this.rebuildTexture());
+    this.hud.onAction = (a) => this.perform(a);
     this.rebuildTexture();
     this.startRun(this.initialSeed);
   }
@@ -89,6 +97,7 @@ export class GameScene extends Phaser.Scene {
     this.aim = null;
     this.hud.notice('');
     this.world.reset(this.state, now());
+    this.menu.close();
     this.refreshHud();
   }
 
@@ -97,6 +106,12 @@ export class GameScene extends Phaser.Scene {
   private onKey(e: KeyboardEvent): void {
     const key = e.key.toLowerCase();
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'tab'].includes(key)) e.preventDefault();
+    this.handleKey(key);
+  }
+
+  /** Una tecla (física o de la cruceta táctil) ya en minúsculas. */
+  private handleKey(key: string): void {
+    if (this.menu.onKey(key)) return;
 
     if (key === 'r') {
       this.startRun((Date.now() >>> 0) || 1);
@@ -108,6 +123,10 @@ export class GameScene extends Phaser.Scene {
 
     if (this.aim) {
       this.onAimKey(key);
+      return;
+    }
+    if (key === 'tab' || key === 'i') {
+      this.menu.open(this.state);
       return;
     }
 
@@ -132,6 +151,36 @@ export class GameScene extends Phaser.Scene {
       this.castSlot(slot);
     } else if (ITEM_KEYS[key]) {
       this.dispatch({ type: 'UseItem', itemId: ITEM_KEYS[key] });
+    }
+  }
+
+  /** Órdenes dadas con el ratón o el dedo desde el panel: equivalen a su tecla. */
+  private perform(a: UiAction): void {
+    if (a.type === 'key') return this.handleKey(a.key);
+    if (this.state.status !== 'playing' || this.menu.isOpen) return;
+    if (this.aim) {
+      this.aim = null;
+      this.refreshHud();
+    }
+    switch (a.type) {
+      case 'technique':
+        return this.castSlot(a.slot);
+      case 'item':
+        void this.dispatch({ type: 'UseItem', itemId: a.itemId });
+        return;
+      case 'throw':
+        return this.startThrow();
+      case 'reach':
+        return this.startReach();
+      case 'weapon':
+        return this.cycleWeapon();
+      case 'wait':
+        void this.dispatch({ type: 'Wait' });
+        return;
+      case 'interact':
+        return this.interact();
+      case 'menu':
+        this.menu.open(this.state);
     }
   }
 
@@ -308,5 +357,6 @@ export class GameScene extends Phaser.Scene {
 
   private refreshHud(): void {
     this.hud.update(this.state, this.aimInfo());
+    this.menu.refresh(this.state);
   }
 }

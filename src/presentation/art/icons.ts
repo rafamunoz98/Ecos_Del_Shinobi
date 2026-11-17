@@ -421,7 +421,49 @@ function kiro(ctx: Ctx): void {
   ctx.stroke();
 }
 
+function chest(ctx: Ctx): void {
+  roundRectPath(ctx, -0.42, -0.02, 0.84, 0.44, 0.06);
+  ctx.fillStyle = vGrad(ctx, -0.02, 0.42, '#9a6636', '#5f3a1a');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.beginPath();
+  ctx.moveTo(-0.42, 0.0);
+  ctx.quadraticCurveTo(-0.42, -0.36, 0, -0.36);
+  ctx.quadraticCurveTo(0.42, -0.36, 0.42, 0.0);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.36, 0, '#c58a4c', '#8a5a2e');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.fillStyle = '#e6b84a';
+  roundRectPath(ctx, -0.07, -0.06, 0.14, 0.2, 0.03);
+  ctx.fill();
+  outline(ctx, 0.035);
+}
+
+function scroll(ctx: Ctx): void {
+  roundRectPath(ctx, -0.3, -0.36, 0.6, 0.72, 0.06);
+  ctx.fillStyle = vGrad(ctx, -0.36, 0.36, '#f1e3bd', '#cdb784');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#6a4a2a';
+  ctx.lineWidth = 0.04;
+  for (const y of [-0.18, -0.04, 0.1, 0.24]) {
+    ctx.beginPath();
+    ctx.moveTo(-0.18, y);
+    ctx.lineTo(0.18, y);
+    ctx.stroke();
+  }
+  for (const y of [-0.36, 0.36]) {
+    roundRectPath(ctx, -0.36, y - 0.05, 0.72, 0.1, 0.05);
+    ctx.fillStyle = '#8a5a2e';
+    ctx.fill();
+    outline(ctx, 0.035);
+  }
+}
+
 const ICONS: Record<string, (ctx: Ctx) => void> = {
+  cofre: chest,
+  pergamino: scroll,
   shuriken,
   kunai_arrojadizo: kunai,
   senbon,

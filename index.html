@@ -10,15 +10,35 @@
   </head>
   <body>
     <div id="app">
-      <div id="game"></div>
+      <div id="game">
+        <div id="dpad" aria-label="Controles táctiles">
+          <button type="button" data-key="arrowup" class="up" aria-label="Arriba">▲</button>
+          <button type="button" data-key="arrowleft" class="left" aria-label="Izquierda">◀</button>
+          <button type="button" data-key=" " class="mid" aria-label="Esperar o confirmar">●</button>
+          <button type="button" data-key="arrowright" class="right" aria-label="Derecha">▶</button>
+          <button type="button" data-key="arrowdown" class="down" aria-label="Abajo">▼</button>
+          <button type="button" data-key="escape" class="cancel" aria-label="Cancelar">✕</button>
+          <button type="button" data-key="e" class="act" aria-label="Interactuar">E</button>
+        </div>
+      </div>
       <aside id="hud">
-        <section>
-          <div class="label">Vida <span id="hp-text"></span></div>
-          <div class="bar"><div id="hp-fill" class="fill hp"></div></div>
-          <div class="label">Kiro <span id="kiro-text"></span></div>
-          <div class="bar"><div id="kiro-fill" class="fill kiro"></div></div>
-          <div class="label">Experiencia <span id="xp-text"></span></div>
-          <div class="bar"><div id="xp-fill" class="fill xp"></div></div>
+        <section id="vitals">
+          <div class="bar-row">
+            <img id="hp-icon" class="ico" alt="" />
+            <div class="bar-col">
+              <div class="label"><span>Vida</span> <span id="hp-text"></span></div>
+              <div class="bar"><div id="hp-fill" class="fill hp"></div></div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <img id="kiro-icon" class="ico" alt="" />
+            <div class="bar-col">
+              <div class="label"><span>Kiro</span> <span id="kiro-text"></span></div>
+              <div class="bar"><div id="kiro-fill" class="fill kiro"></div></div>
+            </div>
+          </div>
+          <div class="label xp"><span>Experiencia</span> <span id="xp-text"></span></div>
+          <div class="bar thin"><div id="xp-fill" class="fill xp"></div></div>
           <div id="meta"></div>
           <div id="statuses"></div>
         </section>
@@ -28,6 +48,7 @@
         <section id="log" aria-live="polite"></section>
         <section id="help"></section>
       </aside>
+      <div id="menu" hidden></div>
       <div id="result" hidden>
         <div class="card">
           <h1 id="result-title"></h1>
