@@ -1,178 +1,74 @@
-# Documento de diseño del juego (GDD)
-## Ecos del Abismo
-
-**Versión:** 0.1 · **Estado:** propuesta inicial
+# GDD — Ecos del Shinobi
+**Versión 0.2 · Concepto rediseñado**
 
 ## 1. Visión
+Ecos del Shinobi es un roguelike RPG táctico de vista cenital, por turnos y basado en casillas. El jugador es un shinobi de un mundo original donde la energía vital, llamada **kiro**, puede moldearse mediante disciplina, afinidades y pactos espirituales. Explora ruinas cambiantes, combate criaturas y rivales, recupera técnicas olvidadas y descubre el origen de una corrupción que está despertando bajo el continente.
 
-Ecos del Abismo es un roguelike de exploración de mazmorras, por turnos y basado en cuadrícula. El jugador desciende por una estructura subterránea cambiante, combate criaturas, encuentra equipo y toma decisiones arriesgadas. Cada expedición debe ser comprensible, táctica y distinta.
+**Fantasía central:** convertirse en un shinobi extraordinario a través de decisiones tácticas, entrenamiento, descubrimiento y transformaciones ganadas durante el juego.
 
-**Pilares de diseño**
-1. **Decisiones legibles:** el jugador entiende qué puede hacer un enemigo y por qué recibe daño.
-2. **Riesgo y recompensa:** explorar una sala opcional puede ofrecer tesoros, pero también peligro.
-3. **Rejugabilidad:** mapas, botín y eventos combinados de forma procedural.
-4. **Progreso significativo:** cada expedición enseña algo y puede contribuir a desbloqueos permanentes.
-5. **Accesibilidad multiplataforma:** controles claros con ratón, teclado y pantalla táctil.
+## 2. Pilares de diseño
+1. **Combate táctico legible:** cada movimiento importa; los enemigos muestran intenciones y áreas de peligro.
+2. **Progresión profunda y combinable:** estilos, afinidades, técnicas, sellos, linajes y despertares ofrecen construcciones distintas.
+3. **Expediciones rejugables:** salas, rutas, encuentros, recompensas y eventos se combinan proceduralmente.
+4. **Poder con coste:** las técnicas fuertes consumen kiro, generan agotamiento o exigen condiciones.
+5. **Universo propio:** identidad visual, narrativa, criaturas y nomenclatura originales.
+6. **Diseño multiplataforma:** la lógica del juego no depende de Phaser ni del navegador.
 
-## 2. Público y experiencia
+## 3. Público y ritmo
+Público orientativo: jugadores de roguelikes, RPG tácticos, fantasía ninja y juegos de construcción de personajes. Sesiones de 15–35 minutos como objetivo inicial. El jugador piensa sin presión temporal; el mundo responde cuando ejecuta una acción válida.
 
-- Público orientativo: jugadores de roguelikes, RPG tácticos y juegos de exploración.
-- Sesión objetivo: 10–30 minutos, ampliable según profundidad.
-- Ritmo: pausado y táctico; el tiempo no avanza mientras el jugador decide.
-- Dificultad: desafiante, pero con señales visuales y reglas consistentes.
+## 4. Premisa narrativa
+Hace siglos, las primeras órdenes shinobi aprendieron a escuchar el **Pulso**, una corriente invisible que atraviesa seres vivos y lugares. Un cataclismo conocido como la Noche de las Mil Campanas fracturó los grandes sellos que mantenían dormidos a los **Ecos Primordiales**. Desde entonces, las ruinas cambian de forma y criaturas deformadas emergen de ellas.
 
-## 3. Fantasía y ambientación
+El protagonista pertenece a una pequeña casa shinobi sin prestigio. Una expedición fallida revela que su cuerpo puede resonar con más de una fuente del Pulso. La historia se descubre mediante vestigios, personajes, jefes y decisiones; no debe depender de largas escenas.
 
-Bajo un reino olvidado existe una mazmorra conocida como el Abismo. Sus pasillos se reorganizan y sus criaturas parecen recordar a quienes han descendido antes. El jugador es un explorador que busca el origen de esos ecos.
+## 5. Bucle principal
+1. Prepararse en el refugio.
+2. Elegir equipo, estilo y técnicas.
+3. Entrar en una expedición procedural.
+4. Explorar habitaciones, santuarios y rutas opcionales.
+5. Combatir y gastar recursos tácticamente.
+6. Obtener experiencia, técnicas, sellos, materiales y reliquias.
+7. Enfrentarse a guardianes y decidir si continuar o extraer.
+8. Regresar, mejorar opciones permanentes y preparar otra expedición.
 
-La historia se revela mediante objetos, inscripciones, encuentros y jefes. Evitar largas escenas que interrumpan la exploración.
+## 6. Mundo y estructura
+El mundo exterior contiene refugios, órdenes y territorios; la actividad principal sucede en complejos subterráneos y zonas malditas. Cada expedición se organiza en pisos o sectores conectados. Cada sector contiene salas de combate, tesoro, descanso, evento, comerciante o guardián. La salida debe ser alcanzable y la generación reproducible mediante semilla.
 
-## 4. Bucle principal
+## 7. Personaje y estilos
+El personaje combina:
+- **Estilo de combate:** define arma, postura y rol inicial.
+- **Afinidad:** determina qué familias de técnicas aprende con mayor facilidad.
+- **Linaje:** rasgo raro desbloqueable con pasivas y una ruta de despertar.
+- **Técnicas equipadas:** habilidades activas y pasivas elegidas antes o durante la expedición.
+- **Equipo y sellos:** modifican estadísticas y reglas.
 
-1. Prepararse en el campamento.
-2. Elegir personaje/clase y entrar en la mazmorra.
-3. Explorar habitaciones y pasillos.
-4. Tomar decisiones tácticas por turnos.
-5. Conseguir experiencia, oro, equipo y reliquias.
-6. Derrotar al jefe o decidir seguir descendiendo.
-7. Morir o regresar; resolver qué progreso se conserva.
-8. Desbloquear opciones y comenzar otra expedición.
-
-## 5. Estructura de una expedición
-
-- La mazmorra se divide en plantas.
-- Cada planta contiene habitaciones conectadas por pasillos.
-- Una salida conduce a la siguiente planta.
-- Algunas plantas pueden incluir sala especial, comerciante o evento.
-- Se recomienda un jefe cada 5 plantas en el diseño de largo plazo; para el prototipo basta un jefe de prueba en la planta 3 o 5.
-- La generación debe garantizar una ruta transitable desde la entrada hasta la salida.
-
-## 6. Perspectiva y presentación
-
-- Vista cenital 2D.
-- Mundo organizado en tiles/cuadrícula.
-- Tamaño de tile provisional: 16×16 o 32×32 píxeles de arte base; escalar sin suavizado.
-- El personaje y los enemigos ocupan una casilla cada uno, salvo excepciones futuras.
-- Cámara centrada o suavemente limitada a la habitación actual.
-
-## 7. Movimiento y turnos
-
-- Movimiento ortogonal por defecto: arriba, abajo, izquierda y derecha.
-- Una acción válida del jugador consume un turno.
-- Las acciones inválidas no consumen turno.
-- Tras la acción del jugador, actúan los enemigos que puedan actuar.
-- El juego se pausa mientras el jugador decide.
-- Las diagonales se reservan para una decisión futura; no incluir en el prototipo.
+No bloquear toda la experimentación detrás de una clase rígida. El primer prototipo usará un estilo inicial y una afinidad; el sistema debe permitir expandirlo.
 
 ## 8. Combate
+Combate por turnos, cuadrícula ortogonal y vista cenital. Una acción válida del jugador hace avanzar la ronda y permite actuar a enemigos vivos. Las acciones incluyen moverse, atacar, técnica, objeto, interactuar y esperar. Los ataques pueden tener alcance, línea de visión, área, preparación y coste de kiro.
 
-- Ataques cuerpo a cuerpo contra casillas adyacentes.
-- Ataques a distancia con alcance y línea de visión.
-- Daño calculado mediante atributos, arma, defensa y modificadores.
-- Mostrar daño, curación, estados y causa de muerte.
-- Enemigos con telegráficos sencillos cuando usen ataques especiales.
-- No permitir que animaciones o latencia alteren el orden lógico de turnos.
+## 9. Progresión
+**Dentro de la expedición:** experiencia, niveles, técnicas temporales, sellos, equipo y recursos.  
+**Entre expediciones:** desbloqueo de técnicas, maestros, estilos, entradas de bestiario, mejoras del refugio y rutas de linaje.  
+**Transformaciones:** estados temporales o despertares de alto impacto con coste, duración o condición. Deben cambiar decisiones tácticas, no ser solo un aumento de estadísticas.
 
-## 9. Personajes y clases
+## 10. Derrota y extracción
+Propuesta: al caer, termina la expedición y se muestra un resumen. Se conserva una fracción de un recurso de investigación y los desbloqueos permanentes; se pierde el botín no asegurado. La extracción voluntaria permite asegurar parte del botín. Ajustar esta regla con pruebas para evitar frustración.
 
-Clases iniciales propuestas:
-- **Guerrero:** resistente, combate cuerpo a cuerpo.
-- **Mago:** frágil, utiliza hechizos y control.
-- **Asesino:** crítico, veneno y movilidad.
+## 11. Dirección visual
+Pixel art de fantasía ninja, cenital, siluetas reconocibles y paletas diferenciadas por región. La interfaz debe mostrar claramente casillas, alcance, área de efecto, intención enemiga, vida y kiro.
 
-Cada clase debe tener:
-- Atributos iniciales.
-- Una habilidad activa.
-- Una pasiva.
-- Un estilo reconocible sin depender de equipo específico.
+## 12. Alcance del primer prototipo
+- Una sala o pequeña planta de mazmorra.
+- Un shinobi jugable.
+- Movimiento por casillas y turnos.
+- Un enemigo cuerpo a cuerpo.
+- Un ataque básico y una técnica elemental.
+- Vida y kiro.
+- Un objeto consumible.
+- Un cofre o recompensa.
+- Una salida.
+- Reinicio y pantalla de resultado.
 
-En el prototipo puede implementarse una sola clase y dejar las otras dos como datos/diseño pendiente.
-
-## 10. Enemigos
-
-Enemigos iniciales propuestos:
-- Slime: persigue y ataca en contacto.
-- Esqueleto: enemigo cuerpo a cuerpo básico.
-- Arquero: busca distancia y línea de visión.
-- Murciélago: rápido, con poca vida.
-- Mago corrupto: ataque mágico telegrafiado.
-
-Cada enemigo define vida, daño, defensa, alcance, velocidad de decisión, comportamiento y botín.
-
-## 11. Objetos y economía
-
-Categorías:
-- Armas.
-- Armaduras.
-- Consumibles.
-- Anillos/amuletos.
-- Reliquias con efectos modificadores.
-- Moneda y materiales.
-
-Rarezas iniciales: común, poco común, rara, épica y legendaria. La rareza no debe ser el único determinante de utilidad: algunos objetos comunes pueden ser situacionales.
-
-## 12. Progresión
-
-**Durante la expedición:** experiencia, niveles, equipo, consumibles y reliquias.  
-**Entre expediciones:** desbloqueos, mejoras del campamento, nuevas clases y registros de descubrimientos.
-
-Regla de muerte propuesta:
-- Se pierde el equipo temporal y el botín no asegurado.
-- Se conserva una moneda/meta-recurso limitada, o una fracción de ella.
-- Se conservan desbloqueos y logros.
-- La regla final debe evitar que una mala racha haga imposible continuar.
-
-## 13. Campamento
-
-Áreas previstas:
-- Herrero: mejora o recicla equipo.
-- Alquimista: prepara consumibles.
-- Mercader: vende objetos.
-- Archivo: consulta enemigos, objetos y lore.
-- Puerta del Abismo: inicia expedición.
-
-No es necesario construir el campamento completo para el primer prototipo.
-
-## 14. Generación procedural
-
-La generación debe:
-- Crear salas dentro de límites definidos.
-- Conectar salas mediante pasillos.
-- Garantizar conectividad entre entrada y salida.
-- Evitar colocar objetos dentro de paredes o en casillas inaccesibles.
-- Evitar solapamientos de entidades.
-- Tener semilla reproducible para depuración y desafíos diarios.
-- Incluir pruebas automáticas de conectividad.
-
-## 15. Modos y funciones posteriores
-
-No forman parte del primer prototipo:
-- Semilla diaria compartida.
-- Clasificaciones.
-- Desafíos semanales.
-- Misiones y eventos narrativos avanzados.
-- Más biomas y jefes.
-- Sincronización de partidas en la nube.
-- Cooperativo o multijugador (solo tras validar el juego individual).
-
-## 16. Monetización y principios
-
-Primero validar diversión y retención. Modelo inicial recomendado: juego gratuito de navegador con opción de compra única o cosméticos no competitivos si el juego demuestra interés. Evitar vender poder que rompa el equilibrio. Publicidad no intrusiva y nunca durante una decisión táctica.
-
-No utilizar personajes, nombres, música, ilustraciones o marcas de anime/juegos ajenos sin autorización. La inspiración de género no concede derechos sobre elementos protegidos.
-
-## 17. Alcance del primer prototipo
-
-Debe incluir:
-- Una clase.
-- Una planta pequeña generada o una plantilla modular.
-- Movimiento por casillas.
-- Un enemigo.
-- Combate y muerte.
-- Una poción.
-- Un cofre.
-- Una escalera.
-- Interfaz mínima y reinicio.
-- Guardado local opcional si no retrasa el bucle principal.
-
-**Fuera de alcance:** campaña completa, economía compleja, 20 plantas, 15 enemigos, PvP, cuentas, tienda real, ranking online y app móvil publicada.
+**Fuera del prototipo:** mundo abierto, multijugador, muchas clases, diez clanes, campaña extensa, tienda, cuentas, PvP y app publicada.
