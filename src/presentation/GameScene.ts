@@ -6,6 +6,8 @@ import { DIRS, equals, inBounds, manhattan, terrainAt } from '../core/grid';
 import { createGame } from '../core/newGame';
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { Command, GameEvent, GameState, Vec } from '../core/types';
+import { ChoiceBox } from '../ui/choice';
+import { DialogueBox } from '../ui/dialogue';
 import { Hud, ITEM_SLOTS, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
 import { Menu } from '../ui/menu';
 import { type Overlay, WorldRenderer, affinityColor } from './art/renderer';
@@ -46,6 +48,9 @@ export class GameScene extends Phaser.Scene {
     throwItem: (itemId) => this.startThrow(itemId),
     equipWeapon: (weaponId) => void this.dispatch({ type: 'EquipWeapon', weaponId }),
   });
+  private readonly dialogue = new DialogueBox();
+  private readonly choice = new ChoiceBox();
+  private introShown = false;
   private aim: Aim | null = null;
   private facing: Vec = DIRS[1];
   private throwSel = 'shuriken';
@@ -67,6 +72,7 @@ export class GameScene extends Phaser.Scene {
     this.scale.on('resize', () => this.rebuildTexture());
     this.events.on('update', () => this.tick());
     this.hud.onAction = (a) => this.perform(a);
+    this.choice.onChoose = (npcId, optionId) => void this.dispatch({ type: 'Choose', npcId, optionId });
     this.rebuildTexture();
     this.startRun(this.initialSeed);
   }
@@ -100,7 +106,13 @@ export class GameScene extends Phaser.Scene {
     this.hud.notice('');
     this.world.reset(this.state, now());
     this.menu.close();
+    this.choice.close();
+    this.dialogue.clear();
     this.refreshHud();
+    if (!this.introShown) {
+      this.introShown = true;
+      this.dialogue.show('prologo');
+    }
   }
 
   // ---------- Entrada ----------
@@ -113,6 +125,8 @@ export class GameScene extends Phaser.Scene {
 
   /** Una tecla (física o de la cruceta táctil) ya en minúsculas. */
   private handleKey(key: string): void {
+    if (this.dialogue.onKey(key)) return;
+    if (this.choice.onKey(key)) return;
     if (this.menu.onKey(key)) return;
 
     if (key === 'r') {
@@ -159,7 +173,7 @@ export class GameScene extends Phaser.Scene {
   /** Órdenes dadas con el ratón o el dedo desde el panel: equivalen a su tecla. */
   private perform(a: UiAction): void {
     if (a.type === 'key') return this.handleKey(a.key);
-    if (this.state.status !== 'playing' || this.menu.isOpen) return;
+    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.choice.isOpen) return;
     if (this.aim) {
       this.aim = null;
       this.refreshHud();
@@ -298,11 +312,14 @@ export class GameScene extends Phaser.Scene {
     return { type: 'BasicAttack', target: a.cursor };
   }
 
-  /** Inspeccionar/Interactuar: busca un cofre sin abrir o la escalera en la casilla propia o adyacentes. */
+  /** Inspeccionar/Interactuar: habla con un maestro o altar, abre un cofre o cruza la escalera (casilla propia o adyacentes). */
   private interact(): void {
-    const { player, map, chests } = this.state;
+    const { player, map, chests, npcs } = this.state;
     const candidates = [player.pos, ...DIRS.map((d) => ({ x: player.pos.x + d.x, y: player.pos.y + d.y }))];
-    const target = candidates.find((c) => chests.some((ch) => equals(ch.pos, c) && !ch.opened) || terrainAt(map, c) === 'exit');
+    const target =
+      candidates.find((c) => npcs.some((n) => equals(n.pos, c))) ??
+      candidates.find((c) => chests.some((ch) => equals(ch.pos, c) && !ch.opened)) ??
+      candidates.find((c) => terrainAt(map, c) === 'exit');
     if (!target) {
       this.hud.notice('No hay nada con lo que interactuar aquí.');
       return;
@@ -321,7 +338,18 @@ export class GameScene extends Phaser.Scene {
     this.hud.notice('');
     this.world.setState(this.state, result.events as GameEvent[], now());
     this.refreshHud();
+    this.showStory(result.events as GameEvent[]);
     return true;
+  }
+
+  /** Diálogos y decisiones que han salido de la acción: se muestran tras empezar las animaciones. */
+  private showStory(events: GameEvent[]): void {
+    const talked = events.find((e): e is Extract<GameEvent, { type: 'NpcTalked' }> => e.type === 'NpcTalked');
+    for (const ev of events) {
+      if (ev.type !== 'Dialogue') continue;
+      const open = talked && !this.state.npcs.find((n) => n.id === talked.npcId)?.used ? () => this.choice.open(this.state, talked.npcId) : undefined;
+      this.dialogue.show(ev.id, talked ? open : undefined);
+    }
   }
 
   // ---------- Presentación ----------
@@ -360,5 +388,6 @@ export class GameScene extends Phaser.Scene {
   private refreshHud(): void {
     this.hud.update(this.state, this.aimInfo());
     this.menu.refresh(this.state);
+    this.choice.refresh(this.state);
   }
 }

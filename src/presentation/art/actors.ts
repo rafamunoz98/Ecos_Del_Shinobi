@@ -1,4 +1,5 @@
 import type { WeaponKind } from '../../content/weapons';
+import { bellKeeper, echoWisp, hollowMonk } from './bosses';
 import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './draw';
 
 /**
@@ -16,6 +17,10 @@ export interface ActorPose {
   /** Fase de la marcha en radianes. */
   phase: number;
   alpha?: number;
+  /** Cargando un ataque anunciado (solo lo usan los enemigos que los tienen). */
+  charging?: boolean;
+  /** Fase del jefe (1-3). */
+  bossPhase?: number;
 }
 
 const stroke = (ctx: Ctx, w = 0.045): void => {
@@ -322,6 +327,15 @@ export function drawEnemy(ctx: Ctx, kind: string, o: EnemyPose): void {
       break;
     case 'tirador_de_junco':
       reedShooter(ctx, o);
+      break;
+    case 'monje_hueco':
+      hollowMonk(ctx, o);
+      break;
+    case 'eco_menor':
+      echoWisp(ctx, o);
+      break;
+    case 'campanero_sepultado':
+      bellKeeper(ctx, o);
       break;
     default:
       stalker(ctx, o);

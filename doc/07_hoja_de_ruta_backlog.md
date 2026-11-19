@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (17-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte). Siguiente: Hito 6.
+**Estado (17-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte). Hito 6 (vertical slice) completado. Siguiente: Hito 7 (progresión permanente).
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*
@@ -62,15 +62,17 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 - [x] Controles con ratón/táctil: barra de acciones pulsable y cruceta en pantallas táctiles.
 **Aceptación:** esconderse y sorprender es una opción real; el aspecto ya no es de rectángulos de marcador.
 
-## Hito 6 — Vertical slice ninja
-- [ ] Un estilo de combate. *(Hoja Errante ya es la base.)*
-- [ ] Dos afinidades disponibles o una afinidad completa. *(Hay cinco con dos técnicas cada una; falta pulir y equilibrar.)*
-- [ ] Tres enemigos. *(Hay cuatro; falta el Monje Hueco con ataque anunciado.)*
-- [ ] Diez técnicas/objetos combinados. *(Hay diez técnicas y dos consumibles.)*
-- [ ] Un guardián de sector.
-- [ ] Un evento y un maestro.
-- [ ] Resumen de expedición.
-**Aceptación:** una expedición corta tiene inicio, decisiones, jefe y final.
+## Hito 6 — Vertical slice ninja **[Completado]**
+- [x] Un estilo de combate. *(Hoja Errante es la base.)*
+- [x] Una afinidad por expedición, sorteada entre cinco (cada una con dos técnicas).
+- [x] Seis enemigos: Acechador, Cuervo, Larva, Tirador, **Monje Hueco** (ataque anunciado) y Eco Menor (solo lo invoca el jefe).
+- [x] Diez técnicas y consumibles combinados.
+- [x] Guardián de sector: **Campanero Sepultado**, tres fases con ataques anunciados (`telegraphs`), inmune a aturdimiento y empuje; la salida del último sector queda sellada mientras viva.
+- [x] Un evento (**Altar del Eco Roto**, sector 1) y un maestro (**Maestra Sayoko**, sector 2), con decisiones que cuestan algo.
+- [x] Diálogos con jefe y PNJ de mazmorra, y notas de lore opcionales (pergaminos que se recogen al pisarlos, pestaña Notas del menú).
+- [x] Resumen de expedición: causa de la derrota o victoria, estadísticas, reliquia, botón «Nueva expedición».
+**Aceptación:** una expedición corta tiene inicio, decisiones, jefe y final. *(Cumplida; 149 pruebas automáticas.)*
+**Pendiente de decidir con el equipo:** artesanía de armas y más retroalimentación visual (ver `11_riesgos_y_decisiones_pendientes.md`).
 
 ## Hito 7 — Progresión
 - [ ] Árbol de técnicas.

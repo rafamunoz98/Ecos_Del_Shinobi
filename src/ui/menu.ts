@@ -1,6 +1,7 @@
 import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describeShape, describeWeaponPattern } from '../content/describe';
 import { getEquipment, getItem } from '../content/items';
+import { NOTES, getNote, getRelic } from '../content/story';
 import { TECHNIQUES, type TechniqueDef } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { effectiveDefense, effectivePower, xpToNext } from '../core/combat';
@@ -9,14 +10,15 @@ import { drawNinja } from '../presentation/art/actors';
 import { iconDataUrl } from '../presentation/art/icons';
 import { drawMinimap } from './minimap';
 
-export type MenuTab = 'estado' | 'tecnicas' | 'objetos' | 'armas' | 'mapa';
+export type MenuTab = 'estado' | 'tecnicas' | 'objetos' | 'armas' | 'notas' | 'mapa';
 
 const TABS: { id: MenuTab; label: string; icon: string }[] = [
   { id: 'estado', label: 'Estado', icon: 'hp' },
   { id: 'tecnicas', label: 'Técnicas', icon: 'ascua' },
   { id: 'objetos', label: 'Objetos', icon: 'tonico_kiro' },
   { id: 'armas', label: 'Armas', icon: 'hoja_afilada' },
-  { id: 'mapa', label: 'Mapa', icon: 'pergamino' },
+  { id: 'notas', label: 'Notas', icon: 'pergamino' },
+  { id: 'mapa', label: 'Mapa', icon: 'cofre' },
 ];
 
 /** Acciones que el menú pide a la escena (cada una cierra el menú). */
@@ -50,6 +52,7 @@ function stat(label: string, value: string): HTMLElement {
 /** Menú de personaje: Estado, Técnicas, Objetos y Armas. Tab/I lo abre; Esc lo cierra. */
 export class Menu {
   private tab: MenuTab = 'estado';
+  private noteSel: string | null = null;
   private state: GameState | null = null;
   private readonly root: HTMLElement;
   actions: MenuActions;
@@ -96,7 +99,7 @@ export class Menu {
     if (key === 'escape' || key === 'tab' || key === 'i') this.close();
     else if (key === 'arrowright' || key === 'd') this.go(1);
     else if (key === 'arrowleft' || key === 'a') this.go(-1);
-    else if (['1', '2', '3', '4', '5'].includes(key)) this.setTab(TABS[Number(key) - 1].id);
+    else if (['1', '2', '3', '4', '5', '6'].includes(key)) this.setTab(TABS[Number(key) - 1].id);
     return true;
   }
 
@@ -132,6 +135,7 @@ export class Menu {
     else if (this.tab === 'tecnicas') body.append(...this.tecnicas(s));
     else if (this.tab === 'objetos') body.append(...this.objetos(s));
     else if (this.tab === 'armas') body.append(...this.armas(s));
+    else if (this.tab === 'notas') body.append(...this.notas(s));
     else body.append(...this.mapa(s));
     panel.append(head, body, h('div', 'menu-foot', 'Tab o Esc: cerrar · ← →: cambiar de pestaña · Equipar un arma o usar un objeto gasta un turno'));
     this.root.replaceChildren(panel);
@@ -183,6 +187,13 @@ export class Menu {
     right.append(h('h4', undefined, 'Estados'));
     if (p.statuses.length === 0) right.append(h('div', 'muted', 'Sin estados activos.'));
     for (const st of p.statuses) right.append(this.row(st.id, `${STATUS_NAMES[st.id]} (${st.turns})`, STATUS_HELP[st.id]));
+
+    right.append(h('h4', undefined, 'Reliquias'));
+    if (p.relics.length === 0) right.append(h('div', 'muted', 'Aún no has conseguido ninguna. El guardián del último sector guarda la primera.'));
+    for (const id of p.relics) {
+      const rel = getRelic(id);
+      if (rel) right.append(this.row(rel.id, rel.name, rel.description));
+    }
 
     right.append(h('h4', undefined, 'Sigilo'));
     right.append(h('div', 'muted', 'Los arbustos y las puertas cerradas tapan la visión. Dentro de un arbusto solo te ven desde una casilla, pero tú también ves menos. Atacar a un enemigo que no te ha visto hace el doble de daño.'));
@@ -302,6 +313,33 @@ export class Menu {
     drawMinimap(cv, s);
     const legend = h('div', 'muted', 'Blanco: tú · Rojo: enemigo a la vista · Dorado: cofre · Violeta: escalera · Verde: arbusto · Marrón: puerta');
     return [h('p', 'lead', `Sector ${s.floor} de ${s.maxFloor}. Solo se muestra lo ya explorado.`), cv, legend];
+  }
+
+  private notas(s: GameState): HTMLElement[] {
+    const found = s.player.notes;
+    const total = Object.keys(NOTES).length;
+    const intro = h('p', 'lead', `Pergaminos encontrados: ${found.length} / ${total}. Son opcionales: cuentan la historia de la cripta.`);
+    if (found.length === 0) return [intro, h('div', 'muted', 'Todavía no has encontrado ninguno. Busca pergaminos en el suelo de cada sector (brillan en dorado).')];
+    if (!this.noteSel || !found.includes(this.noteSel)) this.noteSel = found[found.length - 1];
+    const list = h('div', 'note-list');
+    for (const id of found) {
+      const n = getNote(id);
+      if (!n) continue;
+      const b = h('button', `note-item${id === this.noteSel ? ' on' : ''}`);
+      b.type = 'button';
+      b.append(icon('pergamino', 28), h('span', undefined, n.title));
+      b.addEventListener('click', () => {
+        this.noteSel = id;
+        this.render();
+      });
+      list.append(b);
+    }
+    const sel = getNote(this.noteSel);
+    const reader = h('div', 'note-reader');
+    if (sel) reader.append(h('h3', undefined, sel.title), h('p', undefined, sel.text), h('div', 'muted', `Hallado en el sector ${sel.floor}`));
+    const wrap = h('div', 'notes');
+    wrap.append(list, reader);
+    return [intro, wrap];
   }
 
   private armas(s: GameState): HTMLElement[] {

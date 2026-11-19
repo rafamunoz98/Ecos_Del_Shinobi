@@ -19,11 +19,17 @@ export function createEnemy(def: EnemyDef, id: string, pos: Vec, floor: number):
     alert: 0,
     lastSeen: null,
     statuses: [],
+    phase: def.behavior === 'boss' ? 1 : 0,
   };
+}
+
+/** Un jefe no escala con el sector: sus números ya están pensados para el último. */
+export function createBoss(def: EnemyDef, id: string, pos: Vec): Enemy {
+  return { ...createEnemy(def, id, pos, 1), phase: 1 };
 }
 
 /** Elige un tipo de enemigo según el sector y los pesos configurados. */
 export function pickEnemyDef(floor: number, rng: Rng): EnemyDef {
-  const pool = Object.values(ENEMIES).filter((e) => e.minFloor <= floor);
+  const pool = Object.values(ENEMIES).filter((e) => e.minFloor <= floor && e.weight > 0);
   return rng.weighted(pool);
 }

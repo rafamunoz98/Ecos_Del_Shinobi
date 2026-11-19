@@ -1,9 +1,11 @@
 import { BALANCE } from '../content/balance';
-import { getEnemy, type EnemyDef } from '../content/enemies';
+import { ENEMIES, getEnemy, type EnemyDef } from '../content/enemies';
 import { getEquipment, getItem, lootTableFor } from '../content/items';
 import { getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { getNpc, getNote, type NpcOption } from '../content/story';
 import { getThrowable, getWeapon, WEAPONS, type WeaponDef } from '../content/weapons';
 import { generateLevel } from '../dungeon/generator';
+import { createEnemy } from '../dungeon/spawn';
 import { calcDamage, effectiveDefense, effectivePower, xpToNext } from './combat';
 import { DIRS, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, terrainAt } from './grid';
 import { nextRandom } from './rng';
@@ -16,8 +18,10 @@ import type {
   GameEvent,
   GameState,
   InvalidReason,
+  Npc,
   Player,
   StatusId,
+  Telegraph,
   Vec,
 } from './types';
 
@@ -50,6 +54,10 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   already_equipped: 'Ya la llevas equipada.',
   nothing_to_interact: 'No hay nada con lo que interactuar ahí.',
   already_opened: 'Ya está abierto.',
+  exit_sealed: 'La salida está sellada: algo guarda esta cámara.',
+  unknown_option: 'Esa opción no existe.',
+  option_unavailable: 'No puedes pagar el coste de esa opción.',
+  already_used: 'Ya elegiste aquí.',
   extraction_unavailable: 'Aún no puedes extraerte de la expedición.',
 };
 
@@ -58,12 +66,16 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
 const enemyAt = (s: GameState, p: Vec): Enemy | undefined => s.enemies.find((e) => equals(e.pos, p));
 const chestAt = (s: GameState, p: Vec): Chest | undefined => s.chests.find((c) => equals(c.pos, p));
 const barrierAt = (s: GameState, p: Vec): boolean => s.barriers.some((b) => equals(b.pos, p));
+const npcAt = (s: GameState, p: Vec): Npc | undefined => s.npcs.find((n) => equals(n.pos, p));
+const isBoss = (e: Enemy): boolean => getEnemy(e.kind)?.behavior === 'boss';
+/** ¿Queda un jefe vivo en el sector? (mientras viva, la salida está sellada) */
+export const bossAlive = (s: GameState): boolean => s.enemies.some(isBoss);
 const enemyName = (e: Enemy): string => getEnemy(e.kind)?.name ?? e.kind;
 
 /** Casilla transitable y vacía: sin pared, enemigo, cofre, barrera ni jugador. */
 function cellFree(s: GameState, p: Vec): boolean {
   return (
-    inBounds(s.map, p) && isWalkable(s.map, p) && !enemyAt(s, p) && !chestAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
+    inBounds(s.map, p) && isWalkable(s.map, p) && !enemyAt(s, p) && !chestAt(s, p) && !npcAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
   );
 }
 
@@ -194,7 +206,7 @@ function attackPlan(s: GameState, target: Vec): AttackPlan {
   const hits: Enemy[] = [];
   for (let i = 1; i <= weapon.reach; i++) {
     const c = { x: p.x + dir.x * i, y: p.y + dir.y * i };
-    if (!inBounds(s.map, c) || !isWalkable(s.map, c) || barrierAt(s, c) || chestAt(s, c)) break;
+    if (!inBounds(s.map, c) || !isWalkable(s.map, c) || barrierAt(s, c) || chestAt(s, c) || npcAt(s, c)) break;
     cells.push(c);
     const e = enemyAt(s, c);
     if (e) {
@@ -283,6 +295,21 @@ export function previewTechnique(state: GameState, techniqueId: string, target: 
     : { valid: true, kiroCost: def.kiroCost, cells };
 }
 
+/** Motivo (en español) por el que una opción de un maestro/evento no se puede pagar ahora, o null si se puede. */
+export function optionBlocker(state: GameState, opt: NpcOption): string | null {
+  const p = state.player;
+  const c = opt.cost;
+  if (c?.hp !== undefined && p.hp <= c.hp) return `Necesitas más de ${c.hp} de vida.`;
+  if (c?.kiro === 'all' && p.kiro < (c.minKiro ?? 1)) return `Necesitas al menos ${c.minKiro ?? 1} de kiro.`;
+  if (c?.item && (p.inventory[c.item.id] ?? 0) < c.item.count) {
+    return `Necesitas ${c.item.count} × ${getThrowable(c.item.id)?.name ?? getItem(c.item.id)?.name ?? c.item.id}.`;
+  }
+  if (opt.gains.some((g) => g.kind === 'advancedTechnique') && techniquesFor(p.affinity, 3).every((id) => p.techniques.includes(id))) {
+    return 'Ya conoces las técnicas de tu afinidad.';
+  }
+  return null;
+}
+
 export function validateCommand(state: GameState, cmd: Command): InvalidReason | null {
   if (state.status !== 'playing') return 'run_over';
   const p = state.player;
@@ -294,7 +321,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       const to = { x: p.pos.x + cmd.dx, y: p.pos.y + cmd.dy };
       if (!inBounds(state.map, to)) return 'out_of_bounds';
       if (!isWalkable(state.map, to) || barrierAt(state, to)) return 'blocked';
-      if (enemyAt(state, to) || chestAt(state, to)) return 'occupied';
+      if (enemyAt(state, to) || chestAt(state, to) || npcAt(state, to)) return 'occupied';
       return null;
     }
     case 'Wait':
@@ -316,7 +343,19 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       if (manhattan(p.pos, cmd.target) > 1) return 'not_adjacent';
       const chest = chestAt(state, cmd.target);
       if (chest) return chest.opened ? 'already_opened' : null;
-      return terrainAt(state.map, cmd.target) === 'exit' ? null : 'nothing_to_interact';
+      if (npcAt(state, cmd.target)) return null;
+      if (terrainAt(state.map, cmd.target) !== 'exit') return 'nothing_to_interact';
+      return bossAlive(state) ? 'exit_sealed' : null;
+    }
+    case 'Choose': {
+      const npc = state.npcs.find((n) => n.id === cmd.npcId);
+      const def = npc ? getNpc(npc.kind) : undefined;
+      if (!npc || !def) return 'no_target';
+      if (manhattan(p.pos, npc.pos) > 1) return 'not_adjacent';
+      if (npc.used) return 'already_used';
+      const opt = def.options.find((o) => o.id === cmd.optionId);
+      if (!opt) return 'unknown_option';
+      return optionBlocker(state, opt) ? 'option_unavailable' : null;
     }
     case 'Extract':
       return 'extraction_unavailable'; // Decisión del diseño: no disponible al inicio.
@@ -336,17 +375,76 @@ function say(ctx: Ctx, text: string): void {
   if (over > 0) ctx.state.log.splice(0, over);
 }
 
+/** Muestra un diálogo una sola vez por expedición (la presentación lo pinta al recibir el evento). */
+function dialogueOnce(ctx: Ctx, id: string): void {
+  if (ctx.state.seenDialogues.includes(id)) return;
+  ctx.state.seenDialogues.push(id);
+  ctx.events.push({ type: 'Dialogue', id });
+}
+
+/** Un enemigo pasa de no saber de ti a saberlo. El jefe se presenta. */
+function noticePlayer(ctx: Ctx, enemy: Enemy): void {
+  ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
+  if (isBoss(enemy)) dialogueOnce(ctx, 'campanero_intro');
+}
+
 /** Un enemigo que recibe daño sabe dónde estás, aunque no te viera. */
 function alertEnemy(ctx: Ctx, enemy: Enemy): void {
-  if (enemy.alert === 0) ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
+  if (enemy.alert === 0) noticePlayer(ctx, enemy);
   enemy.alert = BALANCE.alertTurns;
   enemy.lastSeen = { ...ctx.state.player.pos };
 }
 
+/** Fase del jefe según su vida restante: 1 (>2/3), 2 (>1/3), 3 (resto). */
+const bossPhaseFor = (e: Enemy): number => (e.hp * 3 > e.maxHp * 2 ? 1 : e.hp * 3 > e.maxHp ? 2 : 3);
+
+/** Casillas libres alrededor de `origin`, de más cerca a más lejos (orden fijo: desempate determinista). */
+function freeCellsAround(s: GameState, origin: Vec, maxRadius: number): Vec[] {
+  const out: Vec[] = [];
+  for (let r = 1; r <= maxRadius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+        const c = { x: origin.x + dx, y: origin.y + dy };
+        if (cellFree(s, c)) out.push(c);
+      }
+    }
+  }
+  return out;
+}
+
+function summonEchoes(ctx: Ctx, boss: Enemy, count: number): void {
+  const s = ctx.state;
+  const def = ENEMIES.eco_menor;
+  const cells = freeCellsAround(s, boss.pos, 4);
+  for (let i = 0; i < count && i < cells.length; i++) {
+    const echo = createEnemy(def, `enemy-eco-${s.turn}-${i}`, cells[i], s.floor);
+    echo.alert = BALANCE.alertTurns;
+    echo.lastSeen = { ...s.player.pos };
+    s.enemies.push(echo);
+    ctx.events.push({ type: 'EnemySummoned', enemyId: echo.id, pos: cells[i] });
+  }
+  say(ctx, 'Unos ecos brotan del suelo y se lanzan contra ti.');
+}
+
+function updateBossPhase(ctx: Ctx, enemy: Enemy): void {
+  const def = getEnemy(enemy.kind);
+  if (!def?.boss || enemy.hp <= 0) return;
+  const phase = bossPhaseFor(enemy);
+  if (phase <= enemy.phase) return;
+  enemy.phase = phase;
+  ctx.events.push({ type: 'BossPhase', enemyId: enemy.id, phase });
+  say(ctx, `${enemyName(enemy)} entra en la fase ${phase}.`);
+  dialogueOnce(ctx, `campanero_fase${phase}`);
+  if (phase === 3) summonEchoes(ctx, enemy, def.boss.echoes);
+}
+
 function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string): void {
   enemy.hp = Math.max(0, enemy.hp - amount);
+  ctx.state.stats.damageDealt += amount;
   ctx.events.push({ type: 'DamageApplied', targetId: enemy.id, amount, source });
   alertEnemy(ctx, enemy);
+  updateBossPhase(ctx, enemy);
 }
 
 function defeatPlayer(ctx: Ctx): void {
@@ -359,8 +457,12 @@ function defeatPlayer(ctx: Ctx): void {
 function damagePlayer(ctx: Ctx, amount: number, source: string): void {
   const p = ctx.state.player;
   p.hp = Math.max(0, p.hp - amount);
+  ctx.state.stats.damageTaken += amount;
   ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount, source });
-  if (p.hp <= 0) defeatPlayer(ctx);
+  if (p.hp <= 0) {
+    ctx.state.stats.defeatedBy = ctx.state.enemies.find((e) => e.id === source)?.kind ?? source;
+    defeatPlayer(ctx);
+  }
 }
 
 /** Un estado no se acumula: volver a aplicarlo refresca su duración al máximo de ambas. */
@@ -374,6 +476,8 @@ function tickStatuses(ctx: Ctx, target: Player | Enemy, targetId: string): void 
   for (const st of target.statuses) {
     if (st.id === 'quemadura') {
       target.hp = Math.max(0, target.hp - BALANCE.burnDamage);
+      if (targetId === 'player') ctx.state.stats.damageTaken += BALANCE.burnDamage;
+      else ctx.state.stats.damageDealt += BALANCE.burnDamage;
       ctx.events.push({ type: 'DamageApplied', targetId, amount: BALANCE.burnDamage, source: 'quemadura' });
     }
     st.turns -= 1;
@@ -401,6 +505,30 @@ function gainXp(ctx: Ctx, amount: number): void {
   }
 }
 
+/** Quita los ataques anunciados de un enemigo (cae o queda aturdido) y avisa a la presentación. */
+function cancelTelegraphs(ctx: Ctx, ownerId: string): boolean {
+  const had = ctx.state.telegraphs.some((t) => t.ownerId === ownerId);
+  if (!had) return false;
+  ctx.state.telegraphs = ctx.state.telegraphs.filter((t) => t.ownerId !== ownerId);
+  ctx.events.push({ type: 'TelegraphCancelled', ownerId });
+  return true;
+}
+
+function defeatBoss(ctx: Ctx, boss: Enemy): void {
+  const s = ctx.state;
+  s.stats.bossDefeated = true;
+  if (!s.player.relics.includes('sello_antiguo')) s.player.relics.push('sello_antiguo');
+  // Los ecos convocados se desvanecen con su amo.
+  for (const e of s.enemies.filter((o) => o.kind === 'eco_menor')) {
+    cancelTelegraphs(ctx, e.id);
+    ctx.events.push({ type: 'EnemyDefeated', enemyId: e.id });
+  }
+  s.enemies = s.enemies.filter((o) => o.kind !== 'eco_menor');
+  ctx.events.push({ type: 'BossDefeated', enemyId: boss.id });
+  say(ctx, 'La campana calla. Obtienes el Sello antiguo y la salida se abre.');
+  dialogueOnce(ctx, 'campanero_derrota');
+}
+
 function reapDead(ctx: Ctx): void {
   const alive: Enemy[] = [];
   const fallen: Enemy[] = [];
@@ -409,7 +537,10 @@ function reapDead(ctx: Ctx): void {
   for (const e of fallen) {
     ctx.events.push({ type: 'EnemyDefeated', enemyId: e.id });
     say(ctx, `${enemyName(e)} cae derrotado.`);
+    ctx.state.stats.kills += 1;
+    cancelTelegraphs(ctx, e.id);
     gainXp(ctx, getEnemy(e.kind)?.xp ?? 0);
+    if (isBoss(e)) defeatBoss(ctx, e);
   }
 }
 
@@ -448,6 +579,7 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
   const s = ctx.state;
   const p = s.player;
   p.kiro -= def.kiroCost;
+  s.stats.techniquesUsed += 1;
   ctx.events.push({ type: 'KiroSpent', amount: def.kiroCost });
   const cells = techniqueCells(s, def, target);
   ctx.events.push({ type: 'TechniqueCast', techniqueId: def.id, target, cells });
@@ -477,16 +609,21 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
       say(ctx, `${enemyName(enemy)} recibe ${dmg} de daño.`);
     }
     if (def.inflict && enemy.hp > 0) {
-      applyStatus(enemy, def.inflict.status, def.inflict.turns);
-      ctx.events.push({ type: 'StatusApplied', targetId: enemy.id, status: def.inflict.status, turns: def.inflict.turns });
+      if (def.inflict.status === 'aturdido' && isBoss(enemy)) {
+        say(ctx, `${enemyName(enemy)} es inmune al aturdimiento.`);
+      } else {
+        applyStatus(enemy, def.inflict.status, def.inflict.turns);
+        ctx.events.push({ type: 'StatusApplied', targetId: enemy.id, status: def.inflict.status, turns: def.inflict.turns });
+      }
     }
-    if (def.push && enemy.hp > 0) pushEnemy(ctx, enemy, def.push);
+    if (def.push && enemy.hp > 0 && !isBoss(enemy)) pushEnemy(ctx, enemy, def.push);
   }
 }
 
 function openChest(ctx: Ctx, chest: Chest): void {
   const p = ctx.state.player;
   chest.opened = true;
+  ctx.state.stats.chestsOpened += 1;
   const entry = rollLoot(ctx);
   ctx.events.push({ type: 'ChestOpened', chestId: chest.id, itemId: entry.id });
   switch (entry.kind) {
@@ -531,6 +668,12 @@ function placeDrop(s: GameState, pos: Vec, itemId: string): void {
 /** Recoge lo que haya en el suelo bajo el jugador. */
 function pickUp(ctx: Ctx): void {
   const s = ctx.state;
+  for (const sc of s.scrolls.filter((c) => equals(c.pos, s.player.pos))) {
+    if (!s.player.notes.includes(sc.noteId)) s.player.notes.push(sc.noteId);
+    ctx.events.push({ type: 'NoteFound', noteId: sc.noteId });
+    say(ctx, `Encuentras un pergamino: «${getNote(sc.noteId)?.title ?? sc.noteId}» (Tab → Notas).`);
+  }
+  s.scrolls = s.scrolls.filter((c) => !equals(c.pos, s.player.pos));
   const here = s.drops.filter((d) => equals(d.pos, s.player.pos));
   if (here.length === 0) return;
   for (const d of here) {
@@ -543,7 +686,7 @@ function pickUp(ctx: Ctx): void {
 
 function descend(ctx: Ctx): void {
   const s = ctx.state;
-  const level = generateLevel({ seed: s.seed, floor: s.floor + 1 });
+  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: s.floor + 1 >= s.maxFloor });
   s.floor += 1;
   s.map = level.map;
   s.player.pos = level.playerStart;
@@ -551,6 +694,9 @@ function descend(ctx: Ctx): void {
   s.chests = level.chests;
   s.barriers = [];
   s.drops = [];
+  s.telegraphs = [];
+  s.npcs = level.npcs;
+  s.scrolls = level.scrolls;
   s.explored = new Array<boolean>(level.map.width * level.map.height).fill(false);
   ctx.events.push({ type: 'FloorChanged', floor: s.floor });
   say(ctx, `Desciendes al sector ${s.floor}.`);
@@ -580,6 +726,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         let dmg = calcDamage(effectivePower(p), 0, enemy.defense);
         if (enemy.alert === 0) {
           dmg *= BALANCE.sneakMultiplier;
+          ctx.state.stats.sneakAttacks += 1;
           ctx.events.push({ type: 'SneakAttack', enemyId: enemy.id });
           say(ctx, `¡Golpe furtivo a ${enemyName(enemy)}! (${dmg} de daño).`);
         } else {
@@ -601,6 +748,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         let dmg = calcDamage(def.damage, bonus, def.ignoreDefense ? 0 : victim.defense);
         if (victim.alert === 0) {
           dmg *= BALANCE.sneakMultiplier;
+          ctx.state.stats.sneakAttacks += 1;
           ctx.events.push({ type: 'SneakAttack', enemyId: victim.id });
           say(ctx, `¡Lanzamiento furtivo! ${def.name} hiere a ${enemyName(victim)} (${dmg} de daño).`);
         } else {
@@ -631,6 +779,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       const left = (p.inventory[cmd.itemId] ?? 0) - 1;
       if (left > 0) p.inventory[cmd.itemId] = left;
       else delete p.inventory[cmd.itemId];
+      ctx.state.stats.itemsUsed += 1;
       ctx.events.push({ type: 'ItemUsed', itemId: item.id });
       if (item.effect.kind === 'restoreHp') {
         const gained = Math.min(item.effect.amount, p.maxHp - p.hp);
@@ -651,6 +800,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         openChest(ctx, chest);
         return;
       }
+      if (npcAt(s, cmd.target)) return; // hablar es una acción libre (ver applyCommand)
       if (s.floor >= s.maxFloor) {
         s.status = 'won';
         ctx.events.push({ type: 'RunWon' });
@@ -660,9 +810,62 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       }
       return;
     }
+    case 'Choose': {
+      const npc = s.npcs.find((n) => n.id === cmd.npcId) as Npc;
+      const opt = (getNpc(npc.kind)?.options.find((o) => o.id === cmd.optionId)) as NpcOption;
+      applyOption(ctx, npc, opt);
+      return;
+    }
     case 'Extract':
       return; // Inalcanzable: la validación lo rechaza.
   }
+}
+
+/** Paga el coste y aplica las ganancias de una opción de maestro o evento. */
+function applyOption(ctx: Ctx, npc: Npc, opt: NpcOption): void {
+  const p = ctx.state.player;
+  const c = opt.cost;
+  if (c?.hp !== undefined) {
+    p.hp -= c.hp;
+    ctx.state.stats.damageTaken += c.hp;
+  }
+  if (c?.kiro === 'all') p.kiro = 0;
+  if (c?.item) {
+    const left = (p.inventory[c.item.id] ?? 0) - c.item.count;
+    if (left > 0) p.inventory[c.item.id] = left;
+    else delete p.inventory[c.item.id];
+  }
+  for (const g of opt.gains) {
+    switch (g.kind) {
+      case 'power':
+        p.power += g.amount;
+        break;
+      case 'defense':
+        p.defense += g.amount;
+        break;
+      case 'maxKiro':
+        p.maxKiro += g.amount;
+        p.kiro += g.amount;
+        break;
+      case 'maxHp':
+        p.maxHp += g.amount;
+        p.hp += g.amount;
+        break;
+      case 'healFull':
+        p.hp = p.maxHp;
+        break;
+      case 'advancedTechnique': {
+        const learned = techniquesFor(p.affinity, 3).filter((id) => !p.techniques.includes(id));
+        p.techniques.push(...learned);
+        for (const id of learned) say(ctx, `Aprendes ${getTechnique(id)?.name ?? id}.`);
+        break;
+      }
+    }
+  }
+  npc.used = true;
+  ctx.state.stats.decisions += 1;
+  ctx.events.push({ type: 'NpcChoice', npcId: npc.id, optionId: opt.id });
+  say(ctx, `${getNpc(npc.kind)?.name ?? npc.kind}: ${opt.label}.`);
 }
 
 // ---------- Enemigos ----------
@@ -681,6 +884,78 @@ function enemyCanEnter(s: GameState, self: Enemy, p: Vec): boolean {
   );
 }
 
+// ---------- Ataques anunciados ----------
+
+/** Cruz centrada en `origin` (incluida): filas y columnas hasta `length`, deteniéndose en paredes. */
+function crossCells(s: GameState, origin: Vec, length: number): Vec[] {
+  const cells: Vec[] = [{ ...origin }];
+  for (const d of DIRS) {
+    for (let i = 1; i <= length; i++) {
+      const c = { x: origin.x + d.x * i, y: origin.y + d.y * i };
+      if (!inBounds(s.map, c) || !isWalkable(s.map, c)) break;
+      cells.push(c);
+    }
+  }
+  return cells;
+}
+
+function startTelegraph(ctx: Ctx, enemy: Enemy, name: string, cells: Vec[], power: number, delay: number): void {
+  const tg: Telegraph = { id: `tg-${ctx.state.turn}-${enemy.id}`, ownerId: enemy.id, name, cells, power, turns: delay };
+  ctx.state.telegraphs.push(tg);
+  ctx.events.push({ type: 'TelegraphStarted', ownerId: enemy.id, cells, turns: delay });
+  say(ctx, `${enemyName(enemy)} prepara ${name}: ¡apártate de las casillas marcadas!`);
+}
+
+/** Cuenta atrás de un ataque anunciado; al llegar a 0 se libera y daña a quien siga dentro. */
+function processTelegraph(ctx: Ctx, enemy: Enemy, tg: Telegraph): void {
+  tg.turns -= 1;
+  if (tg.turns > 0) return;
+  const s = ctx.state;
+  s.telegraphs = s.telegraphs.filter((t) => t !== tg);
+  const hit = tg.cells.some((c) => equals(c, s.player.pos));
+  ctx.events.push({ type: 'TelegraphReleased', ownerId: enemy.id, cells: tg.cells, hit });
+  if (hit) {
+    const dmg = calcDamage(tg.power, 0, effectiveDefense(s.player));
+    damagePlayer(ctx, dmg, enemy.id);
+    say(ctx, `${tg.name} te alcanza (${dmg} de daño).`);
+  } else {
+    say(ctx, `${tg.name} estalla en el vacío: lo esquivaste.`);
+  }
+}
+
+/** Marca un ataque propio del Monje Hueco (área alrededor del jugador) si lo ve a su alcance. */
+function channelerAttack(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult | null {
+  const s = ctx.state;
+  const ch = def.channel;
+  if (!ch) return null;
+  const p = s.player.pos;
+  if (manhattan(enemy.pos, p) > ch.range || !hasLineOfSight(s.map, enemy.pos, p, openDoors(s))) return null;
+  startTelegraph(ctx, enemy, ch.name, diamond(s, p, ch.radius, false), enemy.power, ch.delay);
+  return 'attacked';
+}
+
+/**
+ * Patrón del Campanero: golpe cercano si estás a su alcance; onda en cruz desde la fase 2; en la fase 1 avanza
+ * despacio (una de cada dos rondas) mientras estés lejos.
+ */
+function bossAttack(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult | null {
+  const s = ctx.state;
+  const b = def.boss;
+  if (!b) return null;
+  const p = s.player.pos;
+  const dist = manhattan(enemy.pos, p);
+  if (dist <= b.slam.radius) {
+    const cells = diamond(s, enemy.pos, b.slam.radius, false).filter((c) => !equals(c, enemy.pos));
+    startTelegraph(ctx, enemy, b.slam.name, cells, b.slam.power, b.slam.delay);
+    return 'attacked';
+  }
+  if (enemy.phase >= 2 && hasLineOfSight(s.map, enemy.pos, p, openDoors(s))) {
+    startTelegraph(ctx, enemy, b.wave.name, crossCells(s, p, b.wave.length), b.wave.power, b.wave.delay);
+    return 'attacked';
+  }
+  return null;
+}
+
 function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepResult {
   const s = ctx.state;
   const p = s.player;
@@ -694,7 +969,13 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
   };
 
   if (sees) {
-    if (def.behavior === 'ranged') {
+    if (def.behavior === 'channeler') {
+      const r = channelerAttack(ctx, enemy, def);
+      if (r) return r;
+    } else if (def.behavior === 'boss') {
+      const r = bossAttack(ctx, enemy, def);
+      if (r) return r;
+    } else if (def.behavior === 'ranged') {
       const range = def.range ?? 5;
       const keepAway = def.keepAway ?? 2;
       if (dist <= keepAway) {
@@ -723,6 +1004,7 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
     }
   }
 
+  if (def.behavior === 'boss' && s.turn % 2 !== 0) return 'none'; // el Campanero avanza despacio
   // Sin verte, va a donde te vio por última vez.
   const goal = sees ? p.pos : enemy.lastSeen;
   if (!goal || equals(goal, enemy.pos)) return 'none';
@@ -740,15 +1022,22 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
 function enemyAct(ctx: Ctx, enemy: Enemy, index: number): void {
   const def = getEnemy(enemy.kind);
   if (!def) return;
-  if (enemy.statuses.some((st) => st.id === 'aturdido')) {
-    say(ctx, `${enemyName(enemy)} está aturdido y pierde su acción.`);
+  if (enemy.statuses.some((st) => st.id === 'aturdido') && !isBoss(enemy)) {
+    if (cancelTelegraphs(ctx, enemy.id)) say(ctx, `${enemyName(enemy)} se interrumpe: su ataque se deshace.`);
+    else say(ctx, `${enemyName(enemy)} está aturdido y pierde su acción.`);
+    return;
+  }
+  // Un ataque anunciado ocupa toda su acción hasta liberarse.
+  const charging = ctx.state.telegraphs.find((t) => t.ownerId === enemy.id);
+  if (charging) {
+    processTelegraph(ctx, enemy, charging);
     return;
   }
   // Percepción: te nota si te ve (distancia, línea de visión, arbustos y puertas). Al perderte, sigue alerta unas rondas.
   const sees = enemySees(ctx.state, enemy);
   if (sees) {
     if (enemy.alert === 0) {
-      ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
+      noticePlayer(ctx, enemy);
       say(ctx, `${enemyName(enemy)} te ha visto.`);
     }
     enemy.alert = BALANCE.alertTurns;
@@ -780,6 +1069,19 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
   const reason = validateCommand(state, cmd);
   if (reason) return { ok: false, reason, message: REASON_TEXT[reason], state, events: [] };
 
+  // Hablar con un maestro, un altar... es una acción libre: no gasta turno ni activa a los enemigos.
+  if (cmd.type === 'Interact') {
+    const npc = npcAt(state, cmd.target);
+    const def = npc ? getNpc(npc.kind) : undefined;
+    if (npc && def) {
+      const events: GameEvent[] = [
+        { type: 'NpcTalked', npcId: npc.id },
+        { type: 'Dialogue', id: npc.used ? def.afterId : def.introId },
+      ];
+      return { ok: true, state, events };
+    }
+  }
+
   const ctx: Ctx = { state: structuredClone(state), events: [] };
   const s = ctx.state;
 
@@ -790,7 +1092,10 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
   if (s.status === 'playing') {
     // paso 6: estados del jugador
     tickStatuses(ctx, s.player, 'player');
-    if (s.player.hp <= 0) defeatPlayer(ctx);
+    if (s.player.hp <= 0) {
+      s.stats.defeatedBy = 'quemadura';
+      defeatPlayer(ctx);
+    }
     // Regeneración natural lenta (la ronda que acaba es la número turn + 1).
     if (s.status === 'playing' && (s.turn + 1) % BALANCE.hpRegenEvery === 0 && s.player.hp < s.player.maxHp) {
       s.player.hp += 1;

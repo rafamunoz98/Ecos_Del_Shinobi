@@ -40,6 +40,10 @@ export interface Player {
   techniques: string[];
   /** Armas cuerpo a cuerpo que posee (la equipada es equipment.weapon). */
   weapons: string[];
+  /** Notas de lore encontradas (ids de content/story). */
+  notes: string[];
+  /** Reliquias ganadas en la expedición (p. ej. el sello antiguo del Campanero). */
+  relics: string[];
   /** Consumibles y arrojadizas: id → cantidad. */
   inventory: Record<string, number>;
   equipment: Record<EquipSlot, string | null>;
@@ -61,6 +65,51 @@ export interface Enemy {
   /** Última posición donde te vio. */
   lastSeen: Vec | null;
   statuses: StatusEffect[];
+  /** Fase de combate de un jefe (1-3); 0 en enemigos normales. */
+  phase: number;
+}
+
+/** Ataque anunciado: las casillas se marcan y se liberan cuando `turns` llega a 0 (hay tiempo de apartarse o interrumpirlo). */
+export interface Telegraph {
+  id: string;
+  ownerId: string;
+  /** Nombre del ataque (para el registro). */
+  name: string;
+  cells: Vec[];
+  power: number;
+  /** Rondas que faltan para liberarse. */
+  turns: number;
+}
+
+/** Personaje no jugador o evento fijo en el mapa (maestra, altar...). Bloquea el paso como un cofre. */
+export interface Npc {
+  id: string;
+  kind: string;
+  pos: Vec;
+  /** Ya se eligió una opción: no ofrece más. */
+  used: boolean;
+}
+
+/** Pergamino de lore en el suelo; se recoge al pisarlo. */
+export interface Scroll {
+  id: string;
+  pos: Vec;
+  noteId: string;
+}
+
+/** Contadores de la expedición para el resumen final. */
+export interface RunStats {
+  kills: number;
+  chestsOpened: number;
+  damageDealt: number;
+  damageTaken: number;
+  techniquesUsed: number;
+  itemsUsed: number;
+  sneakAttacks: number;
+  decisions: number;
+  bossDefeated: boolean;
+  /** Qué te derrotó: tipo de enemigo o 'quemadura' (null si sigues en pie o ganaste). */
+  defeatedBy: string | null;
 }
 
 export interface Chest {
@@ -92,7 +141,7 @@ export interface GameState {
   turn: number;
   /** Sector actual (1 = el primero). */
   floor: number;
-  /** Sector final: su salida gana la expedición (hasta que exista el jefe, Hito 6). */
+  /** Sector final: su salida (sellada mientras viva el jefe) gana la expedición. */
   maxFloor: number;
   map: GameMap;
   player: Player;
@@ -100,6 +149,12 @@ export interface GameState {
   chests: Chest[];
   barriers: Barrier[];
   drops: Drop[];
+  telegraphs: Telegraph[];
+  npcs: Npc[];
+  scrolls: Scroll[];
+  stats: RunStats;
+  /** Diálogos que ya se mostraron y no deben repetirse solos (introducción del jefe, etc.). */
+  seenDialogues: string[];
   /** Casillas ya vistas (niebla de guerra). Mismo índice que map.tiles. */
   explored: boolean[];
   status: RunStatus;
@@ -117,6 +172,8 @@ export type Command =
   | { type: 'Throw'; itemId: string; target: Vec }
   | { type: 'EquipWeapon'; weaponId: string }
   | { type: 'Interact'; target: Vec }
+  /** Elige una opción de un maestro o altar (ver content/story). */
+  | { type: 'Choose'; npcId: string; optionId: string }
   | { type: 'Extract' };
 
 export type InvalidReason =
@@ -140,6 +197,10 @@ export type InvalidReason =
   | 'already_equipped'
   | 'nothing_to_interact'
   | 'already_opened'
+  | 'exit_sealed'
+  | 'unknown_option'
+  | 'option_unavailable'
+  | 'already_used'
   | 'extraction_unavailable';
 
 // ---------- Eventos (la presentación los escucha) ----------
@@ -166,6 +227,16 @@ export type GameEvent =
   | { type: 'XpGained'; amount: number }
   | { type: 'LevelUp'; level: number; learned: string[] }
   | { type: 'EnemyMoved'; enemyId: string; from: Vec; to: Vec }
+  | { type: 'TelegraphStarted'; ownerId: string; cells: Vec[]; turns: number }
+  | { type: 'TelegraphReleased'; ownerId: string; cells: Vec[]; hit: boolean }
+  | { type: 'TelegraphCancelled'; ownerId: string }
+  | { type: 'BossPhase'; enemyId: string; phase: number }
+  | { type: 'EnemySummoned'; enemyId: string; pos: Vec }
+  | { type: 'Dialogue'; id: string }
+  | { type: 'NpcTalked'; npcId: string }
+  | { type: 'NpcChoice'; npcId: string; optionId: string }
+  | { type: 'NoteFound'; noteId: string }
+  | { type: 'BossDefeated'; enemyId: string }
   | { type: 'EnemyDefeated'; enemyId: string }
   | { type: 'FloorChanged'; floor: number }
   | { type: 'PlayerDefeated' }

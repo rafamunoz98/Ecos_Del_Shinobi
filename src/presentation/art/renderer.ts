@@ -1,3 +1,4 @@
+import { getEnemy } from '../../content/enemies';
 import { getTechnique } from '../../content/techniques';
 import { getWeapon } from '../../content/weapons';
 import { getThrowable } from '../../content/weapons';
@@ -5,6 +6,7 @@ import { canSeeEntity, enemySees, openDoors, visibleCells, visionRadiusOf } from
 import { manhattan } from '../../core/grid';
 import type { Affinity, GameEvent, GameState, Vec } from '../../core/types';
 import { type Dir, drawEnemy, drawNinja } from './actors';
+import { drawNpc } from './bosses';
 import { type Ctx, circle, makeCanvas, radial, roundRectPath } from './draw';
 import {
   type Fx,
@@ -114,6 +116,7 @@ export class WorldRenderer {
   private scratch: HTMLCanvasElement | null = null;
   private scratchCtx: Ctx | null = null;
   private seedMotes = false;
+  private teleLabels: { x: number; y: number; text: string; urgent: boolean }[] = [];
 
   // ---------- Configuración ----------
 
@@ -434,6 +437,69 @@ export class WorldRenderer {
         case 'ItemPickedUp':
           this.text(pPos, `+${ev.count} ${getThrowable(ev.itemId)?.name ?? ev.itemId}`, '#d8e4ff', now, 0, 0.28, 1.0);
           break;
+        case 'TelegraphStarted': {
+          const owner = next.enemies.find((e) => e.id === ev.ownerId);
+          if (owner) {
+            this.text(owner.pos, '¡Prepara un ataque!', '#ff9ab0', now, ENEMY_DELAY, 0.3, 1.3);
+            add(ringFx(now + ENEMY_DELAY, owner.pos, '#ff6b8a', 1.0, 0.5));
+          }
+          enemyPhase = true;
+          break;
+        }
+        case 'TelegraphReleased': {
+          const t = now + ENEMY_DELAY;
+          for (const cell of ev.cells) {
+            add(impactFx(t + manhattan(cell, ev.cells[0]) * 0.012, cell, ev.hit ? '#ff8fb0' : '#c9a6ff', false));
+            add(puffFx(t, cell, '#a58cc8', 4, 0.22));
+          }
+          this.shake = Math.max(this.shake, ev.hit ? 0.16 : 0.09);
+          enemyPhase = true;
+          break;
+        }
+        case 'TelegraphCancelled': {
+          const owner = prev.enemies.find((e) => e.id === ev.ownerId);
+          if (owner) {
+            this.text(owner.pos, '¡Interrumpido!', '#9be6ff', now, 0.05, 0.32, 1.2);
+            add(puffFx(now, owner.pos, '#9be6ff', 8, 0.4));
+          }
+          break;
+        }
+        case 'BossPhase': {
+          const boss = next.enemies.find((e) => e.id === ev.enemyId);
+          if (boss) {
+            add(ringFx(now + ENEMY_DELAY, boss.pos, '#c79cff', 3.2, 0.9));
+            add(sparkleFx(now + ENEMY_DELAY, boss.pos, '#e0c4ff', 18));
+          }
+          this.shake = Math.max(this.shake, 0.22);
+          break;
+        }
+        case 'EnemySummoned':
+          add(puffFx(now + delay, ev.pos, '#9ec0ff', 10, 0.45));
+          add(ringFx(now + delay, ev.pos, '#9ec0ff', 0.9, 0.5));
+          break;
+        case 'BossDefeated': {
+          const boss = prev.enemies.find((e) => e.id === ev.enemyId);
+          if (boss) {
+            add(ringFx(now + 0.1, boss.pos, '#ffe08a', 4.5, 1.2));
+            add(sparkleFx(now + 0.1, boss.pos, '#ffe08a', 26));
+            add(puffFx(now + 0.1, boss.pos, '#c9b8f0', 16, 0.8));
+          }
+          this.shake = Math.max(this.shake, 0.25);
+          break;
+        }
+        case 'NoteFound':
+          this.text(pPos, 'Pergamino', '#ffe9a8', now, 0.1, 0.3, 1.3);
+          add(sparkleFx(now, pPos, '#fff0c0', 10));
+          break;
+        case 'NpcChoice': {
+          const npc = next.npcs.find((n) => n.id === ev.npcId);
+          if (npc) {
+            add(ringFx(now, npc.pos, '#ffe08a', 1.8, 0.8));
+            add(sparkleFx(now, npc.pos, '#ffe9a8', 16));
+          }
+          add(ringFx(now + 0.1, pPos, '#ffe08a', 1.2, 0.7));
+          break;
+        }
         case 'PlayerDefeated':
           this.hurt = 1;
           this.shake = 0.2;
@@ -554,6 +620,22 @@ export class WorldRenderer {
       ctx.restore();
       drawIcon(ctx, d.itemId, d.pos.x + 0.5, d.pos.y + 0.54 + bob, 0.46, 0.5 + Math.sin(now * 1.2 + d.pos.y) * 0.1);
     }
+    for (const sc of s.scrolls) {
+      const i = sc.pos.y * map.width + sc.pos.x;
+      if (!s.explored[i]) continue;
+      const bob = Math.sin(now * 2.4 + sc.pos.x) * 0.025;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(sc.pos.x + 0.5, sc.pos.y + 0.74, 0.18, 0.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = radial(ctx, sc.pos.x + 0.5, sc.pos.y + 0.55, 0.02, 0.4, 'rgba(255,226,150,0.32)', 'rgba(255,226,150,0)');
+      ctx.fillRect(sc.pos.x, sc.pos.y + 0.1, 1, 0.9);
+      ctx.restore();
+      drawIcon(ctx, 'pergamino', sc.pos.x + 0.5, sc.pos.y + 0.55 + bob, 0.42, -0.25);
+    }
+    this.drawTelegraphs(ctx, s, now);
     for (const b of s.barriers) {
       const i = b.pos.y * map.width + b.pos.x;
       const born = this.barrierBorn.get(i) ?? now - 1;
@@ -598,6 +680,17 @@ export class WorldRenderer {
           ),
       });
     }
+    for (const n of s.npcs) {
+      const i = n.pos.y * map.width + n.pos.x;
+      if (!s.explored[i]) continue;
+      ents.push({
+        y: n.pos.y,
+        draw: () => {
+          this.drawActor(ctx, n.pos.x + 0.5, n.pos.y + 0.5, 0, (c) => drawNpc(c, n.kind, now, n.used));
+          if (!n.used && manhattan(n.pos, s.player.pos) <= 2 && this.visible.has(i)) this.speechBubble(ctx, n.pos.x + 0.5, n.pos.y - 0.12, now);
+        },
+      });
+    }
     for (const e of s.enemies) {
       if (!canSeeEntity(s, this.visible, e.pos)) continue;
       const d = this.disp.get(e.id);
@@ -606,12 +699,18 @@ export class WorldRenderer {
       const lg = lungeOf(d);
       const face: 1 | -1 = s.player.pos.x === e.pos.x ? d.face : s.player.pos.x > e.pos.x ? 1 : -1;
       const stunned = e.statuses.some((st) => st.id === 'aturdido');
+      const charging = s.telegraphs.some((t) => t.ownerId === e.id);
+      const big = getEnemy(e.kind)?.behavior === 'boss';
       ents.push({
         y: ep.y,
         draw: () =>
-          this.drawActor(ctx, ep.x + lg.x + 0.5, ep.y + lg.y + 0.5, flashOf(d), (c) =>
-            drawEnemy(c, e.kind, { t: stunned ? now * 0.3 : now, walk: ep.moving ? 1 : 0, phase: now * 14, face }),
-          ),
+          this.drawActor(ctx, ep.x + lg.x + 0.5, ep.y + lg.y + 0.5, flashOf(d), (c) => {
+            if (big) {
+              c.translate(0, 0.34 * (1 - 1.35));
+              c.scale(1.35, 1.35);
+            }
+            drawEnemy(c, e.kind, { t: stunned ? now * 0.3 : now, walk: ep.moving ? 1 : 0, phase: now * 14, face, charging, bossPhase: e.phase });
+          }),
       });
     }
     ents.sort((a, b) => a.y - b.y);
@@ -659,8 +758,117 @@ export class WorldRenderer {
 
     // 8) Texto flotante y capas de pantalla.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.drawTelegraphLabels(ctx, now, scale, ox, oy);
     this.drawTexts(ctx, now, scale, ox, oy);
     this.drawScreenLayers(ctx, s, now, dt, W_, H_);
+    this.drawBossBar(ctx, s, W_);
+  }
+
+  /** Casillas marcadas por ataques anunciados: trama de aviso con cuenta atrás (más intensa al quedar 1 ronda). */
+  private drawTelegraphs(ctx: Ctx, s: GameState, now: number): void {
+    this.teleLabels = [];
+    for (const tg of s.telegraphs) {
+      const urgent = tg.turns <= 1;
+      const pulse = 0.5 + 0.5 * Math.sin(now * (urgent ? 12 : 5));
+      const a = (urgent ? 0.34 : 0.2) + pulse * (urgent ? 0.22 : 0.12);
+      for (const c of tg.cells) {
+        const i = c.y * s.map.width + c.x;
+        if (!s.explored[i]) continue;
+        ctx.save();
+        roundRectPath(ctx, c.x + 0.04, c.y + 0.04, 0.92, 0.92, 0.1);
+        ctx.fillStyle = `rgba(${urgent ? '255,60,90' : '210,80,200'},${a})`;
+        ctx.fill();
+        ctx.clip();
+        ctx.strokeStyle = `rgba(255,170,190,${0.25 + pulse * 0.2})`;
+        ctx.lineWidth = 0.05;
+        const off = ((now * 0.25) % 0.3);
+        ctx.beginPath();
+        for (let k = -1; k < 6; k++) {
+          const o = k * 0.3 + off;
+          ctx.moveTo(c.x + o, c.y);
+          ctx.lineTo(c.x + o - 1, c.y + 1);
+        }
+        ctx.stroke();
+        ctx.restore();
+        roundRectPath(ctx, c.x + 0.06, c.y + 0.06, 0.88, 0.88, 0.1);
+        ctx.strokeStyle = urgent ? '#ff5d7e' : '#e08cff';
+        ctx.lineWidth = 0.04;
+        ctx.stroke();
+      }
+      // La cuenta atrás se dibuja en el centro de la zona (en pantalla, después).
+      const ref = tg.cells.reduce((acc, c) => ({ x: acc.x + c.x, y: acc.y + c.y }), { x: 0, y: 0 });
+      const mid = tg.cells.reduce((best, c) => {
+        const d = Math.abs(c.x - ref.x / tg.cells.length) + Math.abs(c.y - ref.y / tg.cells.length);
+        return d < best.d ? { d, c } : best;
+      }, { d: Infinity, c: tg.cells[0] }).c;
+      if (mid && s.explored[mid.y * s.map.width + mid.x]) this.teleLabels.push({ x: mid.x + 0.5, y: mid.y + 0.5, text: String(tg.turns), urgent });
+    }
+  }
+
+  private speechBubble(ctx: Ctx, x: number, y: number, now: number): void {
+    const bob = Math.sin(now * 3) * 0.02;
+    ctx.save();
+    ctx.translate(x, y - 0.3 + bob);
+    roundRectPath(ctx, -0.17, -0.12, 0.34, 0.22, 0.08);
+    ctx.fillStyle = '#fffaf0';
+    ctx.fill();
+    ctx.strokeStyle = '#1a1020';
+    ctx.lineWidth = 0.03;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-0.04, 0.1);
+    ctx.lineTo(0, 0.17);
+    ctx.lineTo(0.04, 0.1);
+    ctx.closePath();
+    ctx.fillStyle = '#fffaf0';
+    ctx.fill();
+    ctx.fillStyle = '#1a1020';
+    for (const dx of [-0.08, 0, 0.08]) {
+      circle(ctx, dx, -0.01, 0.022);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** Barra de vida del jefe en lo alto de la pantalla mientras está a la vista. */
+  private drawBossBar(ctx: Ctx, s: GameState, W_: number): void {
+    const boss = s.enemies.find((e) => getEnemy(e.kind)?.behavior === 'boss');
+    if (!boss || !canSeeEntity(s, this.visible, boss.pos)) return;
+    const u = this.dpr;
+    const w = Math.min(W_ * 0.7, 520 * u);
+    const x = (W_ - w) / 2;
+    const y = 34 * u;
+    const h = 14 * u;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.font = `700 ${Math.round(14 * u)}px system-ui, "Segoe UI", sans-serif`;
+    ctx.lineWidth = 4 * u;
+    ctx.strokeStyle = 'rgba(10,6,16,0.9)';
+    const name = getEnemy(boss.kind)?.name ?? boss.kind;
+    ctx.strokeText(name, W_ / 2, y - 3 * u);
+    ctx.fillStyle = '#f4e6c8';
+    ctx.fillText(name, W_ / 2, y - 3 * u);
+    roundRectPath(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = 'rgba(10,6,16,0.82)';
+    ctx.fill();
+    const f = clamp(boss.hp / boss.maxHp, 0, 1);
+    roundRectPath(ctx, x + 2 * u, y + 2 * u, Math.max(h, (w - 4 * u) * f), h - 4 * u, (h - 4 * u) / 2);
+    ctx.fillStyle = boss.phase >= 3 ? '#e2514b' : boss.phase === 2 ? '#e0903a' : '#b878f0';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(244,230,200,0.7)';
+    ctx.lineWidth = 2 * u;
+    for (const mark of [1 / 3, 2 / 3]) {
+      ctx.beginPath();
+      ctx.moveTo(x + w * mark, y + 1 * u);
+      ctx.lineTo(x + w * mark, y + h - 1 * u);
+      ctx.stroke();
+    }
+    roundRectPath(ctx, x, y, w, h, h / 2);
+    ctx.strokeStyle = 'rgba(244,230,200,0.55)';
+    ctx.lineWidth = 2 * u;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawActor(ctx: Ctx, cx: number, cy: number, flash: number, draw: (c: Ctx) => void): void {
@@ -797,6 +1005,23 @@ export class WorldRenderer {
         ctx.lineTo(px, py + sy * L);
       }
       ctx.stroke();
+    }
+  }
+
+  private drawTelegraphLabels(ctx: Ctx, now: number, scale: number, ox: number, oy: number): void {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const l of this.teleLabels) {
+      const pulse = l.urgent ? 1 + 0.12 * Math.sin(now * 12) : 1;
+      ctx.font = `800 ${Math.round(0.46 * scale * pulse)}px system-ui, "Segoe UI", sans-serif`;
+      ctx.lineWidth = Math.max(3, 0.1 * scale);
+      ctx.strokeStyle = 'rgba(14,8,20,0.9)';
+      const px = l.x * scale + ox;
+      const py = l.y * scale + oy;
+      ctx.strokeText(l.text, px, py);
+      ctx.fillStyle = l.urgent ? '#ffd0da' : '#f0d4ff';
+      ctx.fillText(l.text, px, py);
     }
   }
 

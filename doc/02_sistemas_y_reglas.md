@@ -76,10 +76,23 @@ Cada transformación define duración, coste, efecto, limitaciones, señales vis
 - Acechador: persigue y golpea al adyacente.
 - Tirador: mantiene distancia y busca línea de visión.
 - Guardián: protege una zona o invoca defensa.
-- Canalizador: marca casillas y ejecuta un área en la ronda siguiente.
-- Jefe: fases con patrones anunciados.
+- Canalizador (Monje Hueco) **[Implementado]**: si te ve a ≤ 5 casillas, marca un rombo de radio 1 centrado en ti; el área estalla cuando el monje ha actuado dos veces más. Aturdirlo o matarlo cancela la marca.
+- Jefe (Campanero Sepultado) **[Implementado]**: fases según su vida (>2/3, >1/3, resto). Ver §9.1.
 
 Desempates deterministas para reproducir errores.
+
+### 9.1 Ataques anunciados (telegraphs) y jefe **[Implementado]**
+- Un ataque anunciado es una marca en el mapa (`state.telegraphs`) con casillas, potencia y cuenta atrás. Empieza en 2; cada acción de su dueño la reduce y al llegar a 0 se libera y daña al jugador si está en alguna casilla marcada (la defensa cuenta). Se dibuja rayada con el número de rondas.
+- Aturdir al dueño (salvo al jefe) o matarlo cancela la marca. El procesado de marcas ocurre antes de decidir si el enemigo te ve, así que una marca ya lanzada siempre se resuelve.
+- **Campanero Sepultado** (40 vida, poder 7, def. 2): *Campanada* (rombo de radio 2 a su alrededor, sin su casilla) si estás a ≤ 2; desde la fase 2, *Onda de la Campana* (cruz de longitud 4 por tu posición) si estás lejos y te ve; si no, avanza solo en rondas pares. Fase 3: invoca dos Ecos Menores. Es inmune a aturdimiento y empuje.
+- Mientras el jefe viva, la salida del último sector está sellada (`exit_sealed`). Al caer, da la reliquia **Sello Antiguo** y se cancelan sus ecos.
+- Equilibrio medido con simulaciones (jugador de IA sin esquivar): con vestimenta y arma mejoradas se gana siempre desde nivel 1; sin equipo, ~5 % al nivel 1, ~55 % al 2, 80 % al 3 y 100 % al 4. Los patrones están pensados para esquivar o castigar a distancia.
+
+### 9.2 PNJ y decisiones **[Implementado]**
+- Los PNJ (`state.npcs`) ocupan casilla y bloquean el paso. `Interact` junto a uno es una acción gratuita: muestra el diálogo, no gasta turno. `Choose {npcId, optionId}` paga el coste de la opción, aplica sus ganancias y marca al PNJ como usado (una vez por PNJ).
+- Costes posibles: vida, todo el kiro (con mínimo) u objetos. Ganancias: poder, defensa, vida máx., kiro máx., curación total o técnica avanzada.
+- Los diálogos se muestran una sola vez por expedición (`seenDialogues`). Los pergaminos (`state.scrolls`) se recogen al pisarlos y quedan en `player.notes`.
+- Estadísticas de expedición (`state.stats`): bajas, cofres, daño hecho y recibido, técnicas y objetos usados, golpes furtivos, decisiones, jefe derrotado y causa de la derrota.
 
 ## 10. Estados y terreno
 Estados candidatos: quemadura, marca, ralentización, aturdimiento, barrera, sangrado y agotamiento. Cada uno debe definir duración, acumulación y momento de resolución. Terreno: trampas, zonas elementales, obstáculos rompibles y altares.

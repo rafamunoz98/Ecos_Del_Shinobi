@@ -20,6 +20,7 @@
           <button type="button" data-key="escape" class="cancel" aria-label="Cancelar">✕</button>
           <button type="button" data-key="e" class="act" aria-label="Interactuar">E</button>
         </div>
+        <div id="dialogue" hidden></div>
       </div>
       <aside id="hud">
         <section id="vitals">
@@ -49,11 +50,14 @@
         <section id="help"></section>
       </aside>
       <div id="menu" hidden></div>
+      <div id="choice" hidden></div>
       <div id="result" hidden>
         <div class="card">
           <h1 id="result-title"></h1>
           <p id="result-text"></p>
-          <p>Pulsa <kbd>R</kbd> para una nueva expedición.</p>
+          <div id="result-stats"></div>
+          <div id="result-extra"></div>
+          <button id="result-new" type="button" class="use">Nueva expedición <kbd>R</kbd></button>
         </div>
       </div>
     </div>

@@ -1,8 +1,10 @@
 import { BALANCE } from '../content/balance';
 import { DIRS, fromIdx, idx, inBounds, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
-import type { Chest, Enemy, GameMap, TerrainKind, Vec } from '../core/types';
-import { createEnemy, pickEnemyDef } from './spawn';
+import { BOSS_ID, ENEMIES } from '../content/enemies';
+import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
+import type { Chest, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import { createBoss, createEnemy, pickEnemyDef } from './spawn';
 
 export interface Room {
   x: number;
@@ -17,7 +19,11 @@ export interface GeneratedLevel {
   exit: Vec;
   enemies: Enemy[];
   chests: Chest[];
+  npcs: Npc[];
+  scrolls: Scroll[];
   rooms: Room[];
+  /** Sala del jefe (la de la salida) en el último sector. */
+  bossRoom: Room | null;
 }
 
 export interface LevelParams {
@@ -25,6 +31,8 @@ export interface LevelParams {
   floor: number;
   width?: number;
   height?: number;
+  /** Último sector: la sala de la salida se convierte en la arena del Campanero Sepultado. */
+  boss?: boolean;
 }
 
 const MAX_ATTEMPTS = 50;
@@ -82,7 +90,7 @@ function carveCorridor(tiles: TerrainKind[], width: number, a: Vec, b: Vec, hori
   }
 }
 
-function buildLevel(rng: Rng, width: number, height: number, floor: number): GeneratedLevel | null {
+function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean): GeneratedLevel | null {
   const tiles: TerrainKind[] = new Array<TerrainKind>(width * height).fill('wall');
   const rooms: Room[] = [];
 
@@ -159,7 +167,10 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number): Gen
 
   const used = new Set<number>([idx(map, playerStart), idx(map, exit)]);
   const others = rooms.map((_, i) => i).filter((i) => i !== startRoom);
-  const order = rng.shuffle([...others]);
+  const bossRoom = withBoss ? rooms[exitRoom] : null;
+  // En el último sector la sala de la salida es la arena: sin enemigos ni arbustos aparte del jefe.
+  const spawnRooms = others.filter((i) => !withBoss || i !== exitRoom);
+  const order = rng.shuffle([...spawnRooms]);
   const randomCell = (r: Room): Vec => ({ x: rng.int(r.x, r.x + r.w - 1), y: rng.int(r.y, r.y + r.h - 1) });
 
   // 4. Enemigos: lejos de la entrada, repartidos por salas.
@@ -183,7 +194,7 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number): Gen
     for (let k = 0; k < n && enemies.length < BALANCE.level.maxEnemies; k++) tryPlaceEnemy(room);
   }
   for (let guard = 0; enemies.length < BALANCE.level.minEnemies && guard < 60; guard++) {
-    tryPlaceEnemy(rooms[rng.pick(others)]);
+    tryPlaceEnemy(rooms[rng.pick(spawnRooms)]);
   }
 
   // 5. Cofres: nunca deben cortar el camino (se comprueba que el resto del suelo siga conectado).
@@ -208,13 +219,14 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number): Gen
     if (chests.length >= BALANCE.level.maxChests) break;
     if (rng.chance(0.4)) tryPlaceChest(rooms[ri]);
   }
-  for (let guard = 0; chests.length === 0 && guard < 20; guard++) tryPlaceChest(rooms[rng.pick(others)]);
+  for (let guard = 0; chests.length === 0 && guard < 20; guard++) tryPlaceChest(rooms[rng.pick(spawnRooms)]);
 
   // 6. Decoración con efecto en el juego: arbustos (esconden y tapan la vista) y puertas (tapan la vista).
   const inRoom = (c: Vec): boolean => rooms.some((r) => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h);
   const clusters = BALANCE.level.bushClusters + (floor >= 2 ? 1 : 0);
   for (let k = 0; k < clusters; k++) {
     const room = rooms[rng.int(0, rooms.length - 1)];
+    if (room === bossRoom) continue;
     const centerCell = randomCell(room);
     const radius = rng.int(1, 2);
     for (let dy = -radius; dy <= radius; dy++) {
@@ -251,7 +263,48 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number): Gen
     doors++;
   }
 
-  return { map, playerStart, exit, enemies, chests, rooms };
+  // 7. Jefe, evento/maestro y pergaminos de lore (al final: no alteran los mapas de los sectores anteriores).
+  if (bossRoom) {
+    let spot: Vec | null = null;
+    for (let t = 0; t < 40 && !spot; t++) {
+      const c = randomCell(bossRoom);
+      if (used.has(idx(map, c)) || manhattan(c, exit) < 2) continue;
+      spot = c;
+    }
+    spot ??= { x: exit.x + 1, y: exit.y };
+    used.add(idx(map, spot));
+    enemies.push(createBoss(ENEMIES[BOSS_ID], `enemy-${enemies.length}`, spot));
+  }
+
+  const npcs: Npc[] = [];
+  const npcKind = NPC_BY_FLOOR[floor];
+  if (npcKind) {
+    const blocked = new Set<number>([...chestCells]);
+    for (let t = 0; t < 60 && npcs.length === 0; t++) {
+      const room = rooms[rng.pick(spawnRooms)];
+      const c = randomCell(room);
+      const i = idx(map, c);
+      if (used.has(i) || tiles[i] !== 'floor' || manhattan(c, playerStart) < 4) continue;
+      const trial = new Set(blocked).add(i);
+      if (reachableCount(map, playerStart, trial) !== floorCount - trial.size) continue;
+      used.add(i);
+      npcs.push({ id: `npc-${npcs.length}`, kind: npcKind, pos: c, used: false });
+    }
+  }
+
+  const scrolls: Scroll[] = [];
+  const pool = rng.shuffle([...notesForFloor(floor)]);
+  const wanted = Math.min(pool.length, rng.int(1, 2));
+  for (let t = 0; t < 80 && scrolls.length < wanted; t++) {
+    const room = rooms[rng.int(0, rooms.length - 1)];
+    const c = randomCell(room);
+    const i = idx(map, c);
+    if (used.has(i) || tiles[i] !== 'floor') continue;
+    used.add(i);
+    scrolls.push({ id: `scroll-${scrolls.length}`, pos: c, noteId: pool[scrolls.length].id });
+  }
+
+  return { map, playerStart, exit, enemies, chests, npcs, scrolls, rooms, bossRoom };
 }
 
 /**
@@ -262,7 +315,7 @@ export function generateLevel(params: LevelParams): GeneratedLevel {
   const width = params.width ?? BALANCE.level.width;
   const height = params.height ?? BALANCE.level.height;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor);
+    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false);
     if (level) return level;
   }
   throw new Error(`No se pudo generar el sector ${params.floor} con la semilla ${params.seed}.`);

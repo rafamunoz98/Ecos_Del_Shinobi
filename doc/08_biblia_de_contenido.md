@@ -57,7 +57,7 @@ Contrajuego previsto: las técnicas de línea exigen alineación; las de área q
 
 No todos deben estar disponibles al inicio. Cada linaje requiere historia, coste y contrajuego.
 
-## 4. Enemigos **[Implementado salvo Monje Hueco]**
+## 4. Enemigos **[Implementado]**
 Base a sector 1; en cada sector posterior ganan +2 de vida y +1 de poder cada dos sectores.
 
 | Enemigo | Vida | Poder | Def. | Aparece | Comportamiento | XP |
@@ -66,16 +66,23 @@ Base a sector 1; en cada sector posterior ganan +2 de vida y +1 de poder cada do
 | Cuervo de Sal | 5 | 3 | 0 | Sector 1 | Rápido: se mueve dos veces por ronda; ataca como mucho una | 3 |
 | Larva de Piedra | 16 | 4 | 2 | Sector 2 | Lenta: actúa una de cada dos rondas; muy resistente | 6 |
 | Tirador de Junco | 7 | 3 | 0 | Sector 2 | Dispara a distancia 5 con línea de visión; retrocede si te acercas a 2 o menos; acorralado, dispara | 5 |
-| **Monje Hueco** (pendiente) | — | — | — | — | Prepara un área de energía y la libera al turno siguiente (Hito 6) | — |
+| Monje Hueco | 12 | 6 | 1 | Sector 2 | Canalizador: te ve a ≤ 5 y marca un rombo de radio 1 sobre ti (*Pulso Hueco*); estalla dos rondas después. Percepción 8 | 8 |
+| Eco Menor | 6 | 3 | 0 | Solo invocado por el jefe | Persigue y golpea; no da botín de sector | — |
 
 Un enemigo solo persigue si el camino hasta el jugador mide menos que su alcance de persecución; si no, permanece quieto. Los enemigos aturdidos no actúan esa ronda.
 
-## 5. Jefe inicial (Hito 6)
-**El Campanero Sepultado**
-- Fase 1: golpe cercano anunciado.
-- Fase 2: marca una línea de casillas y ejecuta una onda en el turno siguiente.
-- Fase 3 opcional: convoca dos ecos menores.
-- Recompensa: sello antiguo y acceso a una nueva ruta.
+## 5. Jefe inicial **[Implementado]**
+**El Campanero Sepultado** — 40 vida, poder 7, defensa 2, percepción 10, 30 XP. Vive en la sala de salida del último sector (sin arbustos ni otros enemigos).
+- Fase 1 (vida > 2/3): *Campanada*, golpe de área (rombo radio 2) anunciado; avanza solo en rondas pares.
+- Fase 2 (vida > 1/3): añade *Onda de la Campana*, una cruz de longitud 4 sobre ti, si estás lejos.
+- Fase 3: invoca dos Ecos Menores (una vez).
+- Inmune a aturdimiento y empuje. Diálogo al verte, al cambiar de fase y al caer.
+- Recompensa: **Sello Antiguo** (reliquia) y la salida queda abierta. El «acceso a una nueva ruta» llega con la progresión (Hito 7).
+
+## 5.1 Eventos y maestros **[Implementado]**
+- **Altar del Eco Roto** (sector 1): *Ofrenda de sangre* (−6 vida → +1 poder, +2 kiro máx.), *Plegaria de kiro* (todo el kiro, mín. 3 → curación total), *Ofrenda de acero* (3 shuriken → +1 defensa).
+- **Maestra Sayoko** (sector 2): *Filo del Maestro* (+1 poder), *Respiración profunda* (+4 kiro máx.), *Piel de corteza* (+1 def., +4 vida máx.), *Lección adelantada* (técnica avanzada de tu afinidad).
+- **Notas de lore** (8 pergaminos, 1–2 por sector): diario del cartógrafo, tablilla de los Custodios, carta de la forja, canto de los Peregrinos, aviso del Círculo, último registro del Campanero, marca del sello y nota arrugada. Se leen en la pestaña Notas del menú.
 
 ## 5.5 Sigilo, arbustos y puertas **[Implementado]**
 Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan la visión; esconderse tiene un precio (ves menos); los enemigos solo actúan al verte; atacar a quien no te ha visto hace ×2.

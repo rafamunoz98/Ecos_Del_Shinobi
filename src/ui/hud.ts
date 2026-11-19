@@ -1,5 +1,7 @@
 import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_NAMES } from '../content/describe';
+import { ENEMIES } from '../content/enemies';
+import { NOTES, getRelic } from '../content/story';
 import { getEquipment, getItem } from '../content/items';
 import { getTechnique } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
@@ -61,6 +63,7 @@ export class Hud {
       const btn = (ev.target as HTMLElement).closest('button[data-key]') as HTMLElement | null;
       if (btn?.dataset.key) this.onAction({ type: 'key', key: btn.dataset.key });
     });
+    el('result-new').addEventListener('click', () => this.onAction({ type: 'key', key: 'r' }));
     el('actions').addEventListener('click', (ev) => {
       const btn = (ev.target as HTMLElement).closest('button[data-i]') as HTMLElement | null;
       if (!btn) return;
@@ -114,17 +117,67 @@ export class Hud {
     );
     log.scrollTop = log.scrollHeight;
 
-    el('help').textContent = 'Tab: menú · F: ataque de alcance · G: lanzar · Q: cambiar arma · Rueda o +/−: zoom · R: nueva expedición';
+    el('help').textContent = 'Tab: menú · E: interactuar/hablar · F: ataque de alcance · G: lanzar · Q: cambiar arma · Rueda o +/−: zoom · R: nueva expedición';
     this.drawMinimap(state);
 
+    this.renderResult(state);
+  }
+
+  /** Pantalla de resumen al terminar la expedición (victoria o derrota). */
+  private renderResult(state: GameState): void {
     const result = el('result');
     if (state.status === 'playing') {
       result.hidden = true;
-    } else {
-      result.hidden = false;
-      el('result-title').textContent = state.status === 'won' ? 'Expedición completada' : 'Has caído';
-      el('result-text').textContent = `Sector ${state.floor}/${state.maxFloor} · Nivel ${p.level} · Turnos: ${state.turn}`;
+      return;
     }
+    const st = state.stats;
+    const won = state.status === 'won';
+    const p = state.player;
+    result.hidden = false;
+    result.classList.toggle('won', won);
+    el('result-title').textContent = won ? 'Expedición completada' : 'Has caído';
+    const killer = st.defeatedBy ? (st.defeatedBy === 'quemadura' ? 'las quemaduras' : ENEMIES[st.defeatedBy]?.name ?? st.defeatedBy) : null;
+    el('result-text').textContent = won
+      ? 'El Campanero calla y el sello aguanta. Sales de la cripta con el Sello antiguo.'
+      : `Caes en el sector ${state.floor} de ${state.maxFloor}${killer ? `, a manos de ${killer}` : ''}. La cripta guarda tu eco.`;
+    const stat = (label: string, value: string): HTMLElement => {
+      const d = document.createElement('div');
+      d.className = 'stat';
+      const a = document.createElement('span');
+      a.textContent = label;
+      const b = document.createElement('b');
+      b.textContent = value;
+      d.append(a, b);
+      return d;
+    };
+    el('result-stats').replaceChildren(
+      stat('Sector alcanzado', `${state.floor} / ${state.maxFloor}`),
+      stat('Nivel', String(p.level)),
+      stat('Turnos', String(state.turn)),
+      stat('Enemigos derrotados', String(st.kills)),
+      stat('Daño infligido', String(st.damageDealt)),
+      stat('Daño recibido', String(st.damageTaken)),
+      stat('Técnicas usadas', String(st.techniquesUsed)),
+      stat('Objetos usados', String(st.itemsUsed)),
+      stat('Golpes furtivos', String(st.sneakAttacks)),
+      stat('Cofres abiertos', String(st.chestsOpened)),
+      stat('Decisiones tomadas', String(st.decisions)),
+      stat('Pergaminos', `${p.notes.length} / ${Object.keys(NOTES).length}`),
+    );
+    const extra = el('result-extra');
+    extra.replaceChildren();
+    const chip = (iconId: string, text: string): HTMLElement => {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      const img = document.createElement('img');
+      img.src = iconDataUrl(iconId, 28);
+      img.alt = '';
+      c.append(img, text);
+      return c;
+    };
+    if (st.bossDefeated) extra.append(chip('campana', 'Campanero Sepultado derrotado'));
+    else if (state.floor >= state.maxFloor) extra.append(chip('campana', 'Campanero Sepultado sigue en pie'));
+    for (const id of p.relics) extra.append(chip(id, getRelic(id)?.name ?? id));
   }
 
   notice(text: string): void {
@@ -185,7 +238,7 @@ export class Hud {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
     if (p.weapons.length > 1) specs.push({ key: 'Q', icon: w?.id ?? 'tanto_gastado', name: 'Cambiar arma', sub: w?.name ?? '', action: { type: 'weapon' } });
-    specs.push({ key: 'E', icon: 'cofre', name: 'Interactuar', sub: 'cofre / escalera', action: { type: 'interact' } });
+    specs.push({ key: 'E', icon: 'cofre', name: 'Interactuar', sub: 'cofre / escalera / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 
     const sig = JSON.stringify(specs.map((s) => [s.key, s.icon, s.name, s.sub, s.disabled]));

@@ -461,7 +461,48 @@ function scroll(ctx: Ctx): void {
   }
 }
 
+function bellIcon(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(-0.1, -0.28);
+  ctx.quadraticCurveTo(-0.16, -0.05, -0.28, 0.2);
+  ctx.lineTo(0.28, 0.2);
+  ctx.quadraticCurveTo(0.16, -0.05, 0.1, -0.28);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.28, 0.2, '#f2c474', '#8a5a1e');
+  ctx.fill();
+  outline(ctx, 0.05);
+  circle(ctx, 0, 0.27, 0.06);
+  ctx.fillStyle = '#5c3412';
+  ctx.fill();
+  outline(ctx, 0.03);
+}
+
+/** Sello antiguo: tres círculos y una campana partida. */
+function ancientSeal(ctx: Ctx): void {
+  roundRectPath(ctx, -0.34, -0.34, 0.68, 0.68, 0.14);
+  ctx.fillStyle = vGrad(ctx, -0.34, 0.34, '#d8c7f5', '#6c4fa8');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#2a1850';
+  ctx.lineWidth = 0.03;
+  for (const [x, y] of [[0, -0.15], [-0.14, 0.04], [0.14, 0.04]] as const) {
+    circle(ctx, x, y, 0.09);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#2a1850';
+  ctx.beginPath();
+  ctx.moveTo(-0.1, 0.3);
+  ctx.quadraticCurveTo(-0.08, 0.14, -0.02, 0.12);
+  ctx.lineTo(0.0, 0.2);
+  ctx.lineTo(0.03, 0.12);
+  ctx.quadraticCurveTo(0.09, 0.14, 0.1, 0.3);
+  ctx.closePath();
+  ctx.fill();
+}
+
 const ICONS: Record<string, (ctx: Ctx) => void> = {
+  campana: bellIcon,
+  sello_antiguo: ancientSeal,
   cofre: chest,
   pergamino: scroll,
   shuriken,

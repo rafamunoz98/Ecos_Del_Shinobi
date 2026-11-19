@@ -6,9 +6,22 @@ import { levelFromRoom } from '../dungeon/ascii';
 import { computeVisible } from './grid';
 import { visionRadiusOf } from './sight';
 import { nextRandom } from './rng';
-import type { GameState, NewGameOptions } from './types';
+import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
+
+export const emptyStats = (): RunStats => ({
+  kills: 0,
+  chestsOpened: 0,
+  damageDealt: 0,
+  damageTaken: 0,
+  techniquesUsed: 0,
+  itemsUsed: 0,
+  sneakAttacks: 0,
+  decisions: 0,
+  bossDefeated: false,
+  defeatedBy: null,
+});
 
 export function createGame(opts: NewGameOptions): GameState {
   let rngState = opts.seed >>> 0;
@@ -21,8 +34,8 @@ export function createGame(opts: NewGameOptions): GameState {
     affinity = AFFINITIES[Math.floor(r.value * AFFINITIES.length)];
   }
 
-  const level = opts.room ? levelFromRoom(opts.room) : generateLevel({ seed: opts.seed, floor: 1 });
   const maxFloor = opts.floors ?? (opts.room ? 1 : BALANCE.maxFloors);
+  const level = opts.room ? levelFromRoom(opts.room) : generateLevel({ seed: opts.seed, floor: 1, boss: maxFloor <= 1 });
 
   const state: GameState = {
     schemaVersion: SCHEMA_VERSION,
@@ -45,6 +58,8 @@ export function createGame(opts: NewGameOptions): GameState {
       affinity,
       techniques: techniquesFor(affinity, 1),
       weapons: ['tanto_gastado'],
+      notes: [],
+      relics: [],
       inventory: { unguento_musgo: 1, shuriken: 5 },
       equipment: { weapon: 'tanto_gastado', armor: null },
       statuses: [],
@@ -53,6 +68,11 @@ export function createGame(opts: NewGameOptions): GameState {
     chests: level.chests,
     barriers: [],
     drops: [],
+    telegraphs: [],
+    npcs: level.npcs,
+    scrolls: level.scrolls,
+    stats: emptyStats(),
+    seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),
     status: 'playing',
     log: ['Entras en la cripta. El aire huele a ceniza.'],
