@@ -5,8 +5,11 @@ export interface Vec {
   readonly y: number;
 }
 
-/** bush: arbusto (transitable, tapa la visión y esconde); door: puerta (transitable, tapa la visión salvo que alguien esté en ella). */
-export type TerrainKind = 'floor' | 'wall' | 'exit' | 'bush' | 'door';
+/**
+ * bush: arbusto (transitable, tapa la visión y esconde); door: puerta (transitable, tapa la visión salvo que alguien esté en ella);
+ * locked: puerta con candado de una cámara sellada (no se puede cruzar ni ver a través; se abre con la llave de hierro y pasa a ser 'door').
+ */
+export type TerrainKind = 'floor' | 'wall' | 'exit' | 'bush' | 'door' | 'locked';
 
 export interface GameMap {
   readonly width: number;
@@ -46,6 +49,13 @@ export interface Player {
   relics: string[];
   /** Consumibles y arrojadizas: id → cantidad. */
   inventory: Record<string, number>;
+  /** Monedas y esquirlas de campana (pagan las mejoras de la forja). */
+  coins: number;
+  shards: number;
+  /** Llaves que lleva (ids de content/items KEYS). Se deshacen al cambiar de sector. */
+  keys: string[];
+  /** Nivel de mejora de cada arma (forja): id de arma → nivel. Ausente = 0. */
+  weaponLevels: Record<string, number>;
   equipment: Record<EquipSlot, string | null>;
   statuses: StatusEffect[];
 }
@@ -67,6 +77,8 @@ export interface Enemy {
   statuses: StatusEffect[];
   /** Fase de combate de un jefe (1-3); 0 en enemigos normales. */
   phase: number;
+  /** Armas arrojadizas clavadas en él (id → cantidad); caen al suelo cuando muere. */
+  stuck: Record<string, number>;
 }
 
 /** Ataque anunciado: las casillas se marcan y se liberan cuando `turns` llega a 0 (hay tiempo de apartarse o interrumpirlo). */
@@ -108,6 +120,9 @@ export interface RunStats {
   sneakAttacks: number;
   decisions: number;
   bossDefeated: boolean;
+  /** Monedas reunidas y mejoras hechas en la forja. */
+  coinsFound: number;
+  upgrades: number;
   /** Qué te derrotó: tipo de enemigo o 'quemadura' (null si sigues en pie o ganaste). */
   defeatedBy: string | null;
 }
@@ -116,6 +131,8 @@ export interface Chest {
   id: string;
   pos: Vec;
   opened: boolean;
+  /** Cofre lacado: exige la llave de laca y guarda equipo mejor. */
+  locked?: boolean;
 }
 
 /** Obstáculo temporal creado por una técnica: bloquea el paso de todos, no la visión. */
@@ -124,7 +141,7 @@ export interface Barrier {
   turns: number;
 }
 
-/** Objeto en el suelo (arrojadizas recuperables). Se recoge al pisarlo. */
+/** Objeto en el suelo (monedas, llaves, consumibles, arrojadizas, equipo...). Se recoge al pisarlo. */
 export interface Drop {
   pos: Vec;
   itemId: string;
@@ -174,6 +191,8 @@ export type Command =
   | { type: 'Interact'; target: Vec }
   /** Elige una opción de un maestro o altar (ver content/story). */
   | { type: 'Choose'; npcId: string; optionId: string }
+  /** Mejora un arma en una mesa de forja adyacente, pagando con monedas o con esquirlas. */
+  | { type: 'Upgrade'; npcId: string; weaponId: string; pay: 'coins' | 'shards' }
   | { type: 'Extract' };
 
 export type InvalidReason =
@@ -198,6 +217,11 @@ export type InvalidReason =
   | 'nothing_to_interact'
   | 'already_opened'
   | 'exit_sealed'
+  | 'locked_door'
+  | 'locked_chest'
+  | 'not_at_forge'
+  | 'max_upgrade'
+  | 'cannot_afford'
   | 'unknown_option'
   | 'option_unavailable'
   | 'already_used'
@@ -217,6 +241,9 @@ export type GameEvent =
   | { type: 'PlayerAttacked'; weaponId: string; cells: Vec[]; targets: Vec[] }
   | { type: 'ItemThrown'; itemId: string; from: Vec; to: Vec; hit: boolean }
   | { type: 'ItemPickedUp'; itemId: string; count: number }
+  | { type: 'ItemStuck'; enemyId: string; itemId: string }
+  | { type: 'DoorUnlocked'; pos: Vec }
+  | { type: 'WeaponUpgraded'; weaponId: string; level: number }
   | { type: 'WeaponEquipped'; weaponId: string }
   | { type: 'EnemyAlerted'; enemyId: string }
   | { type: 'EnemyLostTrack'; enemyId: string }

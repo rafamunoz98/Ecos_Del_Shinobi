@@ -17,6 +17,8 @@ export interface EnemyDef {
   /** Primer sector en el que aparece y peso relativo de aparición. */
   minFloor: number;
   weight: number;
+  /** No suelta monedas al caer (p. ej. los ecos que convoca el jefe). */
+  noLoot?: boolean;
   /** Solo 'ranged': alcance de disparo y distancia a la que intenta retroceder. */
   range?: number;
   keepAway?: number;
@@ -120,6 +122,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     actEvery: 1,
     minFloor: 99, // solo los convoca el jefe
     weight: 0,
+    noLoot: true,
   },
   campanero_sepultado: {
     id: 'campanero_sepultado',

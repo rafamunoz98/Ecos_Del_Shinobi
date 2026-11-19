@@ -5,7 +5,7 @@
  *      whip   alcanza hasta `reach` casillas en línea recta y golpea al primer enemigo que encuentra.
  *      spear  ataca `reach` casillas en línea y atraviesa: golpea a todos los que haya.
  *  - Arrojadizas (THROWABLES): se llevan en el inventario por unidades y se lanzan a una casilla visible.
- *    Pueden recuperarse del suelo (según su probabilidad de romperse) o gastarse del todo.
+ *    Al acertar se clavan en el enemigo y caen al suelo cuando muere (salvo que se rompan); si fallan, caen donde llegan.
  */
 export type WeaponKind = 'blade' | 'whip' | 'spear';
 
@@ -33,6 +33,12 @@ export function getWeapon(id: string | null | undefined): WeaponDef | undefined 
   return id && Object.hasOwn(WEAPONS, id) ? WEAPONS[id] : undefined;
 }
 
+/** Nombre con el nivel de mejora de la forja: «Hoja afilada +2». */
+export function weaponLabel(id: string, level = 0): string {
+  const name = getWeapon(id)?.name ?? id;
+  return level > 0 ? `${name} +${level}` : name;
+}
+
 export interface ThrowableDef {
   id: string;
   name: string;
@@ -47,9 +53,9 @@ export interface ThrowableDef {
 }
 
 export const THROWABLES: Record<string, ThrowableDef> = {
-  shuriken: { id: 'shuriken', name: 'Shuriken', damage: 3, range: 5, breakChance: 0.25, description: 'Estrella de acero. Se lanza hasta 5 casillas; suele poder recogerse del suelo.' },
-  kunai_arrojadizo: { id: 'kunai_arrojadizo', name: 'Kunai arrojadizo', damage: 4, range: 4, breakChance: 0.15, description: 'Más pesado: 4 de daño hasta 4 casillas. Casi siempre se recupera.' },
-  senbon: { id: 'senbon', name: 'Senbon', damage: 2, ignoreDefense: true, range: 6, breakChance: 1, description: 'Aguja finísima que ignora la defensa, hasta 6 casillas. Se gasta al usarla.' },
+  shuriken: { id: 'shuriken', name: 'Shuriken', damage: 3, range: 5, breakChance: 0.25, description: 'Estrella de acero. Se lanza hasta 5 casillas, se clava en el enemigo y cae al suelo cuando muere.' },
+  kunai_arrojadizo: { id: 'kunai_arrojadizo', name: 'Kunai arrojadizo', damage: 4, range: 4, breakChance: 0.15, description: 'Más pesado: 4 de daño hasta 4 casillas. Casi siempre se recupera tras abatir al enemigo.' },
+  senbon: { id: 'senbon', name: 'Senbon', damage: 4, ignoreDefense: true, range: 6, breakChance: 0.4, description: 'Aguja finísima que ignora la defensa: 4 de daño hasta 6 casillas. Se clava en el enemigo; se pierde el 40 % de las veces.' },
 };
 
 export function getThrowable(id: string): ThrowableDef | undefined {

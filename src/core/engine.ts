@@ -1,14 +1,15 @@
 import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, type EnemyDef } from '../content/enemies';
-import { getEquipment, getItem, lootTableFor } from '../content/items';
+import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, coinAmount, getEquipment, getItem, isKey, lootTableFor, type LootEntry } from '../content/items';
+import { itemName } from '../content/names';
 import { getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { getNpc, getNote, type NpcOption } from '../content/story';
-import { getThrowable, getWeapon, WEAPONS, type WeaponDef } from '../content/weapons';
-import { generateLevel } from '../dungeon/generator';
+import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
+import { FORGE_KIND, generateLevel } from '../dungeon/generator';
 import { createEnemy } from '../dungeon/spawn';
-import { calcDamage, effectiveDefense, effectivePower, xpToNext } from './combat';
+import { calcDamage, effectiveDefense, effectivePower, weaponLevel, xpToNext } from './combat';
 import { DIRS, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, terrainAt } from './grid';
-import { nextRandom } from './rng';
+import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
   Chest,
@@ -55,6 +56,11 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   nothing_to_interact: 'No hay nada con lo que interactuar ahí.',
   already_opened: 'Ya está abierto.',
   exit_sealed: 'La salida está sellada: algo guarda esta cámara.',
+  locked_door: 'La puerta tiene un candado de hierro. Busca la llave de hierro en este sector.',
+  locked_chest: 'El cofre está lacrado. Busca la llave de laca en este sector.',
+  not_at_forge: 'Necesitas estar junto a una mesa de forja.',
+  max_upgrade: 'Esa arma ya está al máximo.',
+  cannot_afford: 'No tienes suficientes monedas o esquirlas.',
   unknown_option: 'Esa opción no existe.',
   option_unavailable: 'No puedes pagar el coste de esa opción.',
   already_used: 'Ya elegiste aquí.',
@@ -310,6 +316,30 @@ export function optionBlocker(state: GameState, opt: NpcOption): string | null {
   return null;
 }
 
+/** Coste de subir un arma de su nivel actual al siguiente (null si ya está al máximo). */
+export interface UpgradeQuote {
+  level: number;
+  maxed: boolean;
+  coins: number;
+  shards: number;
+  canCoins: boolean;
+  canShards: boolean;
+}
+
+export function upgradeQuote(state: GameState, weaponId: string): UpgradeQuote {
+  const level = weaponLevel(state.player, weaponId);
+  const maxed = level >= BALANCE.forge.maxLevel;
+  const coins = maxed ? 0 : BALANCE.forge.coins[level];
+  const shards = maxed ? 0 : BALANCE.forge.shards[level];
+  return { level, maxed, coins, shards, canCoins: !maxed && state.player.coins >= coins, canShards: !maxed && state.player.shards >= shards };
+}
+
+/** ¿Hay una mesa de forja con ese id junto al jugador? */
+const forgeNear = (s: GameState, npcId: string): Npc | undefined => {
+  const n = s.npcs.find((x) => x.id === npcId && x.kind === FORGE_KIND);
+  return n && manhattan(s.player.pos, n.pos) <= 1 ? n : undefined;
+};
+
 export function validateCommand(state: GameState, cmd: Command): InvalidReason | null {
   if (state.status !== 'playing') return 'run_over';
   const p = state.player;
@@ -342,10 +372,22 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
     case 'Interact': {
       if (manhattan(p.pos, cmd.target) > 1) return 'not_adjacent';
       const chest = chestAt(state, cmd.target);
-      if (chest) return chest.opened ? 'already_opened' : null;
+      if (chest) {
+        if (chest.opened) return 'already_opened';
+        return chest.locked && !p.keys.includes('llave_laca') ? 'locked_chest' : null;
+      }
       if (npcAt(state, cmd.target)) return null;
-      if (terrainAt(state.map, cmd.target) !== 'exit') return 'nothing_to_interact';
+      const terrain = terrainAt(state.map, cmd.target);
+      if (terrain === 'locked') return p.keys.includes('llave_hierro') ? null : 'locked_door';
+      if (terrain !== 'exit') return 'nothing_to_interact';
       return bossAlive(state) ? 'exit_sealed' : null;
+    }
+    case 'Upgrade': {
+      if (!forgeNear(state, cmd.npcId)) return 'not_at_forge';
+      if (!getWeapon(cmd.weaponId) || !p.weapons.includes(cmd.weaponId)) return 'no_item';
+      const q = upgradeQuote(state, cmd.weaponId);
+      if (q.maxed) return 'max_upgrade';
+      return (cmd.pay === 'coins' ? q.canCoins : q.canShards) ? null : 'cannot_afford';
     }
     case 'Choose': {
       const npc = state.npcs.find((n) => n.id === cmd.npcId);
@@ -523,6 +565,7 @@ function defeatBoss(ctx: Ctx, boss: Enemy): void {
     cancelTelegraphs(ctx, e.id);
     ctx.events.push({ type: 'EnemyDefeated', enemyId: e.id });
   }
+  for (const e of s.enemies.filter((o) => o.kind === 'eco_menor')) releaseStuck(s, e);
   s.enemies = s.enemies.filter((o) => o.kind !== 'eco_menor');
   ctx.events.push({ type: 'BossDefeated', enemyId: boss.id });
   say(ctx, 'La campana calla. Obtienes el Sello antiguo y la salida se abre.');
@@ -540,22 +583,54 @@ function reapDead(ctx: Ctx): void {
     ctx.state.stats.kills += 1;
     cancelTelegraphs(ctx, e.id);
     gainXp(ctx, getEnemy(e.kind)?.xp ?? 0);
+    releaseStuck(ctx.state, e);
+    dropEnemyLoot(ctx, e);
     if (isBoss(e)) defeatBoss(ctx, e);
   }
 }
 
-function rollLoot(ctx: Ctx) {
-  const owned = ctx.state.player.weapons;
-  const table = lootTableFor(ctx.state.floor).filter((e) => !(e.kind === 'weapon' && owned.includes(e.id)));
-  const total = table.reduce((sum, e) => sum + e.weight, 0);
+/** Las armas arrojadizas clavadas en un enemigo caen al suelo donde muere. */
+function releaseStuck(s: GameState, e: Enemy): void {
+  for (const [id, n] of Object.entries(e.stuck ?? {})) placeDrop(s, e.pos, id, n);
+  e.stuck = {};
+}
+
+const hashId = (id: string): number => [...id].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+
+/** Monedas que suelta un enemigo al caer (determinista: no consume el generador de la partida). El jefe da un botín fijo. */
+function dropEnemyLoot(ctx: Ctx, e: Enemy): void {
+  const s = ctx.state;
+  const def = getEnemy(e.kind);
+  if (!def || def.noLoot) return;
+  if (isBoss(e)) {
+    placeDrop(s, e.pos, 'moneda', BALANCE.bossLoot.coins);
+    placeDrop(s, e.pos, 'esquirla', BALANCE.bossLoot.shards);
+    return;
+  }
+  const rng = new Rng(mixSeed((s.seed + Math.imul(s.turn, 0x9e3779b1)) >>> 0, s.floor, hashId(e.id)));
+  const c = BALANCE.enemyCoins;
+  if (rng.chance(c.chance)) placeDrop(s, e.pos, 'moneda', rng.int(c.min, c.max) + (s.floor - 1) * c.perFloor);
+}
+
+/** Tirada ponderada en una tabla de botín: sin repetir armas ya tenidas ni vestimenta peor que la puesta (si no queda nada, vale todo). */
+function rollFrom(ctx: Ctx, table: readonly LootEntry[]): LootEntry {
+  const p = ctx.state.player;
+  const floorTable = lootTableFor(ctx.state.floor, table);
+  const useful = floorTable.filter((e) => {
+    if (e.kind === 'weapon') return !p.weapons.includes(e.id);
+    if (e.kind === 'equipment') return (getEquipment(e.id)?.bonus ?? 0) > (getEquipment(p.equipment.armor)?.bonus ?? 0);
+    return true;
+  });
+  const pool = useful.length > 0 ? useful : floorTable;
+  const total = pool.reduce((sum, e) => sum + e.weight, 0);
   const r = nextRandom(ctx.state.rngState);
   ctx.state.rngState = r.state;
   let roll = r.value * total;
-  for (const entry of table) {
+  for (const entry of pool) {
     if (roll < entry.weight) return entry;
     roll -= entry.weight;
   }
-  return table[table.length - 1];
+  return pool[pool.length - 1];
 }
 
 /** Empuja a un enemigo `steps` casillas alejándolo del jugador; si choca, recibe daño de impacto. */
@@ -622,47 +697,77 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
 
 function openChest(ctx: Ctx, chest: Chest): void {
   const p = ctx.state.player;
+  const floor = ctx.state.floor;
   chest.opened = true;
   ctx.state.stats.chestsOpened += 1;
-  const entry = rollLoot(ctx);
-  ctx.events.push({ type: 'ChestOpened', chestId: chest.id, itemId: entry.id });
-  switch (entry.kind) {
-    case 'item':
-      p.inventory[entry.id] = (p.inventory[entry.id] ?? 0) + 1;
-      say(ctx, `Abres el cofre y encuentras: ${getItem(entry.id)?.name ?? entry.id}.`);
-      return;
-    case 'throwable': {
-      const n = entry.amount ?? 3;
-      p.inventory[entry.id] = (p.inventory[entry.id] ?? 0) + n;
-      say(ctx, `Abres el cofre y encuentras: ${n}× ${getThrowable(entry.id)?.name ?? entry.id}.`);
-      return;
-    }
-    case 'weapon': {
-      const w = getWeapon(entry.id);
-      if (!w) return;
-      if (!p.weapons.includes(w.id)) p.weapons.push(w.id);
-      say(ctx, `Abres el cofre y encuentras: ${w.name}. Puedes equiparla desde el menú (Tab).`);
-      return;
-    }
-    case 'equipment': {
-      const def = getEquipment(entry.id);
-      if (!def) return;
-      const current = getEquipment(p.equipment[def.slot])?.bonus ?? -1;
-      if (def.bonus > current) {
-        p.equipment[def.slot] = def.id;
-        ctx.events.push({ type: 'EquipmentEquipped', slot: def.slot, itemId: def.id });
-        say(ctx, `Abres el cofre y te equipas: ${def.name} (${def.description}).`);
-      } else {
-        say(ctx, `Abres el cofre y hallas ${def.name}, pero tu equipo actual es mejor.`);
-      }
-    }
+  if (chest.locked) {
+    p.keys = p.keys.filter((k) => k !== 'llave_laca');
+    say(ctx, 'La llave de laca gira y el cofre cede.');
   }
+  const entry = rollFrom(ctx, chest.locked ? LACQUER_LOOT : CHEST_LOOT);
+  ctx.events.push({ type: 'ChestOpened', chestId: chest.id, itemId: entry.id });
+  const amount = entry.kind === 'coins' ? coinAmount(entry.amount ?? 4, floor) : (entry.amount ?? 1);
+  collect(ctx, entry.id, amount, 'Abres el cofre y encuentras:');
+  // Un cofre siempre trae algo de dinero, y el lacado además esquirlas.
+  collect(ctx, 'moneda', coinAmount(chest.locked ? 10 : 5, floor), 'Dentro hay además');
+  if (chest.locked) collect(ctx, 'esquirla', 2, 'Dentro hay además');
 }
 
-function placeDrop(s: GameState, pos: Vec, itemId: string): void {
+function placeDrop(s: GameState, pos: Vec, itemId: string, count = 1): void {
   const existing = s.drops.find((d) => d.itemId === itemId && equals(d.pos, pos));
-  if (existing) existing.count += 1;
-  else s.drops.push({ pos: { ...pos }, itemId, count: 1 });
+  if (existing) existing.count += count;
+  else s.drops.push({ pos: { ...pos }, itemId, count });
+}
+
+/**
+ * Pasa un objeto al jugador: monedas y esquirlas se suman a su cartera, las llaves a su llavero, las armas a su colección,
+ * la vestimenta se equipa si mejora la actual y lo demás va a la mochila. Lo repetido o peor se desmonta en esquirlas.
+ */
+function collect(ctx: Ctx, itemId: string, count: number, verb: string): void {
+  const p = ctx.state.player;
+  ctx.events.push({ type: 'ItemPickedUp', itemId, count });
+  if (itemId === 'moneda') {
+    p.coins += count;
+    ctx.state.stats.coinsFound += count;
+    say(ctx, `${verb} ${count} ${CURRENCY.moneda.name.toLowerCase()}.`);
+    return;
+  }
+  if (itemId === 'esquirla') {
+    p.shards += count;
+    say(ctx, `${verb} ${count} ${count === 1 ? 'esquirla' : 'esquirlas'} de campana.`);
+    return;
+  }
+  if (isKey(itemId)) {
+    if (!p.keys.includes(itemId)) p.keys.push(itemId);
+    say(ctx, `${verb} ${KEYS[itemId].name}.`);
+    return;
+  }
+  const weapon = getWeapon(itemId);
+  if (weapon) {
+    if (!p.weapons.includes(weapon.id)) {
+      p.weapons.push(weapon.id);
+      say(ctx, `${verb} ${weapon.name}. Puedes equiparla desde el menú (Tab).`);
+    } else {
+      p.shards += 2;
+      say(ctx, `${verb} ${weapon.name}, pero ya la tienes: la desmontas (+2 esquirlas).`);
+    }
+    return;
+  }
+  const armor = getEquipment(itemId);
+  if (armor) {
+    const current = getEquipment(p.equipment[armor.slot])?.bonus ?? -1;
+    if (armor.bonus > current) {
+      p.equipment[armor.slot] = armor.id;
+      ctx.events.push({ type: 'EquipmentEquipped', slot: armor.slot, itemId: armor.id });
+      say(ctx, `${verb} ${armor.name} y te la equipas (${armor.description}).`);
+    } else {
+      p.shards += 1;
+      say(ctx, `${verb} ${armor.name}, pero tu vestimenta actual es mejor: la desmontas (+1 esquirla).`);
+    }
+    return;
+  }
+  p.inventory[itemId] = (p.inventory[itemId] ?? 0) + count;
+  say(ctx, `${verb} ${count > 1 ? `${count}× ` : ''}${itemName(itemId)}.`);
 }
 
 /** Recoge lo que haya en el suelo bajo el jugador. */
@@ -676,12 +781,8 @@ function pickUp(ctx: Ctx): void {
   s.scrolls = s.scrolls.filter((c) => !equals(c.pos, s.player.pos));
   const here = s.drops.filter((d) => equals(d.pos, s.player.pos));
   if (here.length === 0) return;
-  for (const d of here) {
-    s.player.inventory[d.itemId] = (s.player.inventory[d.itemId] ?? 0) + d.count;
-    ctx.events.push({ type: 'ItemPickedUp', itemId: d.itemId, count: d.count });
-    say(ctx, `Recoges ${d.count}× ${getThrowable(d.itemId)?.name ?? d.itemId}.`);
-  }
   s.drops = s.drops.filter((d) => !equals(d.pos, s.player.pos));
+  for (const d of here) collect(ctx, d.itemId, d.count, 'Recoges');
 }
 
 function descend(ctx: Ctx): void {
@@ -693,11 +794,15 @@ function descend(ctx: Ctx): void {
   s.enemies = level.enemies;
   s.chests = level.chests;
   s.barriers = [];
-  s.drops = [];
+  s.drops = level.drops;
   s.telegraphs = [];
   s.npcs = level.npcs;
   s.scrolls = level.scrolls;
   s.explored = new Array<boolean>(level.map.width * level.map.height).fill(false);
+  if (s.player.keys.length > 0) {
+    s.player.keys = [];
+    say(ctx, 'Las llaves que no usaste se deshacen en polvo al cruzar.');
+  }
   ctx.events.push({ type: 'FloorChanged', floor: s.floor });
   say(ctx, `Desciendes al sector ${s.floor}.`);
 }
@@ -760,8 +865,16 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       }
       const roll = nextRandom(s.rngState);
       s.rngState = roll.state;
-      if (roll.value >= def.breakChance) placeDrop(s, landing, def.id);
-      else say(ctx, `${def.name} se pierde.`);
+      if (roll.value < def.breakChance) {
+        say(ctx, `${def.name} se pierde.`);
+      } else if (victim && victim.hp > 0) {
+        // Clavada en el enemigo: la recuperarás cuando caiga.
+        victim.stuck[def.id] = (victim.stuck[def.id] ?? 0) + 1;
+        ctx.events.push({ type: 'ItemStuck', enemyId: victim.id, itemId: def.id });
+        say(ctx, `${def.name} queda clavada en ${enemyName(victim)}.`);
+      } else {
+        placeDrop(s, landing, def.id);
+      }
       return;
     }
     case 'EquipWeapon': {
@@ -801,6 +914,13 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         return;
       }
       if (npcAt(s, cmd.target)) return; // hablar es una acción libre (ver applyCommand)
+      if (terrainAt(s.map, cmd.target) === 'locked') {
+        s.map.tiles[cmd.target.y * s.map.width + cmd.target.x] = 'door';
+        p.keys = p.keys.filter((k) => k !== 'llave_hierro');
+        ctx.events.push({ type: 'DoorUnlocked', pos: { ...cmd.target } });
+        say(ctx, 'La llave de hierro gira: el candado cae y la puerta se abre.');
+        return;
+      }
       if (s.floor >= s.maxFloor) {
         s.status = 'won';
         ctx.events.push({ type: 'RunWon' });
@@ -814,6 +934,17 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       const npc = s.npcs.find((n) => n.id === cmd.npcId) as Npc;
       const opt = (getNpc(npc.kind)?.options.find((o) => o.id === cmd.optionId)) as NpcOption;
       applyOption(ctx, npc, opt);
+      return;
+    }
+    case 'Upgrade': {
+      const q = upgradeQuote(s, cmd.weaponId);
+      if (cmd.pay === 'coins') p.coins -= q.coins;
+      else p.shards -= q.shards;
+      const level = q.level + 1;
+      p.weaponLevels[cmd.weaponId] = level;
+      s.stats.upgrades += 1;
+      ctx.events.push({ type: 'WeaponUpgraded', weaponId: cmd.weaponId, level });
+      say(ctx, `El herrero de la mesa afila tu arma: ${weaponLabel(cmd.weaponId, level)} (+${BALANCE.forge.bonusPerLevel} de poder).`);
       return;
     }
     case 'Extract':
@@ -1080,6 +1211,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       ];
       return { ok: true, state, events };
     }
+    if (npc?.kind === FORGE_KIND) return { ok: true, state, events: [{ type: 'NpcTalked', npcId: npc.id }] };
   }
 
   const ctx: Ctx = { state: structuredClone(state), events: [] };

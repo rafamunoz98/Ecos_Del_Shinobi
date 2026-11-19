@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AFFINITIES } from '../content/affinities';
 import { ENEMIES } from '../content/enemies';
-import { EQUIPMENT, ITEMS, LOOT_TABLE } from '../content/items';
+import { ALL_LOOT_TABLES, CURRENCY, EQUIPMENT, ITEMS, KEYS } from '../content/items';
 import { getTechnique, needsAim, TECHNIQUES, techniquesFor } from '../content/techniques';
 import { THROWABLES, WEAPONS } from '../content/weapons';
 
@@ -26,9 +26,19 @@ describe('coherencia del contenido', () => {
   });
 
   it('la tabla de botín solo referencia contenido existente', () => {
-    const table = { item: ITEMS, equipment: EQUIPMENT, weapon: WEAPONS, throwable: THROWABLES } as const;
-    for (const e of LOOT_TABLE) expect(table[e.kind][e.id], e.id).toBeDefined();
-    expect(LOOT_TABLE.some((e) => e.minFloor === 1)).toBe(true);
+    const table: Record<string, Record<string, unknown>> = {
+      item: ITEMS,
+      equipment: EQUIPMENT,
+      weapon: WEAPONS,
+      throwable: THROWABLES,
+      coins: CURRENCY,
+      shards: CURRENCY,
+    };
+    for (const loot of ALL_LOOT_TABLES) {
+      for (const e of loot) expect(table[e.kind][e.id], e.id).toBeDefined();
+      expect(loot.some((e) => e.minFloor === 1)).toBe(true);
+    }
+    expect(Object.keys(KEYS)).toEqual(['llave_hierro', 'llave_laca']);
   });
 
   it('getTechnique no confunde claves heredadas del prototipo de Object', () => {

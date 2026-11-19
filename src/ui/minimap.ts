@@ -1,7 +1,7 @@
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { GameState } from '../core/types';
 
-const COLORS: Record<string, string> = { wall: '#2a2a42', floor: '#6a6e88', exit: '#b48bff', bush: '#4f9a4a', door: '#b07a44' };
+const COLORS: Record<string, string> = { wall: '#2a2a42', floor: '#6a6e88', exit: '#b48bff', bush: '#4f9a4a', door: '#b07a44', locked: '#d9a441' };
 
 /** Mapa de lo explorado: arbustos, puertas, cofres, escalera y enemigos a la vista. Ajusta la escala al lienzo. */
 export function drawMinimap(canvas: HTMLCanvasElement, state: GameState): void {
@@ -21,9 +21,14 @@ export function drawMinimap(canvas: HTMLCanvasElement, state: GameState): void {
       ctx.fillRect(ox + x * scale, oy + y * scale, scale, scale);
     }
   }
+  for (const n of state.npcs) {
+    if (!state.explored[n.pos.y * map.width + n.pos.x]) continue;
+    ctx.fillStyle = n.kind === 'mesa_forja' ? '#ff9a4a' : '#8fe3ff';
+    ctx.fillRect(ox + n.pos.x * scale, oy + n.pos.y * scale, scale, scale);
+  }
   for (const c of state.chests) {
     if (!state.explored[c.pos.y * map.width + c.pos.x]) continue;
-    ctx.fillStyle = c.opened ? '#6b5a2a' : '#ffd166';
+    ctx.fillStyle = c.opened ? '#6b5a2a' : c.locked ? '#ff6b6b' : '#ffd166';
     ctx.fillRect(ox + c.pos.x * scale, oy + c.pos.y * scale, scale, scale);
   }
   const vis = visibleCells(state);

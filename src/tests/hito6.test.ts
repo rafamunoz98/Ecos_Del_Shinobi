@@ -316,7 +316,7 @@ describe('generación con jefe, eventos y lore', () => {
       const l1 = generateLevel({ seed, floor: 1 });
       const l2 = generateLevel({ seed, floor: 2 });
       expect(l1.npcs.map((n) => n.kind)).toEqual(['altar_eco_roto']);
-      expect(l2.npcs.map((n) => n.kind)).toEqual(['maestra_sayoko']);
+      expect(l2.npcs.map((n) => n.kind)).toEqual(['maestra_sayoko', 'mesa_forja']);
       for (const lv of [l1, l2, generateLevel({ seed, floor: 3, boss: true })]) {
         const blocked = new Set([...lv.npcs.map((n) => idx(lv.map, n.pos)), ...lv.chests.map((c) => idx(lv.map, c.pos))]);
         const dist = distancesFrom(lv.map, lv.playerStart, blocked);

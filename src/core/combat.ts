@@ -8,9 +8,15 @@ export function calcDamage(power: number, bonus: number, defense: number): numbe
   return Math.max(1, power + bonus - defense);
 }
 
-/** Poder base + bonificación del arma equipada. */
+/** Nivel de mejora de forja de un arma (0 si nunca se mejoró). */
+export function weaponLevel(p: Player, weaponId: string | null | undefined): number {
+  return weaponId ? (p.weaponLevels[weaponId] ?? 0) : 0;
+}
+
+/** Poder base + bonificación del arma equipada + mejoras de forja. */
 export function effectivePower(p: Player): number {
-  return p.power + (getWeapon(p.equipment.weapon)?.bonus ?? 0);
+  const w = getWeapon(p.equipment.weapon);
+  return p.power + (w?.bonus ?? 0) + weaponLevel(p, w?.id) * BALANCE.forge.bonusPerLevel;
 }
 
 /** Defensa base + vestimenta + estado "protegido". */

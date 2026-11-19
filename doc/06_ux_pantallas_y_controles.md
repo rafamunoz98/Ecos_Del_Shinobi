@@ -16,10 +16,12 @@
 Mostrar vida, kiro, estados, sector, técnica seleccionada y registro reciente. Al seleccionar una técnica, resaltar alcance y casillas afectadas. Mostrar coste antes de confirmar.
 
 ## 3. Escritorio
-Flechas/WASD: mover. Espacio: esperar. E: interactuar. I: inventario. T: técnicas. Esc: pausa. Clic para seleccionar objetivo si se habilita. Permitir reasignación más adelante.
+Flechas/WASD: mover. Espacio: esperar. E: interactuar (también basta con caminar contra un cofre, una puerta con candado, un PNJ o una mesa de forja). En la forja, 1–9 mejora el arma indicada. I: inventario. T: técnicas. Esc: pausa. Clic para seleccionar objetivo si se habilita. Permitir reasignación más adelante.
 
 ## 4. Táctil
 Cruceta o toque en casilla adyacente; botones claros para atacar, técnica, objeto e interactuar. Evitar gestos que se confundan con scroll. Objetivos táctiles grandes y HUD adaptable.
+
+Ventana de **forja**: lista de armas con coste en monedas y esquirlas; en pantallas pequeñas ocupa el ancho disponible. La cartera (monedas, esquirlas y llaves) vive en el HUD.
 
 ## 5. Accesibilidad
 Texto escalable, contraste suficiente, señales que no dependan solo del color, pausa real, reducción de destellos/sacudidas, volúmenes separados y controles de teclado.

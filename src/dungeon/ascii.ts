@@ -1,6 +1,6 @@
 import { BALANCE } from '../content/balance';
 import { ENEMIES } from '../content/enemies';
-import type { Chest, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy } from './spawn';
 
 export interface ParsedRoom {
@@ -12,6 +12,8 @@ export interface ParsedRoom {
   bossStarts: Vec[];
   npcStarts: { pos: Vec; kind: string }[];
   scrollStarts: Vec[];
+  lockedChestStarts: Vec[];
+  keyStarts: { pos: Vec; id: string }[];
 }
 
 /** Convierte una sala en ASCII en mapa + posiciones iniciales. Lanza error si el formato no es válido. */
@@ -26,6 +28,8 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
   const bossStarts: Vec[] = [];
   const npcStarts: { pos: Vec; kind: string }[] = [];
   const scrollStarts: Vec[] = [];
+  const lockedChestStarts: Vec[] = [];
+  const keyStarts: { pos: Vec; id: string }[] = [];
   let playerStart: Vec | null = null;
 
   rows.forEach((row, y) => {
@@ -75,6 +79,22 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
           npcStarts.push({ pos: { x, y }, kind: ch === 'N' ? 'maestra_sayoko' : 'altar_eco_roto' });
           tiles.push('floor');
           break;
+        case 'L': // puerta con candado (cámara sellada)
+          tiles.push('locked');
+          break;
+        case 'c': // cofre lacado (llave de laca)
+          lockedChestStarts.push({ x, y });
+          tiles.push('floor');
+          break;
+        case 'F': // mesa de forja
+          npcStarts.push({ pos: { x, y }, kind: 'mesa_forja' });
+          tiles.push('floor');
+          break;
+        case 'k': // llave de hierro en el suelo
+        case 'q': // llave de laca en el suelo
+          keyStarts.push({ pos: { x, y }, id: ch === 'k' ? 'llave_hierro' : 'llave_laca' });
+          tiles.push('floor');
+          break;
         case 'S': // pergamino de lore
           scrollStarts.push({ x, y });
           tiles.push('floor');
@@ -86,11 +106,11 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
   });
 
   if (!playerStart) throw new Error('Falta la posición inicial del jugador (@).');
-  return { map: { width, height: rows.length, tiles }, playerStart, enemyStarts, chestStarts, monkStarts, bossStarts, npcStarts, scrollStarts };
+  return { map: { width, height: rows.length, tiles }, playerStart, enemyStarts, chestStarts, monkStarts, bossStarts, npcStarts, scrollStarts, lockedChestStarts, keyStarts };
 }
 
 /** Sala ASCII → nivel jugable (las 'E' son Acechadores de Hollín del sector 1). */
-export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerStart: Vec; enemies: Enemy[]; chests: Chest[]; npcs: Npc[]; scrolls: Scroll[] } {
+export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerStart: Vec; enemies: Enemy[]; chests: Chest[]; npcs: Npc[]; scrolls: Scroll[]; drops: Drop[] } {
   const room = parseRoom(rows);
   const def = ENEMIES.acechador_hollin;
   return {
@@ -102,8 +122,12 @@ export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerSt
       ...room.monkStarts.map((pos, i) => ({ ...createEnemy(ENEMIES.monje_hueco, `enemy-m${i}`, pos, 1), alert: BALANCE.alertTurns })),
       ...room.bossStarts.map((pos, i) => ({ ...createBoss(ENEMIES.campanero_sepultado, `enemy-b${i}`, pos), alert: BALANCE.alertTurns })),
     ],
-    chests: room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),
+    chests: [
+      ...room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),
+      ...room.lockedChestStarts.map((pos, i) => ({ id: `chest-l${i}`, pos, opened: false, locked: true })),
+    ],
     npcs: room.npcStarts.map((n, i) => ({ id: `npc-${i}`, kind: n.kind, pos: n.pos, used: false })),
     scrolls: room.scrollStarts.map((pos, i) => ({ id: `scroll-${i}`, pos, noteId: 'diario_cartografo' })),
+    drops: room.keyStarts.map((k) => ({ pos: k.pos, itemId: k.id, count: 1 })),
   };
 }

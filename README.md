@@ -80,6 +80,7 @@ En pantallas táctiles aparece una cruceta (mover, esperar/confirmar, cancelar, 
 - **Hito 5** Generador procedural de mapas grandes (64×44) con salas y pasillos, entrada/salida alcanzables, enemigos y cofres colocados sin bloquear caminos, semilla reproducible, pruebas sobre 150 semillas × 3 sectores.
 - **Hito 5.5** Sigilo (arbustos y puertas que tapan la visión, alerta, golpe furtivo), armas cuerpo a cuerpo (hoja, látigo, lanza) y arrojadizas (se gastan o se recogen), menú de personaje y motor gráfico propio (arte vectorial por sector, luz y efectos).
 - **Hito 6** Vertical slice: ataques anunciados (telegraphs), Monje Hueco, jefe Campanero Sepultado en tres fases, un evento (Altar del Eco Roto) y un maestro (Maestra Sayoko) con decisiones, diálogos, notas de lore y resumen de expedición con estadísticas.
+- **Hito 6.5** Botín (objetos por el suelo, cofres, monedas y esquirlas), puertas con candado y llaves, cofre lacado, armas arrojadizas que se clavan y mesas de forja para mejorar armas.
 - Siguiente: Hito 7 (progresión permanente: árbol de técnicas, desbloqueos, linaje, refugio).
 
 ### Contenido

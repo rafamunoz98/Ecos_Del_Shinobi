@@ -1,10 +1,10 @@
 import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describeShape, describeWeaponPattern } from '../content/describe';
-import { getEquipment, getItem } from '../content/items';
+import { CURRENCY, KEYS, getEquipment, getItem } from '../content/items';
 import { NOTES, getNote, getRelic } from '../content/story';
 import { TECHNIQUES, type TechniqueDef } from '../content/techniques';
-import { THROWABLES, getWeapon } from '../content/weapons';
-import { effectiveDefense, effectivePower, xpToNext } from '../core/combat';
+import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
+import { effectiveDefense, effectivePower, weaponLevel, xpToNext } from '../core/combat';
 import type { GameState } from '../core/types';
 import { drawNinja } from '../presentation/art/actors';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -180,9 +180,16 @@ export class Menu {
     const gear = h('div', 'gear');
     const w = getWeapon(p.equipment.weapon);
     const a = getEquipment(p.equipment.armor);
-    gear.append(this.row(w?.id ?? 'tanto_gastado', `Arma: ${w?.name ?? '—'}`, w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus} de poder · alcance ${w.reach}` : ''));
+    const lvl = weaponLevel(p, w?.id);
+    gear.append(this.row(w?.id ?? 'tanto_gastado', `Arma: ${w ? weaponLabel(w.id, lvl) : '—'}`, w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus + lvl} de poder · alcance ${w.reach}` : ''));
     gear.append(this.row(a?.id ?? 'chaleco_acolchado', `Vestimenta: ${a?.name ?? 'ninguna'}`, a ? `+${a.bonus} de defensa` : 'Encuentra vestimenta en los cofres.'));
     right.append(h('h4', undefined, 'Equipo'), gear);
+
+    right.append(h('h4', undefined, 'Cartera y llaves'));
+    right.append(this.row('moneda', `${p.coins} monedas`, CURRENCY.moneda.description));
+    right.append(this.row('esquirla', `${p.shards} esquirlas de campana`, CURRENCY.esquirla.description));
+    if (p.keys.length === 0) right.append(h('div', 'muted', 'Sin llaves. Las llaves solo valen en el sector donde las encuentras.'));
+    for (const k of p.keys) right.append(this.row(k, KEYS[k]?.name ?? k, KEYS[k]?.description ?? ''));
 
     right.append(h('h4', undefined, 'Estados'));
     if (p.statuses.length === 0) right.append(h('div', 'muted', 'Sin estados activos.'));
@@ -301,7 +308,7 @@ export class Menu {
       thr.append(c);
     }
     out.push(thr);
-    out.push(h('div', 'muted', 'Las arrojadizas que fallan o aciertan caen al suelo: pisa la casilla para recogerlas.'));
+    out.push(h('div', 'muted', 'Las arrojadizas que aciertan se clavan en el enemigo y caen al suelo cuando muere; las que fallan caen donde llegan. Pisa la casilla para recogerlas.'));
     return out;
   }
 
@@ -311,7 +318,7 @@ export class Menu {
     cv.height = s.map.height * 8;
     cv.className = 'bigmap';
     drawMinimap(cv, s);
-    const legend = h('div', 'muted', 'Blanco: tú · Rojo: enemigo a la vista · Dorado: cofre · Violeta: escalera · Verde: arbusto · Marrón: puerta');
+    const legend = h('div', 'muted', 'Blanco: tú · Rojo: enemigo a la vista · Dorado: cofre (rojo: lacado) · Naranja: forja · Celeste: maestro/altar · Violeta: escalera · Verde: arbusto · Marrón: puerta · Ocre: puerta con candado');
     return [h('p', 'lead', `Sector ${s.floor} de ${s.maxFloor}. Solo se muestra lo ya explorado.`), cv, legend];
   }
 
@@ -352,11 +359,12 @@ export class Menu {
       const c = h('div', `card${on ? ' equipped' : ''}`);
       const top = h('div', 'ctop');
       const t = h('div', 'rt');
-      t.append(h('b', undefined, w.name), h('span', undefined, `${WEAPON_KIND_NAMES[w.kind]}${on ? ' · equipada' : ''}`));
+      const lvl = weaponLevel(p, id);
+      t.append(h('b', undefined, weaponLabel(id, lvl)), h('span', undefined, `${WEAPON_KIND_NAMES[w.kind]}${on ? ' · equipada' : ''}`));
       top.append(icon(id, 52), t);
       c.append(top, h('p', undefined, w.description), h('div', 'shape', describeWeaponPattern(w)));
       const tags = h('div', 'tags');
-      tags.append(h('span', 'tag', `+${w.bonus} de poder`), h('span', 'tag', `Alcance ${w.reach}`));
+      tags.append(h('span', 'tag', `+${w.bonus + lvl} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`));
       c.append(tags);
       const b = h('button', 'use', on ? 'Equipada' : 'Equipar (gasta un turno)');
       b.type = 'button';
@@ -368,6 +376,6 @@ export class Menu {
       c.append(b);
       grid.append(c);
     }
-    return [h('p', 'lead', 'Una sola arma equipada. Las nuevas se encuentran en los cofres.'), grid];
+    return [h('p', 'lead', 'Una sola arma equipada. Las nuevas están en cofres y cámaras selladas; las mesas de forja (sectores 2 y 3) las mejoran con monedas o esquirlas.'), grid];
   }
 }

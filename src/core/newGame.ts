@@ -8,7 +8,7 @@ import { visionRadiusOf } from './sight';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -20,6 +20,8 @@ export const emptyStats = (): RunStats => ({
   sneakAttacks: 0,
   decisions: 0,
   bossDefeated: false,
+  coinsFound: 0,
+  upgrades: 0,
   defeatedBy: null,
 });
 
@@ -61,13 +63,17 @@ export function createGame(opts: NewGameOptions): GameState {
       notes: [],
       relics: [],
       inventory: { unguento_musgo: 1, shuriken: 5 },
+      coins: 0,
+      shards: 0,
+      keys: [],
+      weaponLevels: {},
       equipment: { weapon: 'tanto_gastado', armor: null },
       statuses: [],
     },
     enemies: level.enemies,
     chests: level.chests,
     barriers: [],
-    drops: [],
+    drops: level.drops,
     telegraphs: [],
     npcs: level.npcs,
     scrolls: level.scrolls,

@@ -22,10 +22,14 @@ export function terrainAt(map: GameMap, p: Vec): TerrainKind {
   return inBounds(map, p) ? map.tiles[idx(map, p)] : 'wall';
 }
 
-export const isWalkable = (map: GameMap, p: Vec): boolean => terrainAt(map, p) !== 'wall';
+/** Se puede pisar todo salvo paredes y puertas con candado. */
+export const isWalkable = (map: GameMap, p: Vec): boolean => {
+  const t = terrainAt(map, p);
+  return t !== 'wall' && t !== 'locked';
+};
 
 /** ¿Este tipo de casilla tapa la visión? Las puertas solo mientras están cerradas (ver `open`). */
-export const blocksSight = (kind: TerrainKind): boolean => kind === 'wall' || kind === 'bush' || kind === 'door';
+export const blocksSight = (kind: TerrainKind): boolean => kind === 'wall' || kind === 'bush' || kind === 'door' || kind === 'locked';
 
 /** Casillas intermedias de la recta de a a b (Bresenham), sin a y con b. */
 export function lineCells(a: Vec, b: Vec): Vec[] {

@@ -95,8 +95,8 @@ describe('arrojadizas', () => {
     expect(r.state.enemies[0].hp).toBe(37);
     expect(r.state.enemies[1].hp).toBe(40);
   });
-  it('el shuriken a veces se recupera del suelo y a veces se pierde; el senbon siempre se gasta', () => {
-    let dropped = 0;
+  it('al acertar, el shuriken se clava en el enemigo (a veces se pierde) y no cae al suelo; el senbon también se clava', () => {
+    let stuck = 0;
     let lost = 0;
     for (let seed = 1; seed <= 200; seed++) {
       const s = makeGame(room, (g) => {
@@ -105,18 +105,35 @@ describe('arrojadizas', () => {
         g.player.inventory.senbon = 3;
       });
       const r = applyCommand(s, throwItem('shuriken', { x: 5, y: 1 }));
-      if (r.state.drops.length === 1) {
-        dropped++;
-        expect(r.state.drops[0]).toEqual({ pos: { x: 5, y: 1 }, itemId: 'shuriken', count: 1 });
+      expect(r.state.drops).toEqual([]);
+      if (r.state.enemies[0].stuck.shuriken === 1) {
+        stuck++;
+        expect(r.events.some((e) => e.type === 'ItemStuck')).toBe(true);
       } else lost++;
       const n = applyCommand(s, throwItem('senbon', { x: 5, y: 1 }));
       expect(n.state.drops).toEqual([]);
       expect(n.state.player.inventory.senbon).toBe(2);
     }
-    const ratio = dropped / 200;
+    const ratio = stuck / 200;
     expect(ratio).toBeGreaterThan(1 - THROWABLES.shuriken.breakChance - 0.12);
     expect(ratio).toBeLessThan(1 - THROWABLES.shuriken.breakChance + 0.12);
     expect(lost).toBeGreaterThan(0);
+  });
+  it('si fallas, la arrojadiza cae en el suelo donde llega (o se pierde)', () => {
+    let dropped = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const s = makeGame(['###########', '#@........#', '###########'], (g) => {
+        g.enemies = [];
+        g.rngState = seed;
+      });
+      const r = applyCommand(s, throwItem('shuriken', { x: 4, y: 1 }));
+      if (r.state.drops.length === 1) {
+        dropped++;
+        expect(r.state.drops[0]).toEqual({ pos: { x: 4, y: 1 }, itemId: 'shuriken', count: 1 });
+      }
+    }
+    expect(dropped).toBeGreaterThan(200 * (1 - THROWABLES.shuriken.breakChance) - 25);
+    expect(dropped).toBeLessThan(200);
   });
   it('se recoge del suelo al pisarlo', () => {
     const s = makeGame(room, (g) => {
@@ -152,7 +169,7 @@ describe('arrojadizas', () => {
       g.enemies[0].defense = 9;
       g.player.inventory.senbon = 1;
     });
-    expect(applyCommand(s, throwItem('senbon', { x: 5, y: 1 })).state.enemies[0].hp).toBe(38);
+    expect(applyCommand(s, throwItem('senbon', { x: 5, y: 1 })).state.enemies[0].hp).toBe(36); // 40 - 4, sin restar la defensa
   });
   it('el lanzamiento furtivo duplica el daño', () => {
     const s = makeGame(room, (g) => {

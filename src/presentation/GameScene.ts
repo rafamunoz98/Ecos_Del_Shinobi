@@ -7,6 +7,7 @@ import { createGame } from '../core/newGame';
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { Command, GameEvent, GameState, Vec } from '../core/types';
 import { ChoiceBox } from '../ui/choice';
+import { ForgeBox } from '../ui/forge';
 import { DialogueBox } from '../ui/dialogue';
 import { Hud, ITEM_SLOTS, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
 import { Menu } from '../ui/menu';
@@ -50,6 +51,7 @@ export class GameScene extends Phaser.Scene {
   });
   private readonly dialogue = new DialogueBox();
   private readonly choice = new ChoiceBox();
+  private readonly forge = new ForgeBox();
   private introShown = false;
   private aim: Aim | null = null;
   private facing: Vec = DIRS[1];
@@ -73,6 +75,7 @@ export class GameScene extends Phaser.Scene {
     this.events.on('update', () => this.tick());
     this.hud.onAction = (a) => this.perform(a);
     this.choice.onChoose = (npcId, optionId) => void this.dispatch({ type: 'Choose', npcId, optionId });
+    this.forge.onUpgrade = (npcId, weaponId, pay) => void this.dispatch({ type: 'Upgrade', npcId, weaponId, pay });
     this.rebuildTexture();
     this.startRun(this.initialSeed);
   }
@@ -107,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.world.reset(this.state, now());
     this.menu.close();
     this.choice.close();
+    this.forge.close();
     this.dialogue.clear();
     this.refreshHud();
     if (!this.introShown) {
@@ -127,6 +131,7 @@ export class GameScene extends Phaser.Scene {
   private handleKey(key: string): void {
     if (this.dialogue.onKey(key)) return;
     if (this.choice.onKey(key)) return;
+    if (this.forge.onKey(key)) return;
     if (this.menu.onKey(key)) return;
 
     if (key === 'r') {
@@ -152,7 +157,9 @@ export class GameScene extends Phaser.Scene {
       this.facing = dir;
       const to = { x: this.state.player.pos.x + dir.x, y: this.state.player.pos.y + dir.y };
       const enemy = this.state.enemies.find((en) => equals(en.pos, to));
-      this.dispatch(enemy ? { type: 'BasicAttack', target: to } : { type: 'Move', dx: dir.x, dy: dir.y });
+      if (enemy) this.dispatch({ type: 'BasicAttack', target: to });
+      else if (this.bumpTarget(to)) this.dispatch({ type: 'Interact', target: to });
+      else this.dispatch({ type: 'Move', dx: dir.x, dy: dir.y });
     } else if (key === ' ') {
       this.dispatch({ type: 'Wait' });
     } else if (key === 'e') {
@@ -173,7 +180,7 @@ export class GameScene extends Phaser.Scene {
   /** Órdenes dadas con el ratón o el dedo desde el panel: equivalen a su tecla. */
   private perform(a: UiAction): void {
     if (a.type === 'key') return this.handleKey(a.key);
-    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.choice.isOpen) return;
+    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.choice.isOpen || this.forge.isOpen) return;
     if (this.aim) {
       this.aim = null;
       this.refreshHud();
@@ -312,6 +319,12 @@ export class GameScene extends Phaser.Scene {
     return { type: 'BasicAttack', target: a.cursor };
   }
 
+  /** ¿Hay algo contra lo que chocar que se use con solo caminar hacia ello? (cofre sin abrir, puerta con candado, PNJ o mesa) */
+  private bumpTarget(to: Vec): boolean {
+    const { chests, npcs, map } = this.state;
+    return chests.some((c) => equals(c.pos, to) && !c.opened) || npcs.some((n) => equals(n.pos, to)) || terrainAt(map, to) === 'locked';
+  }
+
   /** Inspeccionar/Interactuar: habla con un maestro o altar, abre un cofre o cruza la escalera (casilla propia o adyacentes). */
   private interact(): void {
     const { player, map, chests, npcs } = this.state;
@@ -319,6 +332,7 @@ export class GameScene extends Phaser.Scene {
     const target =
       candidates.find((c) => npcs.some((n) => equals(n.pos, c))) ??
       candidates.find((c) => chests.some((ch) => equals(ch.pos, c) && !ch.opened)) ??
+      candidates.find((c) => terrainAt(map, c) === 'locked') ??
       candidates.find((c) => terrainAt(map, c) === 'exit');
     if (!target) {
       this.hud.notice('No hay nada con lo que interactuar aquí.');
@@ -345,6 +359,10 @@ export class GameScene extends Phaser.Scene {
   /** Diálogos y decisiones que han salido de la acción: se muestran tras empezar las animaciones. */
   private showStory(events: GameEvent[]): void {
     const talked = events.find((e): e is Extract<GameEvent, { type: 'NpcTalked' }> => e.type === 'NpcTalked');
+    if (talked && this.state.npcs.find((n) => n.id === talked.npcId)?.kind === 'mesa_forja') {
+      this.forge.open(this.state, talked.npcId);
+      return;
+    }
     for (const ev of events) {
       if (ev.type !== 'Dialogue') continue;
       const open = talked && !this.state.npcs.find((n) => n.id === talked.npcId)?.used ? () => this.choice.open(this.state, talked.npcId) : undefined;
@@ -389,5 +407,6 @@ export class GameScene extends Phaser.Scene {
     this.hud.update(this.state, this.aimInfo());
     this.menu.refresh(this.state);
     this.choice.refresh(this.state);
+    this.forge.refresh(this.state);
   }
 }

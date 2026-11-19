@@ -835,7 +835,8 @@ button.use:disabled {
 
 /* ---------- Decisión de maestro / evento ---------- */
 
-#choice {
+#choice,
+#forge {
   position: fixed;
   inset: 0;
   z-index: 12;
@@ -847,7 +848,8 @@ button.use:disabled {
   padding: 16px;
 }
 
-#choice[hidden] {
+#choice[hidden],
+#forge[hidden] {
   display: none;
 }
 
@@ -1011,5 +1013,88 @@ button.note-item .ico {
   }
   .dlg-text {
     font-size: 14px;
+  }
+}
+
+/* ---------- Cartera y forja ---------- */
+
+#wallet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 1px;
+}
+
+.chip.coin {
+  border-color: #6b5a2a;
+  background: #2a2412;
+}
+
+.chip.key {
+  border-color: #7a86a8;
+  background: #1c2236;
+}
+
+.forge-wallet {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px 0;
+}
+
+.forge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #2a2745, #1d1b32);
+  border: 1px solid #4a4478;
+}
+
+.forge-row .ico {
+  width: 40px;
+  height: 40px;
+}
+
+.forge-row .txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.forge-row .txt i {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.forge-row .pay {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.forge-row .pay button.use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+.forge-row .pay img {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 520px) {
+  .forge-row {
+    flex-wrap: wrap;
+  }
+  .forge-row .pay {
+    flex-direction: row;
+    width: 100%;
   }
 }

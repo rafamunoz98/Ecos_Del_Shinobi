@@ -84,6 +84,9 @@ Un enemigo solo persigue si el camino hasta el jugador mide menos que su alcance
 - **Maestra Sayoko** (sector 2): *Filo del Maestro* (+1 poder), *Respiración profunda* (+4 kiro máx.), *Piel de corteza* (+1 def., +4 vida máx.), *Lección adelantada* (técnica avanzada de tu afinidad).
 - **Notas de lore** (8 pergaminos, 1–2 por sector): diario del cartógrafo, tablilla de los Custodios, carta de la forja, canto de los Peregrinos, aviso del Círculo, último registro del Campanero, marca del sello y nota arrugada. Se leen en la pestaña Notas del menú.
 
+## 5.4 Botín, llaves y forja **[Implementado]**
+Objetos: **moneda**, **esquirla** (material de forja), **llave de hierro** (abre la puerta con candado) y **llave de laca** (abre el cofre lacado). Las mesas de forja son un PNJ sin diálogo que aparece en los sectores 2 y 3. Ver `02_sistemas_y_reglas.md` §11.1–11.3 para probabilidades y costes.
+
 ## 5.5 Sigilo, arbustos y puertas **[Implementado]**
 Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan la visión; esconderse tiene un precio (ves menos); los enemigos solo actúan al verte; atacar a quien no te ha visto hace ×2.
 
@@ -107,9 +110,9 @@ Equipo implementado (dos ranuras de las cuatro previstas: arma y vestimenta). La
 **Armas arrojadizas** (consumibles; tecla G, se lanzan a una casilla visible y se detienen en el primer enemigo):
 | Arma | Daño | Alcance | Probabilidad de perderse | Aparece desde | Nota |
 |---|---|---|---|---|---|
-| Shuriken (se empieza con 5) | 3 | 5 | 25% | Sector 1 | El resto cae al suelo y se recoge al pisarlo |
+| Shuriken (se empieza con 5) | 3 | 5 | 25% | Sector 1 | Si acierta se clava en el enemigo y cae al morir; si falla cae al suelo |
 | Kunai arrojadizo | 4 | 4 | 15% | Sector 2 | |
-| Senbon | 2 | 6 | 100% | Sector 1 | Ignora la defensa; se gasta siempre |
+| Senbon | 4 | 6 | 40% | Sector 1 | Ignora la defensa |
 
 **Vestimenta:**
 | Vestimenta | Defensa | Aparece desde |

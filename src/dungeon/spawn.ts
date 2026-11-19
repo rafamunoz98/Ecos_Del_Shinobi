@@ -20,6 +20,7 @@ export function createEnemy(def: EnemyDef, id: string, pos: Vec, floor: number):
     lastSeen: null,
     statuses: [],
     phase: def.behavior === 'boss' ? 1 : 0,
+    stuck: {},
   };
 }
 

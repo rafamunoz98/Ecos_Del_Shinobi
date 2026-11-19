@@ -2,8 +2,9 @@ import { BALANCE } from '../content/balance';
 import { DIRS, fromIdx, idx, inBounds, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
 import { BOSS_ID, ENEMIES } from '../content/enemies';
+import { GROUND_LOOT, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
 import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
-import type { Chest, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy, pickEnemyDef } from './spawn';
 
 export interface Room {
@@ -13,6 +14,16 @@ export interface Room {
   h: number;
 }
 
+/** Cámara sellada: sala pequeña cerrada por una puerta con candado (terreno 'locked'). */
+export interface Vault {
+  door: Vec;
+  /** Casillas interiores (3×3). */
+  cells: Vec[];
+}
+
+/** Identificador de la mesa de forja entre los PNJ. */
+export const FORGE_KIND = 'mesa_forja';
+
 export interface GeneratedLevel {
   map: GameMap;
   playerStart: Vec;
@@ -21,6 +32,9 @@ export interface GeneratedLevel {
   chests: Chest[];
   npcs: Npc[];
   scrolls: Scroll[];
+  /** Objetos sueltos (monedas, consumibles, llaves, el tesoro de la cámara sellada...). */
+  drops: Drop[];
+  vault: Vault | null;
   rooms: Room[];
   /** Sala del jefe (la de la salida) en el último sector. */
   bossRoom: Room | null;
@@ -304,7 +318,159 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     scrolls.push({ id: `scroll-${scrolls.length}`, pos: c, noteId: pool[scrolls.length].id });
   }
 
-  return { map, playerStart, exit, enemies, chests, npcs, scrolls, rooms, bossRoom };
+  // 8. Forja, cofre lacado, cámara sellada con sus llaves y objetos sueltos (al final: no alteran lo anterior).
+  const solid = new Set<number>([...chestCells, ...npcs.map((n) => idx(map, n.pos))]);
+  const placeSolid = (room: Room, minFromStart: number): Vec | null => {
+    for (let t = 0; t < 40; t++) {
+      const c = randomCell(room);
+      const i = idx(map, c);
+      if (used.has(i) || tiles[i] !== 'floor' || manhattan(c, playerStart) < minFromStart) continue;
+      const trial = new Set(solid).add(i);
+      if (reachableCount(map, playerStart, trial) !== floorCount - trial.size) continue;
+      solid.add(i);
+      used.add(i);
+      return c;
+    }
+    return null;
+  };
+
+  if ((BALANCE.forgeFloors as readonly number[]).includes(floor)) {
+    for (let t = 0; t < 30; t++) {
+      const c = placeSolid(rooms[rng.pick(spawnRooms)], 4);
+      if (c) {
+        npcs.push({ id: `npc-${npcs.length}`, kind: FORGE_KIND, pos: c, used: false });
+        break;
+      }
+    }
+  }
+
+  let lacquerChest: Chest | null = null;
+  if (rng.chance(BALANCE.level.lacquerChance)) {
+    for (let t = 0; t < 30 && !lacquerChest; t++) {
+      const c = placeSolid(rooms[rng.pick(spawnRooms)], 4);
+      if (c) {
+        lacquerChest = { id: `chest-${chests.length}`, pos: c, opened: false, locked: true };
+        chests.push(lacquerChest);
+      }
+    }
+  }
+
+  // Cámara sellada: un cuarto de 3×3 pegado a la pared de una sala, con la puerta con candado en medio.
+  const vault = rng.chance(BALANCE.level.vaultChance) ? carveVault(rng, map, rooms, bossRoom, used) : null;
+
+  const drops: Drop[] = [];
+  const dropRooms = rooms.filter((r) => r !== bossRoom);
+  const dropFrom = (e: LootEntry, pos: Vec): Drop => {
+    let count = e.amount ?? 1;
+    if (e.kind === 'coins') count = coinAmount(count, floor) + rng.int(0, Math.max(1, Math.floor(count / 2)));
+    return { pos, itemId: e.id, count };
+  };
+  const looseCell = (room: Room): Vec | null => {
+    for (let t = 0; t < 30; t++) {
+      const c = randomCell(room);
+      const i = idx(map, c);
+      if (used.has(i) || (tiles[i] !== 'floor' && tiles[i] !== 'bush')) continue;
+      used.add(i);
+      return c;
+    }
+    return null;
+  };
+  const groundTable = lootTableFor(floor, GROUND_LOOT);
+  const wantedDrops = rng.int(BALANCE.level.groundItems.min, BALANCE.level.groundItems.max);
+  for (let guard = 0; drops.length < wantedDrops && guard < wantedDrops * 6; guard++) {
+    const c = looseCell(rng.pick(dropRooms));
+    if (c) drops.push(dropFrom(rng.weighted(groundTable), c));
+  }
+
+  // Tesoro de la cámara sellada: una pieza de equipo y dos reservas, repartidas por sus casillas.
+  if (vault) {
+    const cells = rng.shuffle([...vault.cells]);
+    const extras = lootTableFor(floor, VAULT_EXTRAS);
+    drops.push(dropFrom(rng.weighted(lootTableFor(floor, VAULT_GEAR)), cells[0]));
+    drops.push(dropFrom(rng.weighted(extras), cells[1]));
+    drops.push(dropFrom(rng.weighted(extras), cells[2]));
+    for (const c of cells.slice(0, 3)) used.add(idx(map, c));
+  }
+
+  // Llaves: la de hierro, donde hay enemigos que la guarden; la de laca, a menudo escondida entre arbustos.
+  const inRoomRect = (r: Room, c: Vec): boolean => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h;
+  const keyRooms = dropRooms.filter((r) => !inRoomRect(r, playerStart));
+  const placeKey = (itemId: string, how: 'guarded' | 'hidden'): void => {
+    let pool = keyRooms.length > 0 ? keyRooms : dropRooms;
+    if (how === 'guarded') {
+      const guarded = pool.filter((r) => enemies.some((e) => inRoomRect(r, e.pos)));
+      if (guarded.length > 0) pool = guarded;
+    }
+    // «Escondida»: entre los arbustos de una sala, si los hay (60 %).
+    const bushes: Vec[] = [];
+    if (how === 'hidden' && rng.chance(0.6)) {
+      for (const r of pool) {
+        for (let y = r.y; y < r.y + r.h; y++) {
+          for (let x = r.x; x < r.x + r.w; x++) if (tiles[y * width + x] === 'bush' && !used.has(y * width + x)) bushes.push({ x, y });
+        }
+      }
+    }
+    if (bushes.length > 0) {
+      const c = rng.pick(bushes);
+      used.add(idx(map, c));
+      drops.push({ pos: c, itemId, count: 1 });
+      return;
+    }
+    for (let t = 0; t < 80; t++) {
+      const c = randomCell(rng.pick(pool));
+      const i = idx(map, c);
+      if (used.has(i) || (tiles[i] !== 'floor' && tiles[i] !== 'bush')) continue;
+      used.add(i);
+      drops.push({ pos: c, itemId, count: 1 });
+      return;
+    }
+  };
+  if (vault) placeKey('llave_hierro', 'guarded');
+  if (lacquerChest) placeKey('llave_laca', 'hidden');
+
+  return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, rooms, bossRoom };
+}
+
+/**
+ * Busca un hueco de pared para una cámara 3×3 contigua a una sala. La región 5×5 (puerta, interior y su borde)
+ * debe ser toda pared para no abrir otro acceso. La casilla de la sala junto a la puerta debe estar libre.
+ */
+function carveVault(rng: Rng, map: GameMap, rooms: Room[], bossRoom: Room | null, used: ReadonlySet<number>): Vault | null {
+  interface Cand {
+    door: Vec;
+    dir: Vec;
+    perp: Vec;
+  }
+  const cands: Cand[] = [];
+  for (const r of rooms) {
+    if (r === bossRoom) continue;
+    for (let x = r.x + 1; x < r.x + r.w - 1; x++) {
+      cands.push({ door: { x, y: r.y - 1 }, dir: { x: 0, y: -1 }, perp: { x: 1, y: 0 } });
+      cands.push({ door: { x, y: r.y + r.h }, dir: { x: 0, y: 1 }, perp: { x: 1, y: 0 } });
+    }
+    for (let y = r.y + 1; y < r.y + r.h - 1; y++) {
+      cands.push({ door: { x: r.x - 1, y }, dir: { x: -1, y: 0 }, perp: { x: 0, y: 1 } });
+      cands.push({ door: { x: r.x + r.w, y }, dir: { x: 1, y: 0 }, perp: { x: 0, y: 1 } });
+    }
+  }
+  for (const { door, dir, perp } of rng.shuffle(cands)) {
+    const approach = { x: door.x - dir.x, y: door.y - dir.y };
+    if (used.has(idx(map, approach))) continue;
+    let ok = true;
+    const cells: Vec[] = [];
+    for (let b = 0; b <= 4 && ok; b++) {
+      for (let a = -2; a <= 2 && ok; a++) {
+        const c = { x: door.x + dir.x * b + perp.x * a, y: door.y + dir.y * b + perp.y * a };
+        if (!inBounds(map, c) || map.tiles[idx(map, c)] !== 'wall') ok = false;
+        else if (b >= 1 && b <= 3 && Math.abs(a) <= 1) cells.push(c);
+      }
+    }
+    if (!ok) continue;
+    for (const c of cells) map.tiles[idx(map, c)] = 'floor';
+    map.tiles[idx(map, door)] = 'locked';
+    return { door, cells };
+  }
+  return null;
 }
 
 /**

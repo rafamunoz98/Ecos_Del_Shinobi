@@ -440,6 +440,119 @@ function chest(ctx: Ctx): void {
   outline(ctx, 0.035);
 }
 
+function coin(ctx: Ctx): void {
+  // Moneda de bronce con agujero cuadrado (como las antiguas monedas de cuenta).
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ellipse(ctx, 0.03, 0.05, 0.4, 0.4);
+  ctx.fill();
+  circle(ctx, 0, 0, 0.4);
+  ctx.fillStyle = vGrad(ctx, -0.4, 0.4, '#f6d675', '#a8741f');
+  ctx.fill();
+  outline(ctx, 0.05);
+  circle(ctx, 0, 0, 0.29);
+  ctx.strokeStyle = 'rgba(120,70,10,0.7)';
+  ctx.lineWidth = 0.035;
+  ctx.stroke();
+  ctx.fillStyle = '#2a1a0a';
+  ctx.fillRect(-0.075, -0.075, 0.15, 0.15);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath();
+  ctx.arc(-0.12, -0.14, 0.2, Math.PI * 1.05, Math.PI * 1.5);
+  ctx.lineWidth = 0.04;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.stroke();
+}
+
+function shard(ctx: Ctx): void {
+  // Esquirla de bronce vivo: cristal irregular con brillo cálido.
+  ctx.fillStyle = radial(ctx, 0, 0, 0.02, 0.5, 'rgba(255,190,90,0.5)', 'rgba(255,150,40,0)');
+  circle(ctx, 0, 0, 0.5);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-0.05, -0.42);
+  ctx.lineTo(0.2, -0.08);
+  ctx.lineTo(0.12, 0.4);
+  ctx.lineTo(-0.16, 0.3);
+  ctx.lineTo(-0.28, -0.04);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.42, 0.4, '#ffd88a', '#b4651c');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.beginPath();
+  ctx.moveTo(-0.05, -0.42);
+  ctx.lineTo(0.0, 0.1);
+  ctx.lineTo(0.12, 0.4);
+  ctx.moveTo(0.0, 0.1);
+  ctx.lineTo(-0.28, -0.04);
+  ctx.strokeStyle = 'rgba(255,240,200,0.55)';
+  ctx.lineWidth = 0.03;
+  ctx.stroke();
+}
+
+function key(ctx: Ctx, head: string, shaft: string, glow: string): void {
+  ctx.fillStyle = radial(ctx, 0, 0, 0.02, 0.52, glow, 'rgba(255,255,255,0)');
+  circle(ctx, 0, 0, 0.52);
+  ctx.fill();
+  ctx.save();
+  ctx.rotate(-0.6);
+  // Caña y dientes.
+  ctx.fillStyle = vGrad(ctx, -0.04, 0.04, shaft, '#3a3f4c');
+  roundRectPath(ctx, -0.06, -0.04, 0.5, 0.08, 0.025);
+  ctx.fill();
+  outline(ctx, 0.035);
+  ctx.fillStyle = shaft;
+  ctx.fillRect(0.28, 0.03, 0.06, 0.13);
+  ctx.fillRect(0.38, 0.03, 0.06, 0.1);
+  outline(ctx, 0.03);
+  // Aro.
+  circle(ctx, -0.18, 0, 0.17);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.11;
+  ctx.stroke();
+  ctx.strokeStyle = head;
+  ctx.lineWidth = 0.07;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function anvil(ctx: Ctx): void {
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ellipse(ctx, 0, 0.38, 0.38, 0.07);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-0.44, -0.18);
+  ctx.lineTo(0.3, -0.18);
+  ctx.quadraticCurveTo(0.46, -0.16, 0.5, -0.06);
+  ctx.lineTo(0.2, -0.02);
+  ctx.lineTo(0.12, 0.12);
+  ctx.lineTo(0.22, 0.36);
+  ctx.lineTo(-0.22, 0.36);
+  ctx.lineTo(-0.12, 0.12);
+  ctx.lineTo(-0.2, -0.02);
+  ctx.lineTo(-0.44, -0.06);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.18, 0.36, '#8f98ab', '#3d4354');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillRect(-0.4, -0.16, 0.7, 0.03);
+}
+
+function arrowUp(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(0, -0.4);
+  ctx.lineTo(0.3, -0.02);
+  ctx.lineTo(0.12, -0.02);
+  ctx.lineTo(0.12, 0.4);
+  ctx.lineTo(-0.12, 0.4);
+  ctx.lineTo(-0.12, -0.02);
+  ctx.lineTo(-0.3, -0.02);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.4, 0.4, '#9cf0b4', '#2f9a58');
+  ctx.fill();
+  outline(ctx, 0.05);
+}
+
 function scroll(ctx: Ctx): void {
   roundRectPath(ctx, -0.3, -0.36, 0.6, 0.72, 0.06);
   ctx.fillStyle = vGrad(ctx, -0.36, 0.36, '#f1e3bd', '#cdb784');
@@ -503,6 +616,12 @@ function ancientSeal(ctx: Ctx): void {
 const ICONS: Record<string, (ctx: Ctx) => void> = {
   campana: bellIcon,
   sello_antiguo: ancientSeal,
+  moneda: coin,
+  esquirla: shard,
+  llave_hierro: (c) => key(c, '#c9ced9', '#aeb4c2', 'rgba(190,210,255,0.35)'),
+  llave_laca: (c) => key(c, '#ff7a6a', '#e6b84a', 'rgba(255,120,100,0.35)'),
+  forja: anvil,
+  mejora: arrowUp,
   cofre: chest,
   pergamino: scroll,
   shuriken,

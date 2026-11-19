@@ -25,7 +25,30 @@ export const BALANCE = {
   xpBase: 8,
   levelUp: { hp: 4, kiro: 1, powerEvery: 2 },
   /** Mapas grandes al estilo Pixel Dungeon; el tamaño de casilla en pantalla es independiente. */
-  level: { width: 64, height: 44, targetRooms: 12, minEnemies: 4, maxEnemies: 9, maxChests: 5, bushClusters: 3, maxDoors: 8 },
+  level: {
+    width: 64,
+    height: 44,
+    targetRooms: 12,
+    minEnemies: 4,
+    maxEnemies: 9,
+    /** Cofres de madera por sector (el cofre lacado de la llave de laca va aparte). */
+    maxChests: 3,
+    /** Grupos de arbustos por sector (+2 desde el sector 2). */
+    bushClusters: 7,
+    maxDoors: 8,
+    /** Objetos sueltos por el suelo (monedas, esquirlas, consumibles, arrojadizas). */
+    groundItems: { min: 8, max: 12 },
+    /** Probabilidad de cámara sellada (llave de hierro) y de cofre lacado (llave de laca) en cada sector. */
+    vaultChance: 0.85,
+    lacquerChance: 0.8,
+  },
+  /** Mesas de forja: solo aparecen en estos sectores. */
+  forgeFloors: [2, 3],
+  /** Mejora de armas: +1 de poder por nivel. Cada nivel se paga con monedas O con esquirlas. */
+  forge: { maxLevel: 3, bonusPerLevel: 1, coins: [12, 20, 30], shards: [2, 3, 4] },
+  /** Monedas que sueltan los enemigos al caer, y botín fijo del jefe. */
+  enemyCoins: { chance: 0.7, min: 1, max: 3, perFloor: 1 },
+  bossLoot: { coins: 25, shards: 3 },
   /** Los enemigos mejoran con el sector: +hp por sector y +poder cada N sectores. */
   enemyScale: { hpPerFloor: 2, powerEvery: 2 },
 } as const;

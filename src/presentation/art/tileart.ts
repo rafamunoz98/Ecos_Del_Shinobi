@@ -523,13 +523,67 @@ export function stairsTile(th: Theme): HTMLCanvasElement {
   });
 }
 
-export function chestTile(opened: boolean): HTMLCanvasElement {
-  return cached(`chest|${opened}`, (ctx) => {
+/** Candado de hierro centrado en (cx, cy); `s` escala el dibujo. */
+function padlock(ctx: Ctx, cx: number, cy: number, s: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  // Arco.
+  ctx.beginPath();
+  ctx.arc(0, -4, 9, Math.PI, 0);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 7;
+  ctx.stroke();
+  ctx.strokeStyle = '#b9c0cf';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  // Cuerpo.
+  roundRectPath(ctx, -12, -4, 24, 20, 4);
+  ctx.fillStyle = vGrad(ctx, -4, 16, '#e8c25a', '#a8741f');
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.4;
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  circle(ctx, 0, 5, 2.8);
+  ctx.fill();
+  ctx.fillRect(-1.2, 5, 2.4, 6);
+  ctx.restore();
+}
+
+/** Puerta de una cámara sellada: la puerta cerrada con bandas cruzadas y un candado de hierro. */
+export function lockedDoorTile(th: Theme, orient: 'ns' | 'ew'): HTMLCanvasElement {
+  return cached(`${th.name}|ld|${orient}`, (ctx) => {
+    ctx.drawImage(doorTile(th, orient, false), 0, 0);
+    ctx.fillStyle = 'rgba(40,10,20,0.28)';
+    ctx.fillRect(0, 0, T, T);
+    if (orient === 'ns') {
+      ironBand(ctx, 12, 22, T - 24, 7);
+      ironBand(ctx, 12, 78, T - 24, 7);
+      ctx.strokeStyle = '#2a2d36';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(14, 30);
+      ctx.lineTo(T - 14, 76);
+      ctx.moveTo(T - 14, 30);
+      ctx.lineTo(14, 76);
+      ctx.stroke();
+      padlock(ctx, T / 2, 50, 1.15);
+    } else {
+      ironBand(ctx, T / 2 - 12, 40, 24, 6);
+      padlock(ctx, T / 2, 44, 0.9);
+    }
+  });
+}
+
+export function chestTile(opened: boolean, locked = false): HTMLCanvasElement {
+  return cached(`chest|${opened}|${locked}`, (ctx) => {
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
     ellipse(ctx, 48, 74, 32, 9);
     ctx.fill();
-    const wood = '#8a5a2e';
-    const woodD = '#5a3718';
+    const wood = locked ? '#a2332e' : '#8a5a2e';
+    const woodD = locked ? '#4f1414' : '#5a3718';
+    const metal = locked ? '#d3dae8' : '#e6b84a';
     // Cuerpo.
     roundRectPath(ctx, 16, 44, 64, 30, 5);
     ctx.fillStyle = vGrad(ctx, 44, 74, wood, woodD);
@@ -580,8 +634,8 @@ export function chestTile(opened: boolean): HTMLCanvasElement {
       ctx.lineWidth = 2.4;
       ctx.stroke();
     }
-    // Herrajes dorados.
-    ctx.fillStyle = '#e6b84a';
+    // Herrajes (dorados; plateados en el cofre lacado).
+    ctx.fillStyle = metal;
     ctx.strokeStyle = INK;
     ctx.lineWidth = 1.6;
     for (const x of [16, 74]) {
@@ -597,6 +651,7 @@ export function chestTile(opened: boolean): HTMLCanvasElement {
       circle(ctx, 48, 46, 2.2);
       ctx.fill();
       ctx.fillRect(47, 46, 2, 5);
+      if (locked) padlock(ctx, 48, 56, 0.9);
     }
   });
 }

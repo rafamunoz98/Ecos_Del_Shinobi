@@ -1,6 +1,8 @@
 import { getEnemy } from '../../content/enemies';
 import { getTechnique } from '../../content/techniques';
 import { getWeapon } from '../../content/weapons';
+import { isKey } from '../../content/items';
+import { itemName } from '../../content/names';
 import { getThrowable } from '../../content/weapons';
 import { canSeeEntity, enemySees, openDoors, visibleCells, visionRadiusOf } from '../../core/sight';
 import { manhattan } from '../../core/grid';
@@ -25,7 +27,7 @@ import {
 import { drawIcon } from './icons';
 import { clamp, easeOut, hash2, rgba } from './noise';
 import { type Theme, themeFor } from './themes';
-import { E, N, NE, NW, S, SE, SW, W, barrierTile, bushTile, chestTile, doorTile, floorTile, stairsTile, wallTile } from './tileart';
+import { E, N, NE, NW, S, SE, SW, W, barrierTile, bushTile, chestTile, doorTile, floorTile, lockedDoorTile, stairsTile, wallTile } from './tileart';
 
 /** Qué casillas resaltar mientras se apunta una técnica o un lanzamiento. */
 export interface Overlay {
@@ -217,7 +219,7 @@ export class WorldRenderer {
           if (isWall(x - 1, y + 1)) m |= SW;
           if (isWall(x - 1, y - 1)) m |= NW;
           this.floorMask[i] = m;
-          if (tiles[i] === 'door') this.doorNS[i] = isWall(x - 1, y) && isWall(x + 1, y) ? 1 : 0;
+          if (tiles[i] === 'door' || tiles[i] === 'locked') this.doorNS[i] = isWall(x - 1, y) && isWall(x + 1, y) ? 1 : 0;
         }
       }
     }
@@ -434,8 +436,29 @@ export class WorldRenderer {
           if (ch) add(sparkleFx(now, ch.pos, '#ffe08a', 16));
           break;
         }
-        case 'ItemPickedUp':
-          this.text(pPos, `+${ev.count} ${getThrowable(ev.itemId)?.name ?? ev.itemId}`, '#d8e4ff', now, 0, 0.28, 1.0);
+        case 'ItemPickedUp': {
+          const warm = ev.itemId === 'moneda' || ev.itemId === 'esquirla';
+          const color = warm ? '#ffe08a' : isKey(ev.itemId) ? '#ffffff' : '#d8e4ff';
+          const label = ev.count > 1 || warm ? `+${ev.count} ${itemName(ev.itemId)}` : `+ ${itemName(ev.itemId)}`;
+          this.text(pPos, label, color, now, 0, 0.28, 1.0);
+          if (warm) add(sparkleFx(now, pPos, '#ffd36a', 6));
+          else if (isKey(ev.itemId)) add(sparkleFx(now, pPos, '#ffffff', 14));
+          break;
+        }
+        case 'ItemStuck': {
+          const victim = next.enemies.find((e) => e.id === ev.enemyId);
+          if (victim) add(impactFx(now + 0.22, victim.pos, '#d8e4ff'));
+          break;
+        }
+        case 'DoorUnlocked':
+          add(sparkleFx(now, ev.pos, '#ffe08a', 18));
+          add(ringFx(now, ev.pos, '#ffe08a', 1.4, 0.6));
+          this.text(ev.pos, '¡Abierta!', '#ffe9a8', now, 0, 0.32, 1.1);
+          break;
+        case 'WeaponUpgraded':
+          add(sparkleFx(now, pPos, '#9cf0b4', 18));
+          add(ringFx(now, pPos, '#9cf0b4', 1.5, 0.6));
+          this.text(pPos, `${getWeapon(ev.weaponId)?.name ?? ev.weaponId} +${ev.level}`, '#9cf0b4', now, 0, 0.34, 1.2);
           break;
         case 'TelegraphStarted': {
           const owner = next.enemies.find((e) => e.id === ev.ownerId);
@@ -564,6 +587,7 @@ export class WorldRenderer {
         if (kind === 'wall') img = wallTile(th, this.variant[i] % 3, this.wallMask[i]);
         else if (kind === 'exit') img = stairsTile(th);
         else if (kind === 'door') img = doorTile(th, this.doorNS[i] ? 'ns' : 'ew', this.doors.has(i));
+        else if (kind === 'locked') img = lockedDoorTile(th, this.doorNS[i] ? 'ns' : 'ew');
         else img = floorTile(th, kind === 'bush' ? 0 : this.variant[i], this.floorMask[i]);
         ctx.drawImage(img, x - eps, y - eps, 1 + eps * 2, 1 + eps * 2);
         if (kind === 'bush') {
@@ -594,7 +618,7 @@ export class WorldRenderer {
     for (const c of s.chests) {
       const i = c.pos.y * map.width + c.pos.x;
       if (!s.explored[i]) continue;
-      ctx.drawImage(chestTile(c.opened), c.pos.x + 0.02, c.pos.y - 0.04, 0.96, 0.96);
+      ctx.drawImage(chestTile(c.opened, !!c.locked), c.pos.x + 0.02, c.pos.y - 0.04, 0.96, 0.96);
       if (!c.opened && this.visible.has(i)) {
         const tw = 0.5 + 0.5 * Math.sin(now * 3 + c.pos.x * 2.1);
         ctx.save();
@@ -615,10 +639,18 @@ export class WorldRenderer {
       ctx.fill();
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = radial(ctx, d.pos.x + 0.5, d.pos.y + 0.55, 0.02, 0.42, 'rgba(200,225,255,0.28)', 'rgba(200,225,255,0)');
-      ctx.fillRect(d.pos.x, d.pos.y + 0.1, 1, 0.9);
+      const warm = d.itemId === 'moneda' || d.itemId === 'esquirla';
+      const keyItem = isKey(d.itemId);
+      ctx.fillStyle = radial(
+        ctx, d.pos.x + 0.5, d.pos.y + 0.55, 0.02, keyItem ? 0.55 : 0.42,
+        warm ? 'rgba(255,200,100,0.34)' : keyItem ? 'rgba(255,240,190,0.5)' : 'rgba(200,225,255,0.28)',
+        warm ? 'rgba(255,200,100,0)' : keyItem ? 'rgba(255,240,190,0)' : 'rgba(200,225,255,0)',
+      );
+      ctx.fillRect(d.pos.x - 0.1, d.pos.y, 1.2, 1.1);
       ctx.restore();
-      drawIcon(ctx, d.itemId, d.pos.x + 0.5, d.pos.y + 0.54 + bob, 0.46, 0.5 + Math.sin(now * 1.2 + d.pos.y) * 0.1);
+      const rot = warm ? 0 : keyItem ? -0.25 + Math.sin(now * 1.6 + d.pos.x) * 0.1 : 0.5 + Math.sin(now * 1.2 + d.pos.y) * 0.1;
+      const size = keyItem ? 0.58 : warm ? 0.4 + Math.min(0.12, d.count * 0.008) : 0.46;
+      drawIcon(ctx, d.itemId, d.pos.x + 0.5, d.pos.y + 0.54 + bob, size, rot);
     }
     for (const sc of s.scrolls) {
       const i = sc.pos.y * map.width + sc.pos.x;
@@ -712,6 +744,22 @@ export class WorldRenderer {
             drawEnemy(c, e.kind, { t: stunned ? now * 0.3 : now, walk: ep.moving ? 1 : 0, phase: now * 14, face, charging, bossPhase: e.phase });
           }),
       });
+      // Arrojadizas clavadas: pequeñas, en el cuerpo, hasta 5 a la vista.
+      const stuckList = Object.entries(e.stuck ?? {}).flatMap(([id, n]) => Array.from({ length: Math.min(n, 3) }, () => id)).slice(0, 5);
+      if (stuckList.length > 0) {
+        const bodyX = ep.x + lg.x + 0.5;
+        const bodyY = ep.y + lg.y + (big ? 0.18 : 0.38);
+        const sc = big ? 1.35 : 1;
+        ents.push({
+          y: ep.y + 0.01,
+          draw: () =>
+            stuckList.forEach((id, k) => {
+              const ox = (((k * 37) % 5) - 2) * 0.06 * sc;
+              const oy = (((k * 53) % 5) - 2) * 0.05 * sc;
+              drawIcon(ctx, id, bodyX + ox, bodyY + oy, 0.2 * sc, 0.9 + k * 1.3);
+            }),
+        });
+      }
     }
     ents.sort((a, b) => a.y - b.y);
     for (const e of ents) e.draw();

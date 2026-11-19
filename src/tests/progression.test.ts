@@ -3,7 +3,7 @@ import { effectiveDefense, effectivePower, xpToNext } from '../core/combat';
 import { applyCommand } from '../core/engine';
 import { createGame } from '../core/newGame';
 import type { GameState } from '../core/types';
-import { attack, interact, makeGame, wait } from './helpers';
+import { attack, interact, makeGame, move, wait } from './helpers';
 
 describe('experiencia y niveles', () => {
   it('derrotar enemigos da XP según el tipo', () => {
@@ -67,9 +67,8 @@ describe('equipo', () => {
     expect(r.state.player.hp).toBe(20 - 1); // 4 - 3
   });
 
-  it('un cofre equipa la vestimenta si mejora y la descarta si no', () => {
+  it('un cofre equipa la vestimenta si mejora y nunca te la cambia por una peor', () => {
     let equipped = 0;
-    let discarded = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const s = makeGame(['#####', '#@C.#', '#####'], (g) => {
         g.floor = 3; // en el sector 3 puede salir vestimenta mejor que la actual
@@ -82,13 +81,19 @@ describe('equipo', () => {
         equipped++;
         expect(r.state.player.equipment.armor).toBe('coraza_de_pizarra');
       }
-      if (r.state.log[r.state.log.length - 1].includes('equipo actual es mejor')) {
-        discarded++;
-        expect(r.state.player.equipment.armor).toBe('cota_de_laminas');
-      }
+      expect(['cota_de_laminas', 'coraza_de_pizarra']).toContain(r.state.player.equipment.armor);
     }
     expect(equipped).toBeGreaterThan(0);
-    expect(discarded).toBeGreaterThan(0);
+  });
+
+  it('una vestimenta peor encontrada en el suelo se desmonta en esquirlas', () => {
+    const s = makeGame(['#####', '#@..#', '#####'], (g) => {
+      g.player.equipment.armor = 'cota_de_laminas';
+      g.drops.push({ pos: { x: 2, y: 1 }, itemId: 'chaleco_acolchado', count: 1 });
+    });
+    const r = applyCommand(s, move(1, 0));
+    expect(r.state.player.equipment.armor).toBe('cota_de_laminas');
+    expect(r.state.player.shards).toBe(1);
   });
 
   it('un cofre da armas nuevas sin equiparlas y no repite las que ya tienes', () => {
@@ -125,7 +130,7 @@ describe('sectores', () => {
       { x: exit.x + 1, y: exit.y },
       { x: exit.x, y: exit.y - 1 },
       { x: exit.x, y: exit.y + 1 },
-    ].find((c) => s.map.tiles[c.y * s.map.width + c.x] === 'floor') as { x: number; y: number };
+    ].find((c) => ['floor', 'bush', 'door'].includes(s.map.tiles[c.y * s.map.width + c.x])) as { x: number; y: number };
     return { ...s, enemies: [], player: { ...s.player, pos: adj } };
   }
   const exitOf = (s: GameState) => {

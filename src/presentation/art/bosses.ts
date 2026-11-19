@@ -352,7 +352,60 @@ export function bellKeeper(ctx: Ctx, { t, charging, bossPhase = 1 }: ChargePose)
 
 export function drawNpc(ctx: Ctx, kind: string, t: number, used: boolean): void {
   if (kind === 'altar_eco_roto') altar(ctx, t, used);
+  else if (kind === 'mesa_forja') forja(ctx, t);
   else maestra(ctx, t, used);
+}
+
+/** Mesa de forja: yunque sobre un bloque de piedra, brasas encendidas y un martillo apoyado. */
+function forja(ctx: Ctx, t: number): void {
+  shadow(ctx, 0.36, 0.09, 0.45, 0.36);
+  // Brasero detrás.
+  glow(ctx, -0.22, 0.02, 0.3, '255,130,40', 0.35 + 0.15 * Math.sin(t * 7));
+  // Bloque de piedra.
+  roundRectPath(ctx, -0.28, 0.12, 0.56, 0.24, 0.04);
+  ctx.fillStyle = vGrad(ctx, 0.12, 0.36, '#8a8497', '#4a4658');
+  ctx.fill();
+  stroke(ctx, 0.05);
+  // Yunque.
+  ctx.beginPath();
+  ctx.moveTo(-0.3, -0.1);
+  ctx.lineTo(0.2, -0.1);
+  ctx.quadraticCurveTo(0.34, -0.08, 0.38, 0.0);
+  ctx.lineTo(0.14, 0.03);
+  ctx.lineTo(0.1, 0.14);
+  ctx.lineTo(-0.1, 0.14);
+  ctx.lineTo(-0.08, 0.03);
+  ctx.lineTo(-0.3, 0.0);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.1, 0.14, '#98a2b6', '#3f4557');
+  ctx.fill();
+  stroke(ctx, 0.05);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillRect(-0.26, -0.085, 0.44, 0.025);
+  // Hierro al rojo sobre el yunque.
+  const heat = 0.6 + 0.4 * Math.sin(t * 3);
+  glow(ctx, 0.0, -0.12, 0.2, '255,150,60', 0.6 * heat);
+  roundRectPath(ctx, -0.1, -0.15, 0.22, 0.05, 0.02);
+  ctx.fillStyle = `rgb(255,${Math.floor(130 + 60 * heat)},70)`;
+  ctx.fill();
+  stroke(ctx, 0.03);
+  // Martillo apoyado a la derecha.
+  ctx.save();
+  ctx.translate(0.3, 0.1);
+  ctx.rotate(0.35);
+  ctx.fillStyle = '#7b5233';
+  ctx.fillRect(-0.02, -0.18, 0.04, 0.34);
+  stroke(ctx, 0.025);
+  ctx.fillStyle = vGrad(ctx, -0.22, -0.1, '#b8bfcd', '#4a5064');
+  roundRectPath(ctx, -0.09, -0.24, 0.18, 0.1, 0.02);
+  ctx.fill();
+  stroke(ctx, 0.035);
+  ctx.restore();
+  // Chispas.
+  for (let i = 0; i < 4; i++) {
+    const ph = (t * 1.4 + i * 0.27) % 1;
+    glow(ctx, -0.06 + i * 0.05 + Math.sin(i * 3 + t) * 0.03, -0.14 - ph * 0.3, 0.035, '255,210,120', 0.9 * (1 - ph));
+  }
 }
 
 function maestra(ctx: Ctx, t: number, used: boolean): void {

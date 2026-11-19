@@ -2,10 +2,10 @@ import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_NAMES } from '../content/describe';
 import { ENEMIES } from '../content/enemies';
 import { NOTES, getRelic } from '../content/story';
-import { getEquipment, getItem } from '../content/items';
+import { KEYS, getEquipment, getItem } from '../content/items';
 import { getTechnique } from '../content/techniques';
-import { THROWABLES, getWeapon } from '../content/weapons';
-import { xpToNext } from '../core/combat';
+import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
+import { weaponLevel, xpToNext } from '../core/combat';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
 import { drawMinimap } from './minimap';
@@ -88,7 +88,7 @@ export class Hud {
     const armor = getEquipment(p.equipment.armor);
     el('meta').textContent = [
       `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}`,
-      `Arma: ${weapon ? `${weapon.name}${weapon.bonus ? ` (+${weapon.bonus})` : ''}` : '—'}`,
+      `Arma: ${weapon ? `${weaponLabel(weapon.id, weaponLevel(p, weapon.id))} (+${weapon.bonus + weaponLevel(p, weapon.id)})` : '—'}`,
       `Vestimenta: ${armor ? `${armor.name} (+${armor.bonus})` : '—'}`,
       `Semilla ${state.seed}`,
     ].join('\n');
@@ -105,6 +105,23 @@ export class Hud {
       }),
     );
 
+    const wallet = el('wallet');
+    const chip = (cls: string, iconId: string, text: string, title: string): HTMLElement => {
+      const c = document.createElement('span');
+      c.className = `chip ${cls}`;
+      c.title = title;
+      const im = document.createElement('img');
+      im.src = iconDataUrl(iconId, 28);
+      im.alt = '';
+      c.append(im, text);
+      return c;
+    };
+    wallet.replaceChildren(
+      chip('coin', 'moneda', String(p.coins), 'Monedas'),
+      chip('coin', 'esquirla', String(p.shards), 'Esquirlas de campana'),
+      ...p.keys.map((k) => chip('key', k, KEYS[k]?.name ?? k, KEYS[k]?.description ?? '')),
+    );
+
     this.renderActions(state, aim);
 
     const log = el('log');
@@ -117,7 +134,7 @@ export class Hud {
     );
     log.scrollTop = log.scrollHeight;
 
-    el('help').textContent = 'Tab: menú · E: interactuar/hablar · F: ataque de alcance · G: lanzar · Q: cambiar arma · Rueda o +/−: zoom · R: nueva expedición';
+    el('help').textContent = 'Tab: menú · E: interactuar/hablar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · Q: cambiar arma · Rueda o +/−: zoom · R: nueva expedición';
     this.drawMinimap(state);
 
     this.renderResult(state);
@@ -161,6 +178,8 @@ export class Hud {
       stat('Objetos usados', String(st.itemsUsed)),
       stat('Golpes furtivos', String(st.sneakAttacks)),
       stat('Cofres abiertos', String(st.chestsOpened)),
+      stat('Monedas reunidas', String(st.coinsFound)),
+      stat('Armas mejoradas', String(st.upgrades)),
       stat('Decisiones tomadas', String(st.decisions)),
       stat('Pergaminos', `${p.notes.length} / ${Object.keys(NOTES).length}`),
     );
@@ -238,7 +257,7 @@ export class Hud {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
     if (p.weapons.length > 1) specs.push({ key: 'Q', icon: w?.id ?? 'tanto_gastado', name: 'Cambiar arma', sub: w?.name ?? '', action: { type: 'weapon' } });
-    specs.push({ key: 'E', icon: 'cofre', name: 'Interactuar', sub: 'cofre / escalera / hablar', action: { type: 'interact' } });
+    specs.push({ key: 'E', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 
     const sig = JSON.stringify(specs.map((s) => [s.key, s.icon, s.name, s.sub, s.disabled]));

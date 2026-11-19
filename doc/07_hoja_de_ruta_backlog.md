@@ -74,6 +74,17 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 **Aceptación:** una expedición corta tiene inicio, decisiones, jefe y final. *(Cumplida; 149 pruebas automáticas.)*
 **Pendiente de decidir con el equipo:** artesanía de armas y más retroalimentación visual (ver `11_riesgos_y_decisiones_pendientes.md`).
 
+## Hito 6.5 — Botín, llaves y forja (tras probar el vertical slice) **[Completado]**
+- [x] Más arbustos (7 grupos por sector).
+- [x] Arrojadizas que se clavan en los enemigos y caen al morir; el senbon sube a 4 de daño (ignora defensa, 40 % de perderse).
+- [x] Objetos por el suelo (8–12 por sector) y cofres con botín más potente.
+- [x] Puertas con candado + llave de hierro; cámara sellada con 3 tesoros.
+- [x] Cofre lacado + llave de laca.
+- [x] Monedas, esquirlas y botín de enemigos.
+- [x] Mesa de forja (sectores 2 y 3): mejoras de armas hasta +3.
+- [x] Revisión de Pixel Dungeon (ver `02_sistemas_y_reglas.md` §11.3).
+**Aceptación:** explorar compensa; las armas tienen una progresión dentro de la expedición. *(176 pruebas automáticas.)*
+
 ## Hito 7 — Progresión
 - [ ] Árbol de técnicas.
 - [ ] Desbloqueos permanentes.
@@ -102,4 +113,5 @@ Multijugador, PvP, ranking online, tienda con dinero real, cuentas, mundo abiert
 - Controles táctiles: hay cruceta y barra de acciones pulsables; falta pulirlos con pruebas en dispositivos reales (Hito 8).
 - Arte: ya es propio y procedural (ver `05_direccion_artistica_audio.md`). Faltan más fotogramas de animación, altar, sprites de jefe y audio.
 - Sigilo: revisar con jugadores si el alcance de percepción (8) y las 8 rondas de alerta son justos; los arbustos podrían tener un coste adicional.
-- Fabricación de armas (crafteo): no implementada; decidir si se quiere (materiales, mejora) o si basta con encontrarlas en cofres.
+- Mejora de armas: implementada (mesas de forja, Hito 6.5). La fabricación desde cero y la alquimia siguen sin decidir.
+- Equilibrio del botín: la oferta de monedas/esquirlas y el coste de las mejoras están sin probar con jugadores reales; todo está en `src/content/balance.ts`.

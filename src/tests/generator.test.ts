@@ -31,9 +31,9 @@ describe('generador de mapas grandes', () => {
         const at = (p: { x: number; y: number }) => p.y * map.width + p.x;
         const ctx = `semilla ${seed} sector ${floor}`;
 
-        // Todo el suelo es un único componente conexo desde la entrada.
+        // Todo el suelo es un único componente conexo desde la entrada (la cámara sellada y su candado quedan aparte).
         const dist = distancesFrom(map, lv.playerStart);
-        const floorTiles = map.tiles.filter((t) => t !== 'wall').length;
+        const floorTiles = map.tiles.filter((t) => t !== 'wall' && t !== 'locked').length - (lv.vault?.cells.length ?? 0);
         expect(dist.filter((d) => d >= 0).length, ctx).toBe(floorTiles);
 
         // Una sola salida, alcanzable y lejos de la entrada.
@@ -64,7 +64,7 @@ describe('generador de mapas grandes', () => {
         expect(lv.enemies.length, ctx).toBeGreaterThanOrEqual(BALANCE.level.minEnemies);
         expect(lv.enemies.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxEnemies);
         expect(lv.chests.length, ctx).toBeGreaterThanOrEqual(1);
-        expect(lv.chests.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests);
+        expect(lv.chests.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests + 1); // + el cofre lacado
       }
     }
   });

@@ -104,7 +104,35 @@ Estados candidatos: quemadura, marca, ralentización, aturdimiento, barrera, san
 - **Golpe furtivo:** atacar (cuerpo a cuerpo o lanzando) a un enemigo que no sabe de ti hace ×2 de daño. Un enemigo herido sabe siempre dónde estás.
 
 ## 11. Inventario y botín
-Ranuras iniciales: arma, vestimenta, talismán y sello (en el prototipo: arma y vestimenta). **Armas cuerpo a cuerpo [Implementado]:** hoja (adyacente), látigo (alcance 2, golpea al primero de la línea) y lanza (alcance 2, atraviesa). Se llevan varias y se equipa una (cambiar gasta un turno). **Arrojadizas [Implementado]:** shuriken, kunai arrojadizo y senbon; se lanzan a una casilla visible, se detienen en el primer enemigo y caen al suelo (recogibles al pisarlas) salvo que se rompan según su probabilidad. Consumibles: tónicos, pergaminos, bombas de humo y kits de sellado. El botín usa tablas configurables; las recompensas raras no deben ser obligatorias para superar el juego.
+Ranuras iniciales: arma, vestimenta, talismán y sello (en el prototipo: arma y vestimenta). **Armas cuerpo a cuerpo [Implementado]:** hoja (adyacente), látigo (alcance 2, golpea al primero de la línea) y lanza (alcance 2, atraviesa). Se llevan varias y se equipa una (cambiar gasta un turno). **Arrojadizas [Implementado]:** shuriken, kunai arrojadizo y senbon; se lanzan a una casilla visible y se detienen en el primer enemigo. Si fallan o se pierden, caen al suelo (recogibles al pisarlas); si aciertan y no se rompen, **se clavan en el enemigo** (se ven en su sprite) y **caen al suelo al morir**. Consumibles: tónicos, pergaminos, bombas de humo y kits de sellado. El botín usa tablas configurables; las recompensas raras no deben ser obligatorias para superar el juego.
+
+### 11.1 Objetos del suelo, cofres, llaves y monedas **[Implementado]**
+Inspirado en Pixel Dungeon: lo normal es encontrar objetos *por el suelo*; los cofres son un extra con cosas mejores.
+- **Suelo:** de 8 a 12 objetos por sector (monedas, esquirlas, tónicos, ungüentos y arrojadizas; el kunai arrojadizo desde el sector 2). Se recogen al pisarlos.
+- **Cofre de madera** (hasta 3 por sector): equipo y reservas grandes (armas, vestimentas, lotes de arrojadizas). No necesita llave.
+- **Puerta con candado:** cierra una *cámara sellada* (85 % de los sectores) con 3 tesoros: una pieza de equipo y reservas. Se abre con la **llave de hierro**, que está en una sala con enemigos. Se abre caminando contra ella o con E.
+- **Cofre lacado** (80 % de los sectores): solo se abre con la **llave de laca**, escondida a menudo (60 %) en un arbusto. Contiene equipo de gama alta.
+- **Las llaves se deshacen al bajar de sector**: se usan en el mismo piso donde se encuentran.
+- **Monedas y esquirlas:** las monedas salen del suelo, de cámaras y de enemigos (70 % de probabilidad, 1–3 más 1 por sector; el Eco Menor no suelta nada). Las esquirlas son el material de forja.
+
+### 11.2 Mesas de forja **[Implementado]**
+Hay una mesa de forja solo en los sectores 2 y 3. Hablar con ella (E o caminar contra ella) es gratis y abre el menú de mejoras. Cada arma cuerpo a cuerpo se mejora hasta **+3**; cada nivel da +1 de poder. El coste por nivel es de **12 / 20 / 30 monedas** o de **2 / 3 / 4 esquirlas**; mejorar gasta un turno. Se paga con monedas primero (o se elige la divisa en el menú).
+
+### 11.3 Comparativa con Pixel Dungeon
+| Idea de Pixel Dungeon | Estado en Ecos del Shinobi |
+|---|---|
+| Objetos por el suelo, cofres como extra | **Adoptada** |
+| Llaves y cámaras selladas, cofres con llave | **Adoptada** (llave de hierro y llave de laca; se pierden al bajar) |
+| Oro y herrero que mejora armas | **Adoptada** (monedas y esquirlas; mesa de forja en sectores 2–3) |
+| Monedas que sueltan los enemigos | **Adoptada** |
+| Hambre y comida | Propuesta (aumenta presión pero cansa en partidas cortas) |
+| Trampas y acción de buscar | Propuesta |
+| Pociones y pergaminos sin identificar | Propuesta (encaja con los ungüentos y pergaminos) |
+| Cofres trampa (mímicos) | Propuesta |
+| Tiendas | Propuesta |
+| Monstruos errantes que castigan quedarse | Propuesta |
+| Sensación del piso (aviso al entrar) | Propuesta |
+| Alquimia / combinar objetos | Propuesta |
 
 ## 12. Guardado
 Persistir versión de esquema, semilla, sector, mapa, estado del jugador, enemigos, objetos, inventario y meta-progreso. Versionar y migrar datos. No confiar en guardados del cliente para rankings o economía competitiva.
