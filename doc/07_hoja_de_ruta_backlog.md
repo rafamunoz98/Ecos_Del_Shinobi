@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (17-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte). Hito 6 (vertical slice) completado. Siguiente: Hito 7 (progresión permanente).
+**Estado (19-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice) y el **Hito 6.5** (botín, llaves y forja). Siguiente: Hito 7 (progresión permanente).
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*

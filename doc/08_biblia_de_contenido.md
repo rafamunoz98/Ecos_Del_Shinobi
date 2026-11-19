@@ -134,7 +134,7 @@ Botín de cofres: tabla ponderada por sector (consumibles frecuentes, equipo mej
 ## 8. Estructura de una expedición y mapas **[Implementado]**
 - Una expedición tiene 3 sectores (por ahora; el último tendrá al Campanero). Cruzar la escalera lleva al siguiente sector conservando el personaje; en el último, gana.
 - Cada sector es un mapa grande (64×44 casillas, estilo Pixel Dungeon): hasta 12 salas rectangulares unidas por pasillos de una casilla, más algunos bucles, con grupos de arbustos en las salas y puertas en la boca de algunos pasillos. La entrada está en una sala al azar y la escalera en la sala más lejana por camino.
-- Enemigos repartidos por salas (de 4 a 9 por sector), siempre al menos a 6 casillas de la entrada. De 1 a 5 cofres por sector, colocados de modo que nunca corten un camino.
+- Enemigos repartidos por salas (de 4 a 9 por sector), siempre al menos a 6 casillas de la entrada. De 8 a 12 objetos por el suelo, hasta 3 cofres de madera, una cámara sellada con puerta con candado y un cofre lacado (ver §5.4), colocados de modo que nunca corten un camino. Siete grupos de arbustos por sector.
 - El tamaño de casilla en pantalla no es fijo: la cámara hace zoom y sigue al jugador; el mapa y las reglas no dependen de él.
 - Niebla de guerra: solo se ve lo ya recorrido, y los enemigos solo si están a la vista (radio 7 con línea de visión; los arbustos y puertas cerradas la cortan).
 - Misma semilla y sector producen siempre el mismo mapa.
