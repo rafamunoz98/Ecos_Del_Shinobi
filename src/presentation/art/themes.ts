@@ -1,4 +1,7 @@
-/** Paletas y ambientes de cada sector. Los sectores más allá del último repiten el ciclo. */
+/**
+ * Paletas y ambientes. La estética depende de cuántos jefes has derrotado: todos los sectores de una zona se ven igual y el
+ * aspecto cambia al caer su jefe (ver `themeFor`).
+ */
 export interface Theme {
   name: string;
   /** Losas del suelo (dos tonos entre los que se mezclan) y juntas. */
@@ -84,4 +87,27 @@ export const THEMES: readonly Theme[] = [
   },
 ];
 
-export const themeFor = (floor: number): Theme => THEMES[(Math.max(1, floor) - 1) % THEMES.length];
+/** Raíces Hundidas: la segunda zona, bajo la cripta (verdes profundos, raíces y esporas). */
+const ROOTS: Theme = {
+  name: 'Raíces Hundidas',
+  floorA: '#5a6b5c',
+  floorB: '#4b5d57',
+  grout: '#1f2d2a',
+  faceLight: '#5d5648',
+  faceDark: '#3a3329',
+  mortar: '#1d1913',
+  roof: '#2a3b2f',
+  roofDark: '#121c17',
+  lip: '#8aa38c',
+  accent: '#5fd0b0',
+  accent2: '#b48cff',
+  fog: '#030807',
+  glow: '#bff3d6',
+  ambient: 'luciernagas',
+  ambientColor: '#8ef0d0',
+  deco: 'hierba',
+};
+
+/** Estética por jefes derrotados: 0 = Bosque del Umbral, 1 = Raíces Hundidas, 2 o más = Santuario de Ceniza. */
+export const ZONE_THEMES: readonly Theme[] = [THEMES[0], ROOTS, THEMES[2]];
+export const themeFor = (bossesDefeated: number): Theme => ZONE_THEMES[Math.min(Math.max(0, bossesDefeated), ZONE_THEMES.length - 1)];

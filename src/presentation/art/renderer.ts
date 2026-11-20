@@ -7,7 +7,8 @@ import { getThrowable } from '../../content/weapons';
 import { canSeeEntity, enemySees, openDoors, visibleCells, visionRadiusOf } from '../../core/sight';
 import { manhattan } from '../../core/grid';
 import type { Affinity, GameEvent, GameState, Vec } from '../../core/types';
-import { type Dir, drawEnemy, drawNinja } from './actors';
+import { type Dir, drawAlly, drawEnemy, drawNinja } from './actors';
+import { SHINOBI_STYLES } from './shinobi';
 import { drawNpc } from './bosses';
 import { type Ctx, circle, makeCanvas, radial, roundRectPath } from './draw';
 import {
@@ -100,6 +101,8 @@ export class WorldRenderer {
   private shake = 0;
   private hurt = 0;
   private fadeT0 = 0;
+  /** Destello dorado al cambiar la estética de la zona (caída de un jefe). */
+  private themeFlashT0 = -10;
   private hide = 0;
   private visible = new Set<number>();
   private doors = new Set<number>();
@@ -146,7 +149,7 @@ export class WorldRenderer {
   /** Empieza de cero con un estado nuevo (nueva expedición o nuevo sector). */
   reset(state: GameState, now: number): void {
     this.state = state;
-    this.theme = themeFor(state.floor);
+    this.theme = themeFor(state.bossesDefeated);
     this.disp.clear();
     this.fx = [];
     this.texts = [];
@@ -267,8 +270,13 @@ export class WorldRenderer {
       apply(e.id, e.pos, 0.1);
       setDir(e.id, before, e.pos);
     }
+    for (const a of s.allies) {
+      const before = prev?.allies.find((q) => q.id === a.id)?.pos ?? a.pos;
+      apply(a.id, a.pos, 0.05);
+      setDir(a.id, before, a.pos);
+    }
     for (const id of [...this.disp.keys()]) {
-      if (id !== PLAYER && !s.enemies.some((e) => e.id === id)) this.disp.delete(id);
+      if (id !== PLAYER && !s.enemies.some((e) => e.id === id) && !s.allies.some((a) => a.id === id)) this.disp.delete(id);
     }
   }
 
@@ -293,7 +301,7 @@ export class WorldRenderer {
   private spawnEffects(next: GameState, prev: GameState, events: GameEvent[], now: number): void {
     const where = (id: string): Vec | null => {
       if (id === PLAYER) return next.player.pos;
-      return next.enemies.find((e) => e.id === id)?.pos ?? prev.enemies.find((e) => e.id === id)?.pos ?? null;
+      return next.enemies.find((e) => e.id === id)?.pos ?? prev.enemies.find((e) => e.id === id)?.pos ?? next.allies.find((a) => a.id === id)?.pos ?? prev.allies.find((a) => a.id === id)?.pos ?? null;
     };
     const lunge = (id: string, dir: Vec, amp: number, at: number): void => {
       const d = this.disp.get(id);
@@ -496,11 +504,46 @@ export class WorldRenderer {
           this.shake = Math.max(this.shake, 0.22);
           break;
         }
+        case 'EnemySkill': {
+          const dash = ev.skillId.includes('paso_fantasma');
+          if (dash) {
+            add(trailFx(now + delay, ev.from, ev.to));
+            add(puffFx(now + delay, ev.from, '#c9d0e0', 8, 0.4));
+            add(puffFx(now + delay + 0.1, ev.to, '#c9d0e0', 8, 0.4));
+          } else {
+            const fl = 0.16;
+            add(projectileFx(now + delay, ev.from, ev.to, ev.skillId.includes('senbon') ? 'senbon' : 'kunai_arrojadizo', fl));
+          }
+          enemyPhase = true;
+          break;
+        }
+        case 'MerchantAppeared':
+          add(ringFx(now + 0.15, ev.pos, '#ffe08a', 1.8, 0.9));
+          add(sparkleFx(now + 0.15, ev.pos, '#ffe08a', 16));
+          break;
+        case 'ItemBought':
+          this.text(pPos, `−${ev.price} monedas`, '#ffd36a', now, 0.05, 0.3, 1.2);
+          add(sparkleFx(now, pPos, '#ffe08a', 8));
+          break;
+        case 'GearIdentified':
+        case 'ArcanaIdentified':
+          this.text(pPos, '¡Identificado!', '#b8f0ff', now, 0.1, 0.32, 1.4);
+          add(sparkleFx(now + 0.05, pPos, '#b8f0ff', 12));
+          break;
+        case 'AllySummoned':
+          add(puffFx(now + delay, ev.pos, '#9ec0ff', 10, 0.45));
+          add(ringFx(now + delay, ev.pos, '#9ec0ff', 0.9, 0.5));
+          break;
+        case 'AllyDefeated':
+          add(puffFx(now + delay, where(ev.allyId) ?? pPos, '#9ec0ff', 8, 0.4));
+          break;
         case 'EnemySummoned':
           add(puffFx(now + delay, ev.pos, '#9ec0ff', 10, 0.45));
           add(ringFx(now + delay, ev.pos, '#9ec0ff', 0.9, 0.5));
           break;
         case 'BossDefeated': {
+          this.theme = themeFor(next.bossesDefeated);
+          this.themeFlashT0 = now + 0.1;
           const boss = prev.enemies.find((e) => e.id === ev.enemyId);
           if (boss) {
             add(ringFx(now + 0.1, boss.pos, '#ffe08a', 4.5, 1.2));
@@ -732,15 +775,11 @@ export class WorldRenderer {
       const face: 1 | -1 = s.player.pos.x === e.pos.x ? d.face : s.player.pos.x > e.pos.x ? 1 : -1;
       const stunned = e.statuses.some((st) => st.id === 'aturdido');
       const charging = s.telegraphs.some((t) => t.ownerId === e.id);
-      const big = getEnemy(e.kind)?.behavior === 'boss';
+      const style = SHINOBI_STYLES[e.kind];
       ents.push({
         y: ep.y,
         draw: () =>
           this.drawActor(ctx, ep.x + lg.x + 0.5, ep.y + lg.y + 0.5, flashOf(d), (c) => {
-            if (big) {
-              c.translate(0, 0.34 * (1 - 1.35));
-              c.scale(1.35, 1.35);
-            }
             drawEnemy(c, e.kind, { t: stunned ? now * 0.3 : now, walk: ep.moving ? 1 : 0, phase: now * 14, face, charging, bossPhase: e.phase });
           }),
       });
@@ -748,8 +787,8 @@ export class WorldRenderer {
       const stuckList = Object.entries(e.stuck ?? {}).flatMap(([id, n]) => Array.from({ length: Math.min(n, 3) }, () => id)).slice(0, 5);
       if (stuckList.length > 0) {
         const bodyX = ep.x + lg.x + 0.5;
-        const bodyY = ep.y + lg.y + (big ? 0.18 : 0.38);
-        const sc = big ? 1.35 : 1;
+        const sc = style?.scale ?? 1;
+        const bodyY = ep.y + lg.y + (sc > 1.1 ? 0.18 : 0.38);
         ents.push({
           y: ep.y + 0.01,
           draw: () =>
@@ -760,6 +799,19 @@ export class WorldRenderer {
             }),
         });
       }
+    }
+    for (const a of s.allies) {
+      if (!this.visible.has(a.pos.y * map.width + a.pos.x)) continue;
+      const d = this.disp.get(a.id);
+      if (!d) continue;
+      const ap = this.pos(a.id, now);
+      const aface: 1 | -1 = d.face;
+      ents.push({
+        y: ap.y,
+        draw: () => {
+          this.drawActor(ctx, ap.x + 0.5, ap.y + 0.5, flashOf(d), (c) => drawAlly(c, a.kind, { t: now, walk: ap.moving ? 1 : 0, phase: now * 14, face: aface }));
+        },
+      });
     }
     ents.sort((a, b) => a.y - b.y);
     for (const e of ents) e.draw();
@@ -802,6 +854,15 @@ export class WorldRenderer {
       if (!canSeeEntity(s, this.visible, e.pos)) continue;
       const ep = this.pos(e.id, now);
       this.drawEnemyHud(ctx, s, e, ep.x, ep.y, now);
+    }
+    for (const a of s.allies) {
+      if (!this.visible.has(a.pos.y * map.width + a.pos.x)) continue;
+      const ap = this.pos(a.id, now);
+      const w = 0.6;
+      ctx.fillStyle = 'rgba(8,10,20,0.7)';
+      ctx.fillRect(ap.x + 0.2, ap.y - 0.04, w, 0.09);
+      ctx.fillStyle = '#7fb8ff';
+      ctx.fillRect(ap.x + 0.2, ap.y - 0.04, w * Math.max(0, a.hp / a.maxHp), 0.09);
     }
 
     // 8) Texto flotante y capas de pantalla.
@@ -1118,6 +1179,11 @@ export class WorldRenderer {
     }
     if (s.status === 'lost') {
       ctx.fillStyle = 'rgba(30,0,6,0.5)';
+      ctx.fillRect(0, 0, W_, H_);
+    }
+    const flash = 1 - clamp((now - this.themeFlashT0) / 1.6, 0, 1);
+    if (flash > 0.01 && now >= this.themeFlashT0) {
+      ctx.fillStyle = `rgba(255,236,190,${0.75 * flash})`;
       ctx.fillRect(0, 0, W_, H_);
     }
     const fade = 1 - clamp((now - this.fadeT0) / 0.7, 0, 1);

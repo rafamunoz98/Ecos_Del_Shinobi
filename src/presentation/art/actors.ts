@@ -1,5 +1,6 @@
 import type { WeaponKind } from '../../content/weapons';
-import { bellKeeper, echoWisp, hollowMonk } from './bosses';
+import { echoWisp, hollowMonk } from './bosses';
+import { drawShinobiEnemy } from './shinobi';
 import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './draw';
 
 /**
@@ -325,20 +326,23 @@ export function drawEnemy(ctx: Ctx, kind: string, o: EnemyPose): void {
     case 'larva_de_piedra':
       grub(ctx, o);
       break;
-    case 'tirador_de_junco':
-      reedShooter(ctx, o);
-      break;
     case 'monje_hueco':
       hollowMonk(ctx, o);
       break;
     case 'eco_menor':
       echoWisp(ctx, o);
       break;
-    case 'campanero_sepultado':
-      bellKeeper(ctx, o);
+    case 'tirador_de_junco':
+      reedShooter(ctx, o);
+      break;
+    case 'lobo_de_raiz':
+      rootWolf(ctx, o);
+      break;
+    case 'espora_flotante':
+      sporeBloom(ctx, o);
       break;
     default:
-      stalker(ctx, o);
+      if (!drawShinobiEnemy(ctx, kind, o)) stalker(ctx, o);
   }
   ctx.restore();
 }
@@ -674,4 +678,195 @@ function reedShooter(ctx: Ctx, { t, walk, phase }: ActorPose): void {
     ctx.fill();
   }
   ctx.restore();
+}
+
+// ---------- Aliados invocados ----------
+
+export function drawAlly(ctx: Ctx, kind: string, o: EnemyPose): void {
+  ctx.save();
+  ctx.scale(o.face, 1);
+  // Aura azulada: se les distingue de los enemigos de un vistazo.
+  ctx.fillStyle = radial(ctx, 0, 0.05, 0.05, 0.5, 'rgba(120,190,255,0.35)', 'rgba(120,190,255,0)');
+  circle(ctx, 0, 0.05, 0.5);
+  ctx.fill();
+  if (kind === 'sapo_de_piedra') stoneToad(ctx, o);
+  else if (kind === 'cuervo_aliado') {
+    ctx.globalAlpha *= 0.9;
+    crow(ctx, o);
+  } else {
+    ctx.globalAlpha *= 0.65;
+    drawNinja(ctx, { ...o, dir: o.face === 1 ? 'right' : 'left' });
+  }
+  ctx.restore();
+}
+
+function stoneToad(ctx: Ctx, { t, walk, phase }: ActorPose): void {
+  shadow(ctx, 0.32, 0.08);
+  const hop = Math.abs(Math.sin(phase)) * 0.08 * walk;
+  const breathe = Math.sin(t * 2.2) * 0.01;
+  ctx.save();
+  ctx.translate(0, -hop);
+  ctx.beginPath();
+  ctx.ellipse(0, 0.14, 0.32, 0.2 + breathe, 0, 0, Math.PI * 2);
+  ctx.fillStyle = vGrad(ctx, -0.06, 0.34, '#8d9a86', '#4f5a52');
+  ctx.fill();
+  stroke(ctx, 0.05);
+  // Bultos de roca.
+  ctx.fillStyle = '#6c7568';
+  for (const [x, y, r] of [[-0.14, 0.04, 0.05], [0.04, 0.0, 0.06], [0.18, 0.08, 0.045], [-0.05, 0.14, 0.04]] as const) {
+    circle(ctx, x, y, r);
+    ctx.fill();
+    stroke(ctx, 0.02);
+  }
+  // Ojos grandes y boca ancha.
+  for (const x of [-0.12, 0.12]) {
+    circle(ctx, x, -0.04, 0.07);
+    ctx.fillStyle = '#e8e6c8';
+    ctx.fill();
+    stroke(ctx, 0.03);
+    ctx.fillStyle = INK;
+    circle(ctx, x + 0.01, -0.035, 0.028);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.03;
+  ctx.beginPath();
+  ctx.moveTo(-0.2, 0.14);
+  ctx.quadraticCurveTo(0, 0.24, 0.2, 0.14);
+  ctx.stroke();
+  // Patas.
+  ctx.fillStyle = '#5a6458';
+  for (const x of [-0.26, 0.26]) {
+    ellipse(ctx, x, 0.31, 0.09, 0.05);
+    ctx.fill();
+    stroke(ctx, 0.03);
+  }
+  ctx.restore();
+}
+
+// ---------- Monstruos de las Raíces Hundidas ----------
+
+function rootWolf(ctx: Ctx, { t, walk, phase }: ActorPose): void {
+  shadow(ctx, 0.34, 0.08);
+  const bob = Math.sin(t * 3) * 0.01 - Math.abs(Math.sin(phase)) * 0.05 * walk;
+  const gallop = Math.sin(phase) * 0.07 * walk;
+  ctx.save();
+  ctx.translate(0, bob);
+  // Patas.
+  ctx.fillStyle = '#3c3326';
+  for (const [x, o] of [[-0.2, 1], [-0.1, -1], [0.14, -1], [0.24, 1]] as const) {
+    roundRectPath(ctx, x - 0.035 + gallop * o * 0.5, 0.12, 0.07, 0.22, 0.03);
+    ctx.fill();
+    stroke(ctx, 0.03);
+  }
+  // Cola de raíces.
+  ctx.strokeStyle = '#4f7a3a';
+  ctx.lineWidth = 0.05;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 0.02);
+  ctx.quadraticCurveTo(-0.46, -0.1 + Math.sin(t * 4) * 0.04, -0.4, -0.22);
+  ctx.stroke();
+  outlineStroke(ctx);
+  // Cuerpo.
+  ctx.beginPath();
+  ctx.ellipse(-0.02, 0.0, 0.31, 0.19, 0, 0, Math.PI * 2);
+  ctx.fillStyle = vGrad(ctx, -0.2, 0.2, '#6b5a40', '#3a2f22');
+  ctx.fill();
+  stroke(ctx, 0.045);
+  // Raíces sobre el lomo.
+  ctx.strokeStyle = '#6fa04a';
+  ctx.lineWidth = 0.03;
+  for (const x of [-0.18, -0.05, 0.08]) {
+    ctx.beginPath();
+    ctx.moveTo(x, -0.16);
+    ctx.quadraticCurveTo(x + 0.04, -0.3, x - 0.02 + Math.sin(t * 3 + x * 9) * 0.02, -0.34);
+    ctx.stroke();
+  }
+  // Cabeza.
+  ctx.beginPath();
+  ctx.moveTo(0.22, -0.12);
+  ctx.quadraticCurveTo(0.42, -0.14, 0.46, 0.0);
+  ctx.lineTo(0.4, 0.07);
+  ctx.quadraticCurveTo(0.3, 0.1, 0.22, 0.1);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.14, 0.1, '#7a6648', '#46392a');
+  ctx.fill();
+  stroke(ctx, 0.04);
+  ctx.beginPath();
+  ctx.moveTo(0.28, -0.12);
+  ctx.lineTo(0.3, -0.26);
+  ctx.lineTo(0.37, -0.13);
+  ctx.closePath();
+  ctx.fillStyle = '#46392a';
+  ctx.fill();
+  stroke(ctx, 0.03);
+  ctx.fillStyle = '#c6ff7a';
+  ellipse(ctx, 0.33, -0.05, 0.022, 0.016);
+  ctx.fill();
+  ctx.fillStyle = '#f6f2e6';
+  for (const x of [0.37, 0.41]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0.06);
+    ctx.lineTo(x + 0.015, 0.11);
+    ctx.lineTo(x + 0.03, 0.06);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function sporeBloom(ctx: Ctx, { t, walk }: ActorPose): void {
+  shadow(ctx, 0.2, 0.06, 0.28, 0.35);
+  const float = Math.sin(t * 2) * 0.04 - 0.04 - walk * 0.01;
+  ctx.save();
+  ctx.translate(0, float);
+  // Esporas alrededor.
+  for (let i = 0; i < 7; i++) {
+    const a = t * 0.9 + i * 0.9;
+    const r = 0.26 + Math.sin(t * 2 + i) * 0.04;
+    ctx.fillStyle = `rgba(190,255,150,${0.35 + 0.25 * Math.sin(t * 3 + i)})`;
+    circle(ctx, Math.cos(a) * r, 0.02 + Math.sin(a) * r * 0.7, 0.022);
+    ctx.fill();
+  }
+  // Tallo colgante.
+  ctx.strokeStyle = '#d9d2a6';
+  ctx.lineWidth = 0.05;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0.0);
+  ctx.quadraticCurveTo(0.05 * Math.sin(t * 2), 0.14, 0, 0.28);
+  ctx.stroke();
+  outlineStroke(ctx);
+  // Sombrero de hongo.
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 0.02);
+  ctx.quadraticCurveTo(-0.28, -0.3, 0, -0.3);
+  ctx.quadraticCurveTo(0.28, -0.3, 0.3, 0.02);
+  ctx.quadraticCurveTo(0, 0.08, -0.3, 0.02);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.3, 0.08, '#9a63d6', '#4d2a8a');
+  ctx.fill();
+  stroke(ctx, 0.05);
+  ctx.fillStyle = 'rgba(230,255,200,0.85)';
+  for (const [x, y, r] of [[-0.12, -0.12, 0.035], [0.08, -0.2, 0.03], [0.16, -0.06, 0.028], [-0.02, -0.04, 0.022]] as const) {
+    circle(ctx, x, y, r);
+    ctx.fill();
+  }
+  // Ojos soñolientos.
+  ctx.fillStyle = INK;
+  for (const x of [-0.07, 0.07]) {
+    ellipse(ctx, x, 0.0, 0.015, 0.025);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function outlineStroke(ctx: Ctx): void {
+  const w = ctx.lineWidth;
+  const s = ctx.strokeStyle;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.014;
+  ctx.stroke();
+  ctx.strokeStyle = s;
+  ctx.lineWidth = w;
 }

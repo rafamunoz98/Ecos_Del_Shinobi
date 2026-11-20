@@ -1,5 +1,6 @@
 import type { ActorPose } from './actors';
 import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './draw';
+import { drawShinobiFigure } from './shinobi';
 
 /**
  * Enemigos del Hito 6 (Monje Hueco, Eco Menor, Campanero Sepultado) y personajes fijos (Maestra Sayoko,
@@ -189,171 +190,61 @@ export function echoWisp(ctx: Ctx, { t, walk, phase }: ChargePose): void {
 
 // ---------- El Campanero Sepultado ----------
 
-export function bellKeeper(ctx: Ctx, { t, charging, bossPhase = 1 }: ChargePose): void {
-  shadow(ctx, 0.4, 0.1, 0.5, 0.36);
-  // Escombros alrededor de la base (está sepultado).
-  for (const [x, y, r] of [[-0.34, 0.32, 0.07], [-0.2, 0.37, 0.055], [0.3, 0.33, 0.075], [0.18, 0.38, 0.05], [0.4, 0.28, 0.045]] as const) {
-    ellipse(ctx, x, y, r, r * 0.7);
-    ctx.fillStyle = '#4a4254';
-    ctx.fill();
-    stroke(ctx, 0.03);
-  }
-  const rumble = charging ? Math.sin(t * 38) * 0.012 : 0;
-  const sway = Math.sin(t * 1.5) * 0.025 + (charging ? Math.sin(t * 9) * 0.05 : 0);
-  ctx.save();
-  ctx.translate(rumble, 0);
-
-  // Campana.
-  ctx.save();
-  ctx.translate(0, -0.1);
-  ctx.rotate(sway);
-  ctx.translate(0, 0.1);
-  ctx.beginPath();
-  ctx.moveTo(-0.09, -0.2);
-  ctx.quadraticCurveTo(-0.14, -0.04, -0.22, 0.14);
-  ctx.quadraticCurveTo(-0.32, 0.26, -0.36, 0.3);
-  ctx.lineTo(0.36, 0.3);
-  ctx.quadraticCurveTo(0.32, 0.26, 0.22, 0.14);
-  ctx.quadraticCurveTo(0.14, -0.04, 0.09, -0.2);
-  ctx.closePath();
-  const bronze = ctx.createLinearGradient(-0.36, 0, 0.36, 0);
-  bronze.addColorStop(0, '#6d3f17');
-  bronze.addColorStop(0.35, '#d99a45');
-  bronze.addColorStop(0.55, '#f2c474');
-  bronze.addColorStop(1, '#5c3412');
-  ctx.fillStyle = bronze;
-  ctx.fill();
-  stroke(ctx, 0.055);
-  // Bandas.
-  ctx.strokeStyle = 'rgba(60,30,8,0.55)';
-  ctx.lineWidth = 0.03;
-  for (const y of [-0.02, 0.15]) {
-    ctx.beginPath();
-    const w = 0.13 + (y + 0.02) * 0.9;
-    ctx.moveTo(-w, y);
-    ctx.quadraticCurveTo(0, y + 0.04, w, y);
-    ctx.stroke();
-  }
-  // Símbolos grabados.
-  ctx.fillStyle = 'rgba(70,35,10,0.65)';
-  for (const [x, y] of [[-0.1, 0.07], [0.0, 0.08], [0.1, 0.07]] as const) {
-    circle(ctx, x, y, 0.022);
-    ctx.fill();
-  }
-  // Grietas: más cuanto más avanzada la fase, con luz violeta filtrándose.
-  const cracks: [number, number][][] = [
-    [[-0.05, -0.12], [-0.09, -0.03], [-0.04, 0.05], [-0.1, 0.14]],
-    [[0.08, -0.1], [0.04, 0.0], [0.11, 0.08], [0.07, 0.18]],
-    [[0.2, 0.2], [0.14, 0.24], [0.17, 0.3]],
-  ];
-  for (let i = 0; i < Math.min(cracks.length, bossPhase); i++) {
-    ctx.beginPath();
-    cracks[i].forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.strokeStyle = '#1a0a2a';
-    ctx.lineWidth = 0.04;
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(190,130,255,${0.55 + 0.35 * Math.sin(t * 3 + i)})`;
-    ctx.lineWidth = 0.016;
-    ctx.stroke();
-  }
-  // Boca de la campana con luz interior.
-  ctx.beginPath();
-  ctx.ellipse(0, 0.3, 0.36, 0.075, 0, 0, Math.PI * 2);
-  ctx.fillStyle = radial(ctx, 0, 0.3, 0.01, 0.36, charging ? '#c79cff' : '#6b3fb0', '#140a24');
-  ctx.fill();
-  stroke(ctx, 0.04);
-  ctx.restore();
-
-  // Cadenas que rodean la campana.
-  ctx.strokeStyle = '#8c8aa0';
-  ctx.lineWidth = 0.035;
-  for (const sx of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(sx * 0.12, -0.3);
-    ctx.quadraticCurveTo(sx * 0.4, -0.05, sx * 0.28, 0.2);
-    ctx.stroke();
-    ctx.strokeStyle = '#3a384c';
-    ctx.lineWidth = 0.012;
-    ctx.setLineDash([0.03, 0.03]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = '#8c8aa0';
-    ctx.lineWidth = 0.035;
-  }
-
-  // El Campanero: torso y cabeza emergen sobre la campana.
-  ctx.beginPath();
-  ctx.moveTo(-0.17, -0.22);
-  ctx.quadraticCurveTo(-0.2, -0.38, -0.08, -0.4);
-  ctx.lineTo(0.08, -0.4);
-  ctx.quadraticCurveTo(0.2, -0.38, 0.17, -0.22);
-  ctx.quadraticCurveTo(0, -0.14, -0.17, -0.22);
-  ctx.closePath();
-  ctx.fillStyle = vGrad(ctx, -0.4, -0.15, '#5a5470', '#2a2638');
-  ctx.fill();
-  stroke(ctx, 0.05);
-  // Brazos huesudos agarrando la campana.
-  for (const sx of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(sx * 0.16, -0.3);
-    ctx.quadraticCurveTo(sx * 0.3, -0.22, sx * 0.2, -0.08);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 0.07;
-    ctx.stroke();
-    ctx.strokeStyle = '#cfc8c0';
-    ctx.lineWidth = 0.04;
-    ctx.stroke();
-    ctx.fillStyle = '#cfc8c0';
-    circle(ctx, sx * 0.2, -0.08, 0.035);
-    ctx.fill();
-    stroke(ctx, 0.025);
-  }
-  // Cráneo con capucha rota.
-  ctx.beginPath();
-  ctx.ellipse(0, -0.34, 0.12, 0.13, 0, 0, Math.PI * 2);
-  ctx.fillStyle = vGrad(ctx, -0.46, -0.22, '#efe8dc', '#bdb2a4');
-  ctx.fill();
-  stroke(ctx, 0.045);
-  for (const ex of [-0.05, 0.05]) {
-    glow(ctx, ex, -0.35, 0.08, '180,120,255', charging ? 1 : 0.75);
-    ctx.fillStyle = '#1b0f2c';
-    ellipse(ctx, ex, -0.35, 0.028, 0.036);
-    ctx.fill();
-    ctx.fillStyle = '#e8d8ff';
-    circle(ctx, ex, -0.35, 0.011);
-    ctx.fill();
-  }
-  ctx.strokeStyle = '#3a2f3a';
-  ctx.lineWidth = 0.018;
-  ctx.beginPath();
-  ctx.moveTo(-0.05, -0.27);
-  ctx.lineTo(0.05, -0.27);
-  for (const x of [-0.03, 0, 0.03]) {
-    ctx.moveTo(x, -0.285);
-    ctx.lineTo(x, -0.255);
-  }
-  ctx.stroke();
-  // Capucha harapienta.
-  ctx.beginPath();
-  ctx.moveTo(-0.14, -0.3);
-  ctx.quadraticCurveTo(-0.17, -0.48, 0, -0.5);
-  ctx.quadraticCurveTo(0.17, -0.48, 0.14, -0.3);
-  ctx.lineTo(0.1, -0.38);
-  ctx.quadraticCurveTo(0, -0.43, -0.1, -0.38);
-  ctx.closePath();
-  ctx.fillStyle = '#3a354d';
-  ctx.fill();
-  stroke(ctx, 0.04);
-  ctx.restore();
-  if (charging) glow(ctx, 0, 0.05, 0.7, '170,110,255', 0.28 + 0.12 * Math.sin(t * 14));
-}
-
 // ---------- Personajes fijos ----------
 
 export function drawNpc(ctx: Ctx, kind: string, t: number, used: boolean): void {
   if (kind === 'altar_eco_roto') altar(ctx, t, used);
   else if (kind === 'mesa_forja') forja(ctx, t);
-  else maestra(ctx, t, used);
+  else if (kind === 'mercader') mercader(ctx, t);
+  else if (kind === 'maestro_tobari') {
+    drawShinobiFigure(ctx, { t, walk: 0, phase: 0 }, { robe: ['#8a7a58', '#4c4130'], trim: '#c9a24a', head: 'bald', weapon: 'staff', glow: '#9cff6a', scarf: used ? undefined : '#5d8a4a' });
+  } else maestra(ctx, t, used);
+}
+
+/** Mercader ambulante: fardo enorme a la espalda, sombrero de paja y un farolillo que se balancea. */
+function mercader(ctx: Ctx, t: number): void {
+  shadow(ctx, 0.4, 0.1, 0.45, 0.36);
+  // Fardo: tres bultos atados con cuerda.
+  ctx.save();
+  ctx.translate(-0.2, 0.02);
+  for (const [x, y, w, h, c0, c1] of [
+    [-0.16, -0.26, 0.34, 0.26, '#9a6a3a', '#6a4424'],
+    [-0.2, -0.02, 0.4, 0.3, '#b4452d', '#74241a'],
+    [0.06, -0.38, 0.22, 0.2, '#d8c690', '#9a8a58'],
+  ] as const) {
+    roundRectPath(ctx, x, y, w, h, 0.06);
+    ctx.fillStyle = vGrad(ctx, y, y + h, c0, c1);
+    ctx.fill();
+    stroke(ctx, 0.04);
+  }
+  ctx.strokeStyle = '#e8d8a8';
+  ctx.lineWidth = 0.025;
+  ctx.beginPath();
+  ctx.moveTo(-0.2, -0.12);
+  ctx.lineTo(0.2, -0.12);
+  ctx.moveTo(0.0, -0.4);
+  ctx.lineTo(0.0, 0.28);
+  ctx.stroke();
+  ctx.restore();
+  drawShinobiFigure(ctx, { t, walk: 0, phase: 0 }, { robe: ['#7d6a4a', '#463a28'], trim: '#e0b84a', head: 'hat', gear: '#e6c984', weapon: 'none', scarf: '#9a3a2a', scale: 0.95 });
+  // Farolillo.
+  ctx.save();
+  ctx.translate(0.3, -0.18);
+  ctx.rotate(Math.sin(t * 2) * 0.12);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.02;
+  ctx.beginPath();
+  ctx.moveTo(0, -0.14);
+  ctx.lineTo(0, 0);
+  ctx.stroke();
+  ctx.fillStyle = radial(ctx, 0, 0.06, 0.01, 0.2, 'rgba(255,214,120,0.7)', 'rgba(255,214,120,0)');
+  circle(ctx, 0, 0.06, 0.2);
+  ctx.fill();
+  roundRectPath(ctx, -0.06, 0.0, 0.12, 0.14, 0.05);
+  ctx.fillStyle = '#ff9a3a';
+  ctx.fill();
+  stroke(ctx, 0.025);
+  ctx.restore();
 }
 
 /** Mesa de forja: yunque sobre un bloque de piedra, brasas encendidas y un martillo apoyado. */
