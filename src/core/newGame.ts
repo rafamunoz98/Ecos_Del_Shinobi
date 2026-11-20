@@ -8,7 +8,7 @@ import { visionRadiusOf } from './sight';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -78,6 +78,9 @@ export function createGame(opts: NewGameOptions): GameState {
     npcs: level.npcs,
     scrolls: level.scrolls,
     stats: emptyStats(),
+    floorEnemies: level.enemies.length,
+    floorKilled: 0,
+    floorCleared: false,
     seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),
     status: 'playing',

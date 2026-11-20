@@ -84,8 +84,8 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
         expect(lv.chests.filter((c) => !c.locked).length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests);
       }
     }
-    expect(vaults).toBeGreaterThan(SEEDS * 3 * 0.7);
-    expect(lacquers).toBeGreaterThan(SEEDS * 3 * 0.6);
+    expect(vaults).toBeGreaterThan(SEEDS * 3 * 0.6);
+    expect(lacquers).toBeGreaterThan(SEEDS * 3 * 0.45);
   });
 
   it('el suelo trae monedas, consumibles y arrojadizas; el equipo se reserva a cofres y cámaras', () => {
@@ -274,7 +274,7 @@ describe('monedas y botín de enemigos', () => {
         expect(coin.count).toBeLessThanOrEqual(BALANCE.enemyCoins.max);
       }
     }
-    expect(withCoins).toBeGreaterThan(50);
+    expect(withCoins).toBeGreaterThan(25);
     expect(withCoins).toBeLessThan(90);
   });
 

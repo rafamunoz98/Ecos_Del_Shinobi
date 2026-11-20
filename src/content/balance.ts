@@ -2,7 +2,9 @@
 export const BALANCE = {
   player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1 },
   /** Kiro que se recupera al esperar (el documento lo deja "si se aprueba en balance"). */
-  waitKiro: 1,
+  waitKiro: 2,
+  /** El kiro vuelve solo: 1 cada N rondas (la vida, más despacio). */
+  kiroRegenEvery: 3,
   visionRadius: 7,
   /** Daño por turno de quemadura (ignora defensa). */
   burnDamage: 1,
@@ -14,7 +16,10 @@ export const BALANCE = {
   slamDamage: 2,
   logLimit: 60,
   /** Rondas que un enemigo sigue alerta tras perderte de vista. */
-  alertTurns: 8,
+  alertTurns: 12,
+  /** Un enemigo alertado te sigue desde hasta esta distancia de camino, y rastrea tu posición real hasta esta distancia tras perderte. */
+  chaseLimit: 40,
+  scentRange: 18,
   /** Radio de visión del jugador mientras está dentro de un arbusto (esconderse cuesta ver menos). */
   bushVision: 3,
   /** Multiplicador del golpe a un enemigo que no sabe de ti. */
@@ -32,23 +37,23 @@ export const BALANCE = {
     minEnemies: 4,
     maxEnemies: 9,
     /** Cofres de madera por sector (el cofre lacado de la llave de laca va aparte). */
-    maxChests: 3,
+    maxChests: 2,
     /** Grupos de arbustos por sector (+2 desde el sector 2). */
     bushClusters: 7,
     maxDoors: 8,
     /** Objetos sueltos por el suelo (monedas, esquirlas, consumibles, arrojadizas). */
-    groundItems: { min: 8, max: 12 },
+    groundItems: { min: 6, max: 9 },
     /** Probabilidad de cámara sellada (llave de hierro) y de cofre lacado (llave de laca) en cada sector. */
-    vaultChance: 0.85,
-    lacquerChance: 0.8,
+    vaultChance: 0.75,
+    lacquerChance: 0.6,
   },
   /** Mesas de forja: solo aparecen en estos sectores. */
   forgeFloors: [2, 3],
   /** Mejora de armas: +1 de poder por nivel. Cada nivel se paga con monedas O con esquirlas. */
   forge: { maxLevel: 3, bonusPerLevel: 1, coins: [12, 20, 30], shards: [2, 3, 4] },
   /** Monedas que sueltan los enemigos al caer, y botín fijo del jefe. */
-  enemyCoins: { chance: 0.7, min: 1, max: 3, perFloor: 1 },
-  bossLoot: { coins: 25, shards: 3 },
+  enemyCoins: { chance: 0.35, min: 1, max: 2, perFloor: 0 },
+  bossLoot: { coins: 15, shards: 3 },
   /** Los enemigos mejoran con el sector: +hp por sector y +poder cada N sectores. */
   enemyScale: { hpPerFloor: 2, powerEvery: 2 },
 } as const;

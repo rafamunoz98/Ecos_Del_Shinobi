@@ -8,8 +8,19 @@ export const DIRS: readonly Vec[] = [
   { x: -1, y: 0 },
 ];
 
+/** Las ocho direcciones: primero las cuatro cardinales (mismo orden que DIRS) y luego las diagonales. */
+export const DIRS8: readonly Vec[] = [
+  ...DIRS,
+  { x: 1, y: -1 },
+  { x: 1, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: -1 },
+];
+
 export const equals = (a: Vec, b: Vec): boolean => a.x === b.x && a.y === b.y;
 export const manhattan = (a: Vec, b: Vec): number => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+/** Distancia en pasos con diagonales (un paso diagonal cuenta 1). */
+export const chebyshev = (a: Vec, b: Vec): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 export const inBounds = (map: GameMap, p: Vec): boolean =>
   Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < map.width && p.y < map.height;
@@ -27,6 +38,18 @@ export const isWalkable = (map: GameMap, p: Vec): boolean => {
   const t = terrainAt(map, p);
   return t !== 'wall' && t !== 'locked';
 };
+
+/**
+ * ¿Se puede pasar (o atacar) de `a` a su vecina `b`? Las cardinales siempre; las diagonales no pueden «cortar esquinas»:
+ * ninguna de las dos casillas ortogonales intermedias puede ser pared ni puerta con candado.
+ */
+export function stepOk(map: GameMap, a: Vec, b: Vec): boolean {
+  if (a.x === b.x || a.y === b.y) return true;
+  return isWalkable(map, { x: b.x, y: a.y }) && isWalkable(map, { x: a.x, y: b.y });
+}
+
+/** ¿Están `a` y `b` pegadas (incluida la diagonal sin esquina cerrada)? */
+export const adjacent = (map: GameMap, a: Vec, b: Vec): boolean => chebyshev(a, b) === 1 && stepOk(map, a, b);
 
 /** ¿Este tipo de casilla tapa la visión? Las puertas solo mientras están cerradas (ver `open`). */
 export const blocksSight = (kind: TerrainKind): boolean => kind === 'wall' || kind === 'bush' || kind === 'door' || kind === 'locked';
@@ -90,7 +113,7 @@ export function computeVisible(map: GameMap, origin: Vec, radius: number, open?:
 }
 
 /**
- * Camino más corto (BFS) de `from` a `to`, sin incluir `from` e incluyendo `to`.
+ * Camino más corto (BFS con diagonales, sin cortar esquinas) de `from` a `to`, sin incluir `from` e incluyendo `to`.
  * `blocked` marca casillas intermedias intransitables (otras entidades); el destino siempre se admite
  * si es transitable. Devuelve null si no hay camino. Determinista gracias al orden fijo de DIRS.
  */
@@ -102,12 +125,12 @@ export function findPath(map: GameMap, from: Vec, to: Vec, blocked: (p: Vec) => 
   const queue: Vec[] = [from];
   for (let head = 0; head < queue.length; head++) {
     const cur = queue[head];
-    for (const d of DIRS) {
+    for (const d of DIRS8) {
       const n = { x: cur.x + d.x, y: cur.y + d.y };
       if (!inBounds(map, n)) continue;
       const ni = idx(map, n);
       if (visited.has(ni)) continue;
-      if (!isWalkable(map, n)) continue;
+      if (!isWalkable(map, n) || !stepOk(map, cur, n)) continue;
       const isGoal = equals(n, to);
       if (!isGoal && blocked(n)) continue;
       visited.add(ni);

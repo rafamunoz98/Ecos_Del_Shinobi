@@ -1,24 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveDefense, effectivePower, xpToNext } from '../core/combat';
+import { BALANCE } from '../content/balance';
+import { effectiveDefense, effectivePower } from '../core/combat';
 import { applyCommand } from '../core/engine';
 import { createGame } from '../core/newGame';
 import type { GameState } from '../core/types';
 import { attack, interact, makeGame, move, wait } from './helpers';
 
-describe('experiencia y niveles', () => {
-  it('derrotar enemigos da XP según el tipo', () => {
-    const s = makeGame(['####', '#@E#', '####'], (g) => {
+describe('niveles por sector despejado', () => {
+  const lone = (g: GameState) => {
+    g.enemies[0].hp = 4;
+    g.floorEnemies = 1;
+  };
+
+  it('derrotar enemigos no da experiencia: el nivel solo sube al despejar el sector', () => {
+    const s = makeGame(['#####', '#@EE#', '#####'], (g) => {
       g.enemies[0].hp = 4;
+      g.floorEnemies = 2;
     });
     const r = applyCommand(s, attack({ x: 2, y: 1 }));
-    expect(r.state.player.xp).toBe(4);
-    expect(r.events).toContainEqual({ type: 'XpGained', amount: 4 });
+    expect(r.state.player.level).toBe(1);
+    expect(r.state.floorKilled).toBe(1);
+    expect(r.events.some((e) => e.type === 'FloorCleared')).toBe(false);
   });
 
-  it('subir de nivel mejora vida y kiro, cura lo ganado y lo anuncia', () => {
+  it('al caer el último enemigo se sube un nivel: más vida, kiro y poder, y se anuncia', () => {
     const s = makeGame(['####', '#@E#', '####'], (g) => {
-      g.enemies[0].hp = 4;
-      g.player.xp = xpToNext(1) - 1;
+      lone(g);
+      g.maxFloor = 3;
     });
     const r = applyCommand(s, attack({ x: 2, y: 1 }));
     const p = r.state.player;
@@ -27,30 +35,56 @@ describe('experiencia y niveles', () => {
     expect(p.hp).toBe(24);
     expect(p.maxKiro).toBe(11);
     expect(p.power).toBe(5); // +1 de poder en niveles pares
-    expect(p.xp).toBe(3);
+    expect(r.state.floorCleared).toBe(true);
+    expect(r.events.some((e) => e.type === 'FloorCleared')).toBe(true);
     expect(r.events.some((e) => e.type === 'LevelUp' && e.level === 2)).toBe(true);
   });
 
-  it('aprende la técnica avanzada de su afinidad al llegar al nivel 3', () => {
-    const s = makeGame(['####', '#@E#', '####'], (g) => {
-      g.enemies[0].hp = 1;
-      g.player.level = 2;
-      g.player.xp = xpToNext(2) - 1;
+  it('solo se sube un nivel por sector, aunque caigan más enemigos después', () => {
+    const s = makeGame(['#####', '#@E.#', '#####'], (g) => {
+      lone(g);
+      g.maxFloor = 3;
     });
-    const r = applyCommand(s, attack({ x: 2, y: 1 }));
-    expect(r.state.player.level).toBe(3);
-    expect(r.state.player.techniques).toEqual(['brasa_circular', 'lengua_de_fuego']);
-    const lvl = r.events.find((e) => e.type === 'LevelUp');
-    expect(lvl && lvl.type === 'LevelUp' && lvl.learned).toEqual(['lengua_de_fuego']);
+    const once = applyCommand(s, attack({ x: 2, y: 1 })).state;
+    const again = structuredClone(once);
+    again.enemies.push({ ...structuredClone(s.enemies[0]), id: 'extra', hp: 1, pos: { x: 3, y: 1 } });
+    again.player.pos = { x: 2, y: 1 };
+    const r = applyCommand(again, attack({ x: 3, y: 1 }));
+    expect(r.state.player.level).toBe(2);
   });
 
-  it('una quemadura que remata también da XP', () => {
+  it('los enemigos convocados no cuentan para despejar el sector', () => {
+    const s = makeGame(['#####', '#@EE#', '#####'], (g) => {
+      g.enemies[0].hp = 4;
+      g.enemies[1].kind = 'eco_menor';
+      g.floorEnemies = 1;
+    });
+    const r = applyCommand(s, attack({ x: 2, y: 1 }));
+    expect(r.state.floorCleared).toBe(true);
+    const e = makeGame(['####', '#@E#', '####'], (g) => {
+      g.enemies[0].kind = 'eco_menor';
+      g.enemies[0].hp = 1;
+      g.floorEnemies = 1;
+    });
+    expect(applyCommand(e, attack({ x: 2, y: 1 })).state.floorKilled).toBe(0);
+  });
+
+  it('una quemadura que remata también cuenta como baja', () => {
     const s = makeGame(['####', '#@E#', '####'], (g) => {
       g.enemies[0].hp = 1;
       g.enemies[0].statuses.push({ id: 'quemadura', turns: 2 });
       g.enemies[0].power = 0;
+      g.floorEnemies = 1;
     });
-    expect(applyCommand(s, wait()).state.player.xp).toBe(4);
+    expect(applyCommand(s, wait()).state.floorKilled).toBe(1);
+  });
+
+  it('el kiro se recupera solo con el tiempo', () => {
+    let s = makeGame(['#######', '#@....#', '#######'], (g) => {
+      g.player.kiro = 2;
+    });
+    for (let i = 0; i < 6; i++) s = applyCommand(s, move(i % 2 === 0 ? 1 : -1, 0)).state;
+    expect(s.player.kiro).toBe(2 + 6 / BALANCE.kiroRegenEvery);
   });
 });
 

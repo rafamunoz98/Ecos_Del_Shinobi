@@ -392,41 +392,30 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     for (const c of cells.slice(0, 3)) used.add(idx(map, c));
   }
 
-  // Llaves: la de hierro, donde hay enemigos que la guarden; la de laca, a menudo escondida entre arbustos.
+  // Llaves: siempre sobre suelo despejado (nunca entre arbustos) para poder verlas. La de hierro, en una sala con enemigos que
+  // la guarden; la de laca, en la sala más alejada de la entrada (hay que explorar para encontrarla).
   const inRoomRect = (r: Room, c: Vec): boolean => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h;
   const keyRooms = dropRooms.filter((r) => !inRoomRect(r, playerStart));
-  const placeKey = (itemId: string, how: 'guarded' | 'hidden'): void => {
+  const placeKey = (itemId: string, how: 'guarded' | 'far'): void => {
     let pool = keyRooms.length > 0 ? keyRooms : dropRooms;
     if (how === 'guarded') {
       const guarded = pool.filter((r) => enemies.some((e) => inRoomRect(r, e.pos)));
       if (guarded.length > 0) pool = guarded;
+    } else {
+      const far = [...pool].sort((a, b) => dist[idx(map, center(b))] - dist[idx(map, center(a))]);
+      pool = far.slice(0, Math.max(1, Math.ceil(far.length / 3)));
     }
-    // «Escondida»: entre los arbustos de una sala, si los hay (60 %).
-    const bushes: Vec[] = [];
-    if (how === 'hidden' && rng.chance(0.6)) {
-      for (const r of pool) {
-        for (let y = r.y; y < r.y + r.h; y++) {
-          for (let x = r.x; x < r.x + r.w; x++) if (tiles[y * width + x] === 'bush' && !used.has(y * width + x)) bushes.push({ x, y });
-        }
-      }
-    }
-    if (bushes.length > 0) {
-      const c = rng.pick(bushes);
-      used.add(idx(map, c));
-      drops.push({ pos: c, itemId, count: 1 });
-      return;
-    }
-    for (let t = 0; t < 80; t++) {
+    for (let t = 0; t < 120; t++) {
       const c = randomCell(rng.pick(pool));
       const i = idx(map, c);
-      if (used.has(i) || (tiles[i] !== 'floor' && tiles[i] !== 'bush')) continue;
+      if (used.has(i) || tiles[i] !== 'floor') continue;
       used.add(i);
       drops.push({ pos: c, itemId, count: 1 });
       return;
     }
   };
   if (vault) placeKey('llave_hierro', 'guarded');
-  if (lacquerChest) placeKey('llave_laca', 'hidden');
+  if (lacquerChest) placeKey('llave_laca', 'far');
 
   return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, rooms, bossRoom };
 }

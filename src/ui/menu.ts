@@ -4,7 +4,7 @@ import { CURRENCY, KEYS, getEquipment, getItem } from '../content/items';
 import { NOTES, getNote, getRelic } from '../content/story';
 import { TECHNIQUES, type TechniqueDef } from '../content/techniques';
 import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
-import { effectiveDefense, effectivePower, weaponLevel, xpToNext } from '../core/combat';
+import { effectiveDefense, effectivePower, weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
 import { drawNinja } from '../presentation/art/actors';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -170,7 +170,7 @@ export class Menu {
       stat('Kiro', `${p.kiro} / ${p.maxKiro}`),
       stat('Poder de ataque', String(effectivePower(p))),
       stat('Defensa', String(effectiveDefense(p))),
-      stat('Experiencia', `${p.xp} / ${xpToNext(p.level)}`),
+      stat('Sector', s.floorCleared ? 'despejado (nivel ganado)' : `${s.floorKilled} / ${s.floorEnemies} enemigos`),
       stat('Sector', `${s.floor} / ${s.maxFloor}`),
       stat('Turno', String(s.turn)),
       stat('Semilla', String(s.seed)),

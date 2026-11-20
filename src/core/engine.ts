@@ -7,8 +7,8 @@ import { getNpc, getNote, type NpcOption } from '../content/story';
 import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
 import { FORGE_KIND, generateLevel } from '../dungeon/generator';
 import { createEnemy } from '../dungeon/spawn';
-import { calcDamage, effectiveDefense, effectivePower, weaponLevel, xpToNext } from './combat';
-import { DIRS, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, terrainAt } from './grid';
+import { calcDamage, effectiveDefense, effectivePower, weaponLevel } from './combat';
+import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, stepOk, terrainAt } from './grid';
 import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
@@ -36,7 +36,8 @@ import type {
 
 export const REASON_TEXT: Record<InvalidReason, string> = {
   run_over: 'La expedición ya terminó.',
-  bad_direction: 'Solo puedes moverte una casilla en línea recta.',
+  bad_direction: 'Solo puedes moverte una casilla (también en diagonal).',
+  corner: 'No puedes cortar esquinas: hay una pared en medio.',
   out_of_bounds: 'Eso queda fuera del mapa.',
   blocked: 'Hay un obstáculo en el camino.',
   occupied: 'Esa casilla está ocupada.',
@@ -90,12 +91,12 @@ export { canSeeEntity, enemySees, openDoors, visibleCells };
 
 const sign = (n: number): number => (n > 0 ? 1 : n < 0 ? -1 : 0);
 
-/** Dirección cardinal si `to` está en la misma fila o columna que `from` (y no es la misma casilla). */
+/** Dirección (cardinal o diagonal) si `to` está en la misma fila, columna o diagonal que `from` (y no es la misma casilla). */
 function alignedDir(from: Vec, to: Vec): Vec | null {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  if (dx === 0 && dy !== 0) return { x: 0, y: sign(dy) };
-  if (dy === 0 && dx !== 0) return { x: sign(dx), y: 0 };
+  if (dx === 0 && dy === 0) return null;
+  if (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) return { x: sign(dx), y: sign(dy) };
   return null;
 }
 
@@ -105,6 +106,12 @@ function dominantDir(from: Vec, to: Vec): Vec {
   const dy = to.y - from.y;
   if (dx === 0 && dy === 0) return { x: 1, y: 0 };
   return Math.abs(dx) >= Math.abs(dy) ? { x: sign(dx), y: 0 } : { x: 0, y: sign(dy) };
+}
+
+/** Dirección de empuje: la diagonal exacta si están alineados en diagonal; si no, la cardinal dominante. */
+function pushDir(from: Vec, to: Vec): Vec {
+  const d = alignedDir(from, to);
+  return d ?? dominantDir(from, to);
 }
 
 function diamond(s: GameState, origin: Vec, radius: number, needLos: boolean): Vec[] {
@@ -201,13 +208,13 @@ function attackPlan(s: GameState, target: Vec): AttackPlan {
   const p = s.player.pos;
   const fail = (reason: InvalidReason): AttackPlan => ({ reason, cells: [], hits: [], weapon });
   if (weapon.kind === 'blade') {
-    if (manhattan(p, target) !== 1) return fail('not_adjacent');
+    if (!adjacent(s.map, p, target)) return fail('not_adjacent');
     const e = enemyAt(s, target);
     return e ? { reason: null, cells: [target], hits: [e], weapon } : fail('no_target');
   }
   const dir = alignedDir(p, target);
   if (!dir) return fail('not_aligned');
-  if (manhattan(p, target) > weapon.reach) return fail('out_of_range');
+  if (chebyshev(p, target) > weapon.reach) return fail('out_of_range');
   const cells: Vec[] = [];
   const hits: Enemy[] = [];
   for (let i = 1; i <= weapon.reach; i++) {
@@ -337,7 +344,7 @@ export function upgradeQuote(state: GameState, weaponId: string): UpgradeQuote {
 /** ¿Hay una mesa de forja con ese id junto al jugador? */
 const forgeNear = (s: GameState, npcId: string): Npc | undefined => {
   const n = s.npcs.find((x) => x.id === npcId && x.kind === FORGE_KIND);
-  return n && manhattan(s.player.pos, n.pos) <= 1 ? n : undefined;
+  return n && chebyshev(s.player.pos, n.pos) <= 1 ? n : undefined;
 };
 
 export function validateCommand(state: GameState, cmd: Command): InvalidReason | null {
@@ -345,12 +352,13 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
   const p = state.player;
   switch (cmd.type) {
     case 'Move': {
-      if (!Number.isInteger(cmd.dx) || !Number.isInteger(cmd.dy) || Math.abs(cmd.dx) + Math.abs(cmd.dy) !== 1) {
+      if (!Number.isInteger(cmd.dx) || !Number.isInteger(cmd.dy) || Math.abs(cmd.dx) > 1 || Math.abs(cmd.dy) > 1 || (cmd.dx === 0 && cmd.dy === 0)) {
         return 'bad_direction';
       }
       const to = { x: p.pos.x + cmd.dx, y: p.pos.y + cmd.dy };
       if (!inBounds(state.map, to)) return 'out_of_bounds';
       if (!isWalkable(state.map, to) || barrierAt(state, to)) return 'blocked';
+      if (!stepOk(state.map, p.pos, to)) return 'corner';
       if (enemyAt(state, to) || chestAt(state, to) || npcAt(state, to)) return 'occupied';
       return null;
     }
@@ -370,7 +378,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       if (!p.weapons.includes(cmd.weaponId)) return 'no_item';
       return p.equipment.weapon === cmd.weaponId ? 'already_equipped' : null;
     case 'Interact': {
-      if (manhattan(p.pos, cmd.target) > 1) return 'not_adjacent';
+      if (chebyshev(p.pos, cmd.target) > 1) return 'not_adjacent';
       const chest = chestAt(state, cmd.target);
       if (chest) {
         if (chest.opened) return 'already_opened';
@@ -393,7 +401,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       const npc = state.npcs.find((n) => n.id === cmd.npcId);
       const def = npc ? getNpc(npc.kind) : undefined;
       if (!npc || !def) return 'no_target';
-      if (manhattan(p.pos, npc.pos) > 1) return 'not_adjacent';
+      if (chebyshev(p.pos, npc.pos) > 1) return 'not_adjacent';
       if (npc.used) return 'already_used';
       const opt = def.options.find((o) => o.id === cmd.optionId);
       if (!opt) return 'unknown_option';
@@ -434,6 +442,7 @@ function noticePlayer(ctx: Ctx, enemy: Enemy): void {
 function alertEnemy(ctx: Ctx, enemy: Enemy): void {
   if (enemy.alert === 0) noticePlayer(ctx, enemy);
   enemy.alert = BALANCE.alertTurns;
+  enemy.tracking = false;
   enemy.lastSeen = { ...ctx.state.player.pos };
 }
 
@@ -527,23 +536,31 @@ function tickStatuses(ctx: Ctx, target: Player | Enemy, targetId: string): void 
   target.statuses = target.statuses.filter((st) => st.turns > 0);
 }
 
-function gainXp(ctx: Ctx, amount: number): void {
+/** Sube un nivel (solo se llama al despejar un sector): más vida, kiro y poder, y técnicas de la afinidad. */
+function levelUp(ctx: Ctx): void {
   const p = ctx.state.player;
-  p.xp += amount;
-  ctx.events.push({ type: 'XpGained', amount });
-  while (p.xp >= xpToNext(p.level)) {
-    p.xp -= xpToNext(p.level);
-    p.level += 1;
-    p.maxHp += BALANCE.levelUp.hp;
-    p.hp += BALANCE.levelUp.hp;
-    p.maxKiro += BALANCE.levelUp.kiro;
-    p.kiro += BALANCE.levelUp.kiro;
-    if (p.level % BALANCE.levelUp.powerEvery === 0) p.power += 1;
-    const learned = techniquesFor(p.affinity, p.level).filter((id) => !p.techniques.includes(id));
-    p.techniques.push(...learned);
-    ctx.events.push({ type: 'LevelUp', level: p.level, learned });
-    say(ctx, `¡Subes al nivel ${p.level}!`);
-    for (const id of learned) say(ctx, `Aprendes ${getTechnique(id)?.name ?? id}.`);
+  p.level += 1;
+  p.maxHp += BALANCE.levelUp.hp;
+  p.hp = Math.min(p.maxHp, p.hp + BALANCE.levelUp.hp);
+  p.maxKiro += BALANCE.levelUp.kiro;
+  p.kiro += BALANCE.levelUp.kiro;
+  if (p.level % BALANCE.levelUp.powerEvery === 0) p.power += 1;
+  const learned = techniquesFor(p.affinity, p.level).filter((id) => !p.techniques.includes(id));
+  p.techniques.push(...learned);
+  ctx.events.push({ type: 'LevelUp', level: p.level, learned });
+  say(ctx, `¡Sector despejado! Subes al nivel ${p.level}.`);
+  for (const id of learned) say(ctx, `Aprendes ${getTechnique(id)?.name ?? id}.`);
+}
+
+/** Cuenta una baja del sector; al caer el último enemigo (los convocados no cuentan) se sube de nivel, una vez por sector. */
+function registerKill(ctx: Ctx, e: Enemy): void {
+  const s = ctx.state;
+  if (getEnemy(e.kind)?.summoned) return;
+  s.floorKilled += 1;
+  if (!s.floorCleared && s.floorEnemies > 0 && s.floorKilled >= s.floorEnemies) {
+    s.floorCleared = true;
+    ctx.events.push({ type: 'FloorCleared', floor: s.floor });
+    if (s.player.level < s.maxFloor + 1) levelUp(ctx);
   }
 }
 
@@ -582,7 +599,7 @@ function reapDead(ctx: Ctx): void {
     say(ctx, `${enemyName(e)} cae derrotado.`);
     ctx.state.stats.kills += 1;
     cancelTelegraphs(ctx, e.id);
-    gainXp(ctx, getEnemy(e.kind)?.xp ?? 0);
+    registerKill(ctx, e);
     releaseStuck(ctx.state, e);
     dropEnemyLoot(ctx, e);
     if (isBoss(e)) defeatBoss(ctx, e);
@@ -636,7 +653,7 @@ function rollFrom(ctx: Ctx, table: readonly LootEntry[]): LootEntry {
 /** Empuja a un enemigo `steps` casillas alejándolo del jugador; si choca, recibe daño de impacto. */
 function pushEnemy(ctx: Ctx, enemy: Enemy, steps: number): void {
   const s = ctx.state;
-  const dir = dominantDir(s.player.pos, enemy.pos);
+  const dir = pushDir(s.player.pos, enemy.pos);
   for (let i = 0; i < steps; i++) {
     const next = { x: enemy.pos.x + dir.x, y: enemy.pos.y + dir.y };
     if (!cellFree(s, next)) {
@@ -709,7 +726,7 @@ function openChest(ctx: Ctx, chest: Chest): void {
   const amount = entry.kind === 'coins' ? coinAmount(entry.amount ?? 4, floor) : (entry.amount ?? 1);
   collect(ctx, entry.id, amount, 'Abres el cofre y encuentras:');
   // Un cofre siempre trae algo de dinero, y el lacado además esquirlas.
-  collect(ctx, 'moneda', coinAmount(chest.locked ? 10 : 5, floor), 'Dentro hay además');
+  collect(ctx, 'moneda', coinAmount(chest.locked ? 6 : 3, floor), 'Dentro hay además');
   if (chest.locked) collect(ctx, 'esquirla', 2, 'Dentro hay además');
 }
 
@@ -799,6 +816,9 @@ function descend(ctx: Ctx): void {
   s.npcs = level.npcs;
   s.scrolls = level.scrolls;
   s.explored = new Array<boolean>(level.map.width * level.map.height).fill(false);
+  s.floorEnemies = level.enemies.length;
+  s.floorKilled = 0;
+  s.floorCleared = false;
   if (s.player.keys.length > 0) {
     s.player.keys = [];
     say(ctx, 'Las llaves que no usaste se deshacen en polvo al cruzar.');
@@ -1113,9 +1133,9 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
         // Retrocede a la vecina libre que más lo aleje (orden fijo de DIRS: desempate determinista).
         let best: Vec | null = null;
         let bestD = dist;
-        for (const d of DIRS) {
+        for (const d of DIRS8) {
           const n = { x: enemy.pos.x + d.x, y: enemy.pos.y + d.y };
-          if (!enemyCanEnter(s, enemy, n)) continue;
+          if (!enemyCanEnter(s, enemy, n) || !stepOk(s.map, enemy.pos, n)) continue;
           const nd = manhattan(n, p.pos);
           if (nd > bestD) {
             best = n;
@@ -1130,18 +1150,22 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
         }
       }
       if (dist <= range && hasLineOfSight(s.map, enemy.pos, p.pos, openDoors(s))) return hit('te dispara');
-    } else if (dist === 1) {
+    } else if (adjacent(s.map, enemy.pos, p.pos)) {
       return hit('te golpea');
     }
   }
 
+  if (enemy.aggroRange === 0) return 'none'; // centinela: ataca a quien tiene al lado pero no se mueve
   if (def.behavior === 'boss' && s.turn % 2 !== 0) return 'none'; // el Campanero avanza despacio
-  // Sin verte, va a donde te vio por última vez.
-  const goal = sees ? p.pos : enemy.lastSeen;
+  // Sin verte, va a donde te vio por última vez; al llegar sigue tu rastro hasta donde estés, aunque sea tras una puerta.
+  let goal = sees ? p.pos : enemy.lastSeen;
+  if (!sees && goal !== null && equals(goal, enemy.pos)) enemy.tracking = true;
+  const tracking = !sees && enemy.tracking;
+  if (tracking) goal = p.pos;
   if (!goal || equals(goal, enemy.pos)) return 'none';
   const blocked = (q: Vec): boolean => !enemyCanEnter(s, enemy, q);
   const path = findPath(s.map, enemy.pos, goal, blocked);
-  if (!path || path.length > enemy.aggroRange * 2) return 'none';
+  if (!path || path.length > (tracking ? BALANCE.scentRange : BALANCE.chaseLimit)) return 'none';
   const next = path[0];
   if (equals(next, p.pos)) return 'none';
   const from = enemy.pos;
@@ -1173,18 +1197,25 @@ function enemyAct(ctx: Ctx, enemy: Enemy, index: number): void {
     }
     enemy.alert = BALANCE.alertTurns;
     enemy.lastSeen = { ...ctx.state.player.pos };
-  } else if (enemy.alert > 0) {
-    enemy.alert -= 1;
-    if (enemy.alert === 0) {
-      enemy.lastSeen = null;
-      ctx.events.push({ type: 'EnemyLostTrack', enemyId: enemy.id });
-    }
+    enemy.tracking = false;
   }
   if (enemy.alert === 0) return; // no sabe de ti: permanece quieto
   // Los lentos actúan una de cada N rondas; el índice escalona a los de la misma clase (determinista).
   if (def.actEvery > 1 && (ctx.state.turn + index) % def.actEvery !== 0) return;
+  let progressed = false;
   for (let n = 0; n < def.actionsPerTurn; n++) {
-    if (enemyStep(ctx, enemy, def, sees) !== 'moved') break;
+    const r = enemyStep(ctx, enemy, def, sees);
+    if (r !== 'none') progressed = true;
+    if (r !== 'moved') break;
+  }
+  // Sin verte, su alerta solo se agota cuando sigue tu rastro o ya no avanza hacia ti (no hay camino): así llegan de lejos.
+  if (!sees && enemy.alert > 0 && (enemy.tracking || !progressed)) {
+    enemy.alert -= 1;
+    if (enemy.alert === 0) {
+      enemy.lastSeen = null;
+      enemy.tracking = false;
+      ctx.events.push({ type: 'EnemyLostTrack', enemyId: enemy.id });
+    }
   }
 }
 
@@ -1232,6 +1263,11 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     if (s.status === 'playing' && (s.turn + 1) % BALANCE.hpRegenEvery === 0 && s.player.hp < s.player.maxHp) {
       s.player.hp += 1;
       ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
+    }
+    // El kiro también vuelve solo, más deprisa que la vida.
+    if (s.status === 'playing' && (s.turn + 1) % BALANCE.kiroRegenEvery === 0 && s.player.kiro < s.player.maxKiro) {
+      s.player.kiro += 1;
+      ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'kiro' });
     }
   }
 

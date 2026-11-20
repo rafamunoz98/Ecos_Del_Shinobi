@@ -33,7 +33,7 @@ describe('látigo de cadena', () => {
   it('no llega a 3, exige línea recta y se detiene en obstáculos', () => {
     const s = makeGame(['#########', '#@..E...#', '#.......#', '#########'], equip('latigo_de_cadena'));
     expect(applyCommand(s, attack({ x: 4, y: 1 })).reason).toBe('out_of_range');
-    expect(applyCommand(s, attack({ x: 2, y: 2 })).reason).toBe('not_aligned');
+    expect(applyCommand(s, attack({ x: 3, y: 2 })).reason).toBe('not_aligned');
     const chest = makeGame(['#########', '#@CE....#', '#########'], equip('latigo_de_cadena'));
     expect(applyCommand(chest, attack({ x: 3, y: 1 })).reason).toBe('no_target');
   });

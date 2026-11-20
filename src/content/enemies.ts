@@ -19,6 +19,8 @@ export interface EnemyDef {
   weight: number;
   /** No suelta monedas al caer (p. ej. los ecos que convoca el jefe). */
   noLoot?: boolean;
+  /** Convocado en combate: no cuenta para despejar el sector. */
+  summoned?: boolean;
   /** Solo 'ranged': alcance de disparo y distancia a la que intenta retroceder. */
   range?: number;
   keepAway?: number;
@@ -123,6 +125,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     minFloor: 99, // solo los convoca el jefe
     weight: 0,
     noLoot: true,
+    summoned: true,
   },
   campanero_sepultado: {
     id: 'campanero_sepultado',

@@ -85,30 +85,30 @@ export interface LootEntry {
  * Lo potente (armas, vestimenta) vive en cofres y cámaras selladas.
  */
 export const GROUND_LOOT: readonly LootEntry[] = [
-  { kind: 'coins', id: 'moneda', weight: 9, minFloor: 1, amount: 4 },
+  { kind: 'coins', id: 'moneda', weight: 5, minFloor: 1, amount: 2 },
   { kind: 'shards', id: 'esquirla', weight: 2, minFloor: 1, amount: 1 },
   { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1 },
   { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1 },
-  { kind: 'throwable', id: 'shuriken', weight: 3, minFloor: 1, amount: 3 },
-  { kind: 'throwable', id: 'senbon', weight: 2, minFloor: 1, amount: 3 },
-  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 2, minFloor: 2, amount: 2 },
+  { kind: 'throwable', id: 'shuriken', weight: 2, minFloor: 1, amount: 2 },
+  { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 2 },
+  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 1 },
 ];
 
 /** Cofre de madera: equipo y reservas generosas. */
 export const CHEST_LOOT: readonly LootEntry[] = [
-  { kind: 'weapon', id: 'kunai_de_hierro', weight: 2, minFloor: 1 },
-  { kind: 'weapon', id: 'latigo_de_cadena', weight: 2, minFloor: 1 },
-  { kind: 'weapon', id: 'hoja_afilada', weight: 3, minFloor: 2 },
-  { kind: 'weapon', id: 'lanza_de_bambu', weight: 2, minFloor: 2 },
-  { kind: 'weapon', id: 'hoja_de_ceniza', weight: 2, minFloor: 3 },
-  { kind: 'equipment', id: 'chaleco_acolchado', weight: 2, minFloor: 1 },
-  { kind: 'equipment', id: 'cota_de_laminas', weight: 3, minFloor: 2 },
-  { kind: 'equipment', id: 'coraza_de_pizarra', weight: 2, minFloor: 3 },
+  { kind: 'weapon', id: 'kunai_de_hierro', weight: 1, minFloor: 1 },
+  { kind: 'weapon', id: 'latigo_de_cadena', weight: 1, minFloor: 1 },
+  { kind: 'weapon', id: 'hoja_afilada', weight: 2, minFloor: 2 },
+  { kind: 'weapon', id: 'lanza_de_bambu', weight: 1, minFloor: 2 },
+  { kind: 'weapon', id: 'hoja_de_ceniza', weight: 1, minFloor: 3 },
+  { kind: 'equipment', id: 'chaleco_acolchado', weight: 1, minFloor: 1 },
+  { kind: 'equipment', id: 'cota_de_laminas', weight: 2, minFloor: 2 },
+  { kind: 'equipment', id: 'coraza_de_pizarra', weight: 1, minFloor: 3 },
   { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1, amount: 2 },
-  { kind: 'item', id: 'tonico_kiro', weight: 2, minFloor: 1, amount: 2 },
-  { kind: 'throwable', id: 'shuriken', weight: 2, minFloor: 1, amount: 6 },
-  { kind: 'throwable', id: 'senbon', weight: 2, minFloor: 1, amount: 6 },
-  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 2, minFloor: 2, amount: 4 },
+  { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1, amount: 2 },
+  { kind: 'throwable', id: 'shuriken', weight: 1, minFloor: 1, amount: 3 },
+  { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 3 },
+  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 2 },
 ];
 
 /** Cofre lacado (exige llave de laca): siempre equipo bueno. */
@@ -125,10 +125,10 @@ export const VAULT_GEAR: readonly LootEntry[] = LACQUER_LOOT;
 export const VAULT_EXTRAS: readonly LootEntry[] = [
   { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1, amount: 2 },
-  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 2, minFloor: 1, amount: 4 },
-  { kind: 'throwable', id: 'senbon', weight: 2, minFloor: 1, amount: 6 },
+  { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 1, amount: 3 },
+  { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'shards', id: 'esquirla', weight: 3, minFloor: 1, amount: 2 },
-  { kind: 'coins', id: 'moneda', weight: 3, minFloor: 1, amount: 12 },
+  { kind: 'coins', id: 'moneda', weight: 3, minFloor: 1, amount: 6 },
 ];
 
 export const ALL_LOOT_TABLES: readonly (readonly LootEntry[])[] = [GROUND_LOOT, CHEST_LOOT, LACQUER_LOOT, VAULT_EXTRAS];
@@ -138,4 +138,4 @@ export function lootTableFor(floor: number, table: readonly LootEntry[] = CHEST_
 }
 
 /** Monedas de una entrada: la cantidad base crece con el sector. */
-export const coinAmount = (base: number, floor: number): number => base + (floor - 1) * 2;
+export const coinAmount = (base: number, floor: number): number => base + (floor - 1);

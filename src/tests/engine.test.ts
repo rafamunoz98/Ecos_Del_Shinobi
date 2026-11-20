@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BALANCE } from '../content/balance';
 import { applyCommand, previewTechnique } from '../core/engine';
 import { attack, cast, interact, makeGame, move, OPEN_ROOM, wait } from './helpers';
 
@@ -31,11 +32,28 @@ describe('movimiento', () => {
     expect(applyCommand(makeGame(['####', '#@C#', '####']), move(1, 0)).reason).toBe('occupied');
   });
 
-  it('rechaza movimientos no ortogonales', () => {
+  it('permite moverse en diagonal pero no más de una casilla ni a la misma', () => {
     const s = makeGame(['#####', '#@..#', '#...#', '#####']);
-    expect(applyCommand(s, move(1, 1)).reason).toBe('bad_direction');
+    const r = applyCommand(s, move(1, 1));
+    expect(r.ok).toBe(true);
+    expect(r.state.player.pos).toEqual({ x: 2, y: 2 });
+    expect(applyCommand(s, move(2, 0)).reason).toBe('bad_direction');
     expect(applyCommand(s, move(0, 0)).reason).toBe('bad_direction');
     expect(applyCommand(s, move(0.5, 0.5)).reason).toBe('bad_direction');
+  });
+
+  it('no se puede cortar una esquina: una pared en medio impide el paso en diagonal', () => {
+    const s = makeGame(['#####', '#@#.#', '#...#', '#####']);
+    // En (1,1) hacia (2,2): la casilla (2,1) es pared.
+    expect(applyCommand(s, move(1, 1)).reason).toBe('corner');
+    expect(applyCommand(s, move(0, 1)).ok).toBe(true);
+  });
+
+  it('también se ataca en diagonal, salvo que haya una esquina cerrada', () => {
+    const open = makeGame(['####', '#@.#', '#.E#', '####']);
+    expect(applyCommand(open, attack({ x: 2, y: 2 })).ok).toBe(true);
+    const corner = makeGame(['####', '#@##', '#.E#', '####']);
+    expect(applyCommand(corner, attack({ x: 2, y: 2 })).reason).toBe('not_adjacent');
   });
 
   it('una acción inválida no activa a los enemigos', () => {
@@ -92,7 +110,7 @@ describe('turnos', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
       g.player.kiro = 5;
     });
-    expect(applyCommand(s, wait()).state.player.kiro).toBe(6);
+    expect(applyCommand(s, wait()).state.player.kiro).toBe(5 + BALANCE.waitKiro);
     expect(applyCommand(makeGame(['#####', '#@..#', '#####']), wait()).state.player.kiro).toBe(10);
   });
 });

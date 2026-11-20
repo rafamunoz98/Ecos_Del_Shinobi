@@ -5,7 +5,7 @@ import { NOTES, getRelic } from '../content/story';
 import { KEYS, getEquipment, getItem } from '../content/items';
 import { getTechnique } from '../content/techniques';
 import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
-import { weaponLevel, xpToNext } from '../core/combat';
+import { weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
 import { drawMinimap } from './minimap';
@@ -80,9 +80,9 @@ export class Hud {
     el('hp-fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
     el('kiro-text').textContent = `${p.kiro}/${p.maxKiro}`;
     el('kiro-fill').style.width = `${(p.kiro / p.maxKiro) * 100}%`;
-    const need = xpToNext(p.level);
-    el('xp-text').textContent = `Nv ${p.level} · ${p.xp}/${need}`;
-    el('xp-fill').style.width = `${(p.xp / need) * 100}%`;
+    const total = Math.max(1, state.floorEnemies);
+    el('xp-text').textContent = state.floorCleared ? `Nv ${p.level} · sector despejado` : `Nv ${p.level} · enemigos ${state.floorKilled}/${state.floorEnemies}`;
+    el('xp-fill').style.width = `${state.floorCleared ? 100 : (state.floorKilled / total) * 100}%`;
 
     const weapon = getWeapon(p.equipment.weapon);
     const armor = getEquipment(p.equipment.armor);

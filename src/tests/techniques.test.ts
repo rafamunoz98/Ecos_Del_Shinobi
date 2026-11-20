@@ -40,7 +40,7 @@ describe('Lengua de Fuego (Ascua, línea)', () => {
     const s = game(['########', '#@..#.E#', '########'], 'ascua', 'lengua_de_fuego');
     expect(applyCommand(s, use('lengua_de_fuego', { x: 5, y: 1 })).ok).toBe(true);
     const m = makeGame(['#####', '#@..#', '#...#', '#####'], known('lengua_de_fuego'), { affinity: 'ascua' });
-    expect(applyCommand(m, use('lengua_de_fuego', { x: 2, y: 2 })).reason).toBe('not_aligned');
+    expect(applyCommand(m, use('lengua_de_fuego', { x: 3, y: 2 })).reason).toBe('not_aligned');
     const blockedLine = game(['####', '#@##', '####'], 'ascua', 'lengua_de_fuego');
     expect(applyCommand(blockedLine, use('lengua_de_fuego', { x: 2, y: 1 })).reason).toBe('blocked');
   });

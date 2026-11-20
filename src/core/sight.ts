@@ -1,5 +1,5 @@
 import { BALANCE } from '../content/balance';
-import { computeVisible, equals, hasLineOfSight, idx, manhattan, terrainAt } from './grid';
+import { chebyshev, computeVisible, equals, hasLineOfSight, idx, manhattan, terrainAt } from './grid';
 import type { Enemy, GameState, Vec } from './types';
 
 /**
@@ -41,7 +41,7 @@ export function enemySees(s: GameState, e: Enemy): boolean {
   const p = s.player.pos;
   const d = manhattan(e.pos, p);
   if (equals(e.pos, p)) return true;
-  if (d === 1) return true;
+  if (chebyshev(e.pos, p) === 1) return true;
   if (d > e.aggroRange) return false;
   if (terrainAt(s.map, p) === 'bush') return false;
   return hasLineOfSight(s.map, e.pos, p, openDoors(s));

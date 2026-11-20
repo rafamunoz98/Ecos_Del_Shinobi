@@ -18,6 +18,7 @@ export function createEnemy(def: EnemyDef, id: string, pos: Vec, floor: number):
     aggroRange: def.aggroRange,
     alert: 0,
     lastSeen: null,
+    tracking: false,
     statuses: [],
     phase: def.behavior === 'boss' ? 1 : 0,
     stuck: {},

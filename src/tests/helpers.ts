@@ -8,6 +8,8 @@ export function makeGame(
   opts: { seed?: number; affinity?: Affinity } = {},
 ): GameState {
   const s = createGame({ seed: opts.seed ?? 1, room: rows, affinity: opts.affinity ?? 'ascua' });
+  // Por defecto, despejar la sala no sube de nivel (eso se prueba aparte); un test puede fijar floorEnemies.
+  s.floorEnemies = 99;
   tweak?.(s);
   return s;
 }

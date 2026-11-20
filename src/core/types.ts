@@ -74,6 +74,8 @@ export interface Enemy {
   alert: number;
   /** Última posición donde te vio. */
   lastSeen: Vec | null;
+  /** Ya llegó a ese punto sin verte: ahora sigue tu rastro (tu posición real) mientras le dure la alerta. */
+  tracking: boolean;
   statuses: StatusEffect[];
   /** Fase de combate de un jefe (1-3); 0 en enemigos normales. */
   phase: number;
@@ -170,6 +172,10 @@ export interface GameState {
   npcs: Npc[];
   scrolls: Scroll[];
   stats: RunStats;
+  /** Enemigos con los que empezó el sector (sin convocados), cuántos has abatido y si ya subiste de nivel por despejarlo. */
+  floorEnemies: number;
+  floorKilled: number;
+  floorCleared: boolean;
   /** Diálogos que ya se mostraron y no deben repetirse solos (introducción del jefe, etc.). */
   seenDialogues: string[];
   /** Casillas ya vistas (niebla de guerra). Mismo índice que map.tiles. */
@@ -198,6 +204,7 @@ export type Command =
 export type InvalidReason =
   | 'run_over'
   | 'bad_direction'
+  | 'corner'
   | 'out_of_bounds'
   | 'blocked'
   | 'occupied'
@@ -253,6 +260,7 @@ export type GameEvent =
   | { type: 'EquipmentEquipped'; slot: EquipSlot; itemId: string }
   | { type: 'XpGained'; amount: number }
   | { type: 'LevelUp'; level: number; learned: string[] }
+  | { type: 'FloorCleared'; floor: number }
   | { type: 'EnemyMoved'; enemyId: string; from: Vec; to: Vec }
   | { type: 'TelegraphStarted'; ownerId: string; cells: Vec[]; turns: number }
   | { type: 'TelegraphReleased'; ownerId: string; cells: Vec[]; hit: boolean }
