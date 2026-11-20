@@ -1,18 +1,47 @@
+import { getArcana, POTION_PREFIX, RANDOM_POTION, RANDOM_SCROLL, SCROLL_PREFIX } from './arcana';
+import { getMod, splitGear } from './enchants';
 import { CURRENCY, KEYS, getEquipment, getItem } from './items';
 import { getTechnique } from './techniques';
 import { getThrowable, getWeapon } from './weapons';
 
-/** Nombre en español de cualquier objeto (consumible, arrojadiza, arma, vestimenta, moneda, llave). */
-export function itemName(id: string): string {
+/** Lo mínimo del estado que hace falta para saber qué conoce el jugador (pociones, pergaminos y equipo identificados). */
+export interface NameContext {
+  appearance: Record<string, string>;
+  player: { known: string[]; identified: string[] };
+}
+
+/** Nombre verdadero de una pieza de equipo con su modificador: «Hoja afilada de Llama». */
+export function gearTrueName(id: string): string {
+  const base = getWeapon(id)?.name ?? getEquipment(id)?.name ?? splitGear(id).base;
+  const mod = getMod(id);
+  return mod ? `${base} ${mod.name}` : base;
+}
+
+/**
+ * Nombre en español de cualquier objeto (consumible, arrojadiza, arma, vestimenta, moneda, llave).
+ * Con `ctx`, lo que el jugador aún no ha identificado se muestra como lo vería él: «Poción ámbar», «Hoja afilada (?)».
+ */
+export function itemName(id: string, ctx?: NameContext): string {
   if (id.startsWith('manual:')) return `Manual: ${getTechnique(id.slice(7))?.name ?? id.slice(7)}`;
   if (id === 'manual_tecnica') return 'Manual de técnica';
-  return (
-    getItem(id)?.name ??
-    getThrowable(id)?.name ??
-    getWeapon(id)?.name ??
-    getEquipment(id)?.name ??
-    CURRENCY[id]?.name ??
-    KEYS[id]?.name ??
-    id
-  );
+  if (id === RANDOM_POTION) return 'Poción sin identificar';
+  if (id === RANDOM_SCROLL) return 'Pergamino sin identificar';
+  if (id.startsWith(POTION_PREFIX) || id.startsWith(SCROLL_PREFIX)) {
+    const def = getArcana(id);
+    if (!def) return id;
+    if (!ctx || ctx.player.known.includes(id)) return def.name;
+    return ctx.appearance[id] ?? def.name;
+  }
+  if (getWeapon(id) || getEquipment(id)) {
+    if (ctx && !ctx.player.identified.includes(id)) return `${getWeapon(id)?.name ?? getEquipment(id)?.name} (?)`;
+    return gearTrueName(id);
+  }
+  return getItem(id)?.name ?? getThrowable(id)?.name ?? CURRENCY[id]?.name ?? KEYS[id]?.name ?? id;
+}
+
+/** ¿Se sabe qué es este objeto? (las pociones y pergaminos sin identificar y el equipo sin probar, no.) */
+export function isIdentified(id: string, ctx: NameContext): boolean {
+  if (id.startsWith(POTION_PREFIX) || id.startsWith(SCROLL_PREFIX)) return ctx.player.known.includes(id);
+  if (getWeapon(id) || getEquipment(id)) return ctx.player.identified.includes(id);
+  return true;
 }

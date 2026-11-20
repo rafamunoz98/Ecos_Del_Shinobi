@@ -1,3 +1,5 @@
+import { baseGearId } from './enchants';
+
 /*
  * Armas. Dos familias:
  *  - Cuerpo a cuerpo (WEAPONS): una equipada cada vez, no se gastan. El tipo decide a qué casillas llega.
@@ -29,8 +31,10 @@ export const WEAPONS: Record<string, WeaponDef> = {
   lanza_de_bambu: { id: 'lanza_de_bambu', name: 'Lanza de bambú', kind: 'spear', bonus: 1, reach: 2, description: 'Ataca 2 casillas en línea y atraviesa: golpea a todos los que haya. +1 de poder.' },
 };
 
+/** Acepta ids con modificador («hoja_afilada~llama»): devuelve la definición del arma base. */
 export function getWeapon(id: string | null | undefined): WeaponDef | undefined {
-  return id && Object.hasOwn(WEAPONS, id) ? WEAPONS[id] : undefined;
+  const base = id ? baseGearId(id) : '';
+  return base && Object.hasOwn(WEAPONS, base) ? WEAPONS[base] : undefined;
 }
 
 /** Nombre con el nivel de mejora de la forja: «Hoja afilada +2». */

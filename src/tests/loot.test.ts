@@ -210,7 +210,7 @@ describe('cofres: madera y laca', () => {
       expect(r.ok).toBe(true);
       expect(r.state.player.keys).toEqual(['llave_hierro']);
       expect(r.state.chests[0].opened).toBe(true);
-      const gotGear = r.state.player.weapons.length > t.player.weapons.length || r.state.player.equipment.armor !== t.player.equipment.armor;
+      const gotGear = r.state.player.weapons.length > t.player.weapons.length || r.state.player.armors.length > t.player.armors.length;
       expect(gotGear, `semilla ${seed}`).toBe(true);
       expect(r.state.player.coins).toBeGreaterThan(0);
       expect(r.state.player.shards).toBeGreaterThanOrEqual(2);
@@ -226,9 +226,9 @@ describe('cofres: madera y laca', () => {
       });
       const r = applyCommand(s, interact({ x: 2, y: 1 }));
       expect(r.state.player.coins).toBeGreaterThan(0);
-      if (r.state.player.weapons.length > 1 || r.state.player.equipment.armor) gear++;
+      if (r.state.player.weapons.length > 1 || r.state.player.armors.length > 0) gear++;
       for (const [id, n] of Object.entries(r.state.player.inventory)) {
-        if (id !== 'shuriken' && id !== 'unguento_musgo') expect(n).toBeGreaterThanOrEqual(2);
+        if (id !== 'shuriken' && id !== 'unguento_musgo') expect(n).toBeGreaterThanOrEqual(1);
       }
     }
     expect(gear).toBeGreaterThan(60);
@@ -236,11 +236,11 @@ describe('cofres: madera y laca', () => {
 
   it('un arma repetida se desmonta en esquirlas en vez de duplicarse', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
-      g.player.weapons.push('hoja_afilada');
-      g.drops.push({ pos: { x: 2, y: 1 }, itemId: 'hoja_afilada', count: 1 });
+      g.player.weapons.push('hoja_afilada~filo_fino');
+      g.drops.push({ pos: { x: 2, y: 1 }, itemId: 'hoja_afilada~filo_fino', count: 1 });
     });
     const r = applyCommand(s, move(1, 0));
-    expect(r.state.player.weapons.filter((w) => w === 'hoja_afilada')).toHaveLength(1);
+    expect(r.state.player.weapons.filter((w) => w === 'hoja_afilada~filo_fino')).toHaveLength(1);
     expect(r.state.player.shards).toBe(2);
   });
 });

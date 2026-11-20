@@ -1,4 +1,5 @@
 import { BALANCE } from '../content/balance';
+import { getMod } from '../content/enchants';
 import { getEquipment } from '../content/items';
 import { getWeapon } from '../content/weapons';
 import type { Player } from './types';
@@ -17,13 +18,15 @@ export function weaponLevel(p: Player, weaponId: string | null | undefined): num
 export function effectivePower(p: Player): number {
   const w = getWeapon(p.equipment.weapon);
   const boosted = p.statuses.some((s) => s.id === 'potenciado') ? BALANCE.potentiatedPower : 0;
-  return p.power + (w?.bonus ?? 0) + weaponLevel(p, p.equipment.weapon) * BALANCE.forge.bonusPerLevel + boosted;
+  const mod = getMod(p.equipment.weapon)?.power ?? 0;
+  return Math.max(1, p.power + (w?.bonus ?? 0) + weaponLevel(p, p.equipment.weapon) * BALANCE.forge.bonusPerLevel + boosted + mod);
 }
 
 /** Defensa base + vestimenta + estado "protegido". */
 export function effectiveDefense(p: Player): number {
   const protectedBonus = p.statuses.some((s) => s.id === 'protegido') ? BALANCE.protectedDefense : 0;
-  return p.defense + (getEquipment(p.equipment.armor)?.bonus ?? 0) + protectedBonus;
+  const mod = getMod(p.equipment.armor)?.defense ?? 0;
+  return Math.max(0, p.defense + (getEquipment(p.equipment.armor)?.bonus ?? 0) + protectedBonus + mod);
 }
 
 /** Experiencia necesaria para pasar del nivel dado al siguiente. */

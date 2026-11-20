@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RANDOM_POTION, RANDOM_SCROLL } from '../content/arcana';
 import { AFFINITIES } from '../content/affinities';
 import { ENEMIES } from '../content/enemies';
 import { ALL_LOOT_TABLES, CURRENCY, EQUIPMENT, ITEMS, KEYS, MANUAL_ITEM } from '../content/items';
@@ -30,7 +31,7 @@ describe('coherencia del contenido', () => {
 
   it('la tabla de botín solo referencia contenido existente', () => {
     const table: Record<string, Record<string, unknown>> = {
-      item: { ...ITEMS, [MANUAL_ITEM]: true },
+      item: { ...ITEMS, [MANUAL_ITEM]: true, [RANDOM_POTION]: true, [RANDOM_SCROLL]: true },
       equipment: EQUIPMENT,
       weapon: WEAPONS,
       throwable: THROWABLES,

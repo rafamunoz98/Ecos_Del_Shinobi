@@ -4,6 +4,8 @@ import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getE
 import { itemName } from '../content/names';
 import { getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { getAllyDef } from '../content/allies';
+import { getArcana, getPotion, getScroll, isArcana, isPotion, POTIONS, RANDOM_POTION, RANDOM_SCROLL, rollArcana, SCROLLS, type PotionEffect, type ScrollEffect } from '../content/arcana';
+import { getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
 import { getNpc, getNote, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
 import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
@@ -58,6 +60,7 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   already_equipped: 'Ya la llevas equipada.',
   already_known: 'Ya conoces esa técnica.',
   not_in_grimoire: 'Esa técnica no está en tu grimorio.',
+  cursed: 'Un sello maldito te impide soltarla: purifícala (Sello de Purificación o forja).',
   bad_slot: 'Elige cuál de tus técnicas equipadas sustituir.',
   nothing_to_interact: 'No hay nada con lo que interactuar ahí.',
   already_opened: 'Ya está abierto.',
@@ -419,7 +422,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
         if ((p.inventory[cmd.itemId] ?? 0) <= 0) return 'no_item';
         return p.techniques.includes(tech.id) || p.grimoire.includes(tech.id) ? 'already_known' : null;
       }
-      if (!getItem(cmd.itemId)) return 'unknown_item';
+      if (!getItem(cmd.itemId) && !getArcana(cmd.itemId)) return 'unknown_item';
       return (p.inventory[cmd.itemId] ?? 0) > 0 ? null : 'no_item';
     }
     case 'EquipTechnique': {
@@ -432,7 +435,19 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
     case 'EquipWeapon':
       if (!getWeapon(cmd.weaponId)) return 'unknown_item';
       if (!p.weapons.includes(cmd.weaponId)) return 'no_item';
-      return p.equipment.weapon === cmd.weaponId ? 'already_equipped' : null;
+      if (p.equipment.weapon === cmd.weaponId) return 'already_equipped';
+      return isCursedGear(p.equipment.weapon) ? 'cursed' : null;
+    case 'EquipArmor':
+      if (!getEquipment(cmd.armorId)) return 'unknown_item';
+      if (!p.armors.includes(cmd.armorId)) return 'no_item';
+      if (p.equipment.armor === cmd.armorId) return 'already_equipped';
+      return isCursedGear(p.equipment.armor) ? 'cursed' : null;
+    case 'Purify': {
+      if (!forgeNear(state, cmd.npcId)) return 'not_at_forge';
+      if (!p.weapons.includes(cmd.itemId) && !p.armors.includes(cmd.itemId)) return 'no_item';
+      if (!isCursedGear(cmd.itemId) || !p.identified.includes(cmd.itemId)) return 'nothing_to_interact';
+      return p.coins >= BALANCE.purifyCost ? null : 'cannot_afford';
+    }
     case 'Interact': {
       if (chebyshev(p.pos, cmd.target) > 1) return 'not_adjacent';
       const chest = chestAt(state, cmd.target);
@@ -561,8 +576,9 @@ function defeatPlayer(ctx: Ctx): void {
   say(ctx, 'Caes derrotado. La expedición termina.');
 }
 
-function damagePlayer(ctx: Ctx, amount: number, source: string): void {
+function damagePlayer(ctx: Ctx, rawAmount: number, source: string): void {
   const p = ctx.state.player;
+  const amount = rawAmount + (rawAmount > 0 ? (getMod(p.equipment.armor)?.damageTaken ?? 0) : 0);
   p.hp = Math.max(0, p.hp - amount);
   ctx.state.stats.damageTaken += amount;
   ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount, source });
@@ -594,6 +610,188 @@ function tickStatuses(ctx: Ctx, target: Player | Enemy, targetId: string): void 
     st.turns -= 1;
   }
   target.statuses = target.statuses.filter((st) => st.turns > 0);
+}
+
+/** Efectos de una poción o pergamino. Usarlo lo identifica para el resto de la expedición. */
+function useArcana(ctx: Ctx, id: string): void {
+  const s = ctx.state;
+  const p = s.player;
+  const def = getArcana(id);
+  if (!def) return;
+  const shownName = itemName(id, s);
+  consume(p, id);
+  s.stats.itemsUsed += 1;
+  ctx.events.push({ type: 'ItemUsed', itemId: id });
+  say(ctx, isPotion(id) ? `Bebes ${shownName}.` : `Desenrollas ${shownName}.`);
+  if (isPotion(id)) drinkPotion(ctx, (getPotion(id) as NonNullable<ReturnType<typeof getPotion>>).effect);
+  else readScroll(ctx, (getScroll(id) as NonNullable<ReturnType<typeof getScroll>>).effect);
+  if (!p.known.includes(id)) {
+    p.known.push(id);
+    ctx.events.push({ type: 'ArcanaIdentified', itemId: id });
+    say(ctx, `Ahora lo sabes: era ${def.name}.`);
+  }
+}
+
+function drinkPotion(ctx: Ctx, fx: PotionEffect): void {
+  const s = ctx.state;
+  const p = s.player;
+  switch (fx.kind) {
+    case 'heal': {
+      const gained = Math.min(fx.amount, p.maxHp - p.hp);
+      p.hp += gained;
+      ctx.events.push({ type: 'HealApplied', amount: gained, resource: 'hp' });
+      say(ctx, `Recuperas ${gained} de vida.`);
+      if (fx.cleanse) p.statuses = p.statuses.filter((st) => st.id !== 'quemadura' && st.id !== 'veneno' && st.id !== 'ceguera');
+      return;
+    }
+    case 'kiro': {
+      const gained = Math.min(fx.amount, p.maxKiro - p.kiro);
+      p.kiro += gained;
+      ctx.events.push({ type: 'HealApplied', amount: gained, resource: 'kiro' });
+      say(ctx, `Recuperas ${gained} de kiro.`);
+      return;
+    }
+    case 'strength':
+      p.power += 1;
+      say(ctx, 'Sientes los músculos arder: +1 de poder para siempre.');
+      return;
+    case 'status':
+      applyStatus(p, fx.status, fx.turns);
+      ctx.events.push({ type: 'StatusApplied', targetId: 'player', status: fx.status, turns: fx.turns });
+      say(ctx, STATUS_NAMES[fx.status] ? `${STATUS_NAMES[fx.status]} (${fx.turns} rondas).` : `Efecto: ${fx.status}.`);
+      return;
+    case 'reveal':
+      revealMap(ctx);
+      return;
+    case 'alarm':
+      raiseAlarm(ctx, 'Un silbido agudo recorre el sector: todos saben dónde estás.');
+      return;
+  }
+}
+
+function revealMap(ctx: Ctx): void {
+  ctx.state.explored.fill(true);
+  say(ctx, 'El mapa del sector se despliega ante tus ojos.');
+}
+
+function raiseAlarm(ctx: Ctx, text: string): void {
+  const s = ctx.state;
+  for (const e of s.enemies) {
+    if (e.hp <= 0) continue;
+    if (e.alert === 0) noticePlayer(ctx, e);
+    e.alert = BALANCE.alertTurns;
+    e.lastSeen = { ...s.player.pos };
+    e.tracking = false;
+  }
+  say(ctx, text);
+}
+
+function readScroll(ctx: Ctx, fx: ScrollEffect): void {
+  const s = ctx.state;
+  const p = s.player;
+  switch (fx.kind) {
+    case 'summon':
+      summonAllies(ctx, fx.ally, fx.count, fx.turns);
+      return;
+    case 'teleport': {
+      const cells: Vec[] = [];
+      for (let y = 0; y < s.map.height; y++) {
+        for (let x = 0; x < s.map.width; x++) {
+          const c = { x, y };
+          if (s.explored[y * s.map.width + x] && terrainAt(s.map, c) === 'floor' && cellFree(s, c) && manhattan(c, p.pos) >= 6) cells.push(c);
+        }
+      }
+      if (cells.length === 0) {
+        say(ctx, 'El tronco cae sin más: no hay a dónde ir.');
+        return;
+      }
+      const dest = cells[Math.floor(rand(ctx) * cells.length)];
+      const from = p.pos;
+      p.pos = dest;
+      ctx.events.push({ type: 'PlayerMoved', from, to: dest });
+      for (const e of s.enemies) {
+        if (e.alert > 0 && chebyshev(e.pos, p.pos) > 1) {
+          e.alert = 0;
+          e.lastSeen = null;
+          e.tracking = false;
+          ctx.events.push({ type: 'EnemyLostTrack', enemyId: e.id });
+        }
+      }
+      say(ctx, 'Un tronco ocupa tu lugar: reapareces lejos y tus perseguidores pierden tu rastro.');
+      return;
+    }
+    case 'reveal':
+      revealMap(ctx);
+      return;
+    case 'purify': {
+      const cleaned: string[] = [];
+      for (const slot of ['weapon', 'armor'] as const) {
+        const cur = p.equipment[slot];
+        if (cur && isCursedGear(cur)) cleaned.push(itemName(purifyGear(ctx, cur), s));
+      }
+      say(ctx, cleaned.length ? `Los sellos malditos se desvanecen: ${cleaned.join(' y ')}.` : 'No hay ninguna maldición que romper en lo que llevas puesto.');
+      return;
+    }
+    case 'blast': {
+      const cells = region(s, p.pos, fx.radius, true, 'square');
+      const hit = s.enemies.filter((e) => e.hp > 0 && cells.some((c) => equals(c, e.pos)));
+      for (const e of hit) {
+        damageEnemy(ctx, e, fx.power, 'sello_explosivo');
+        say(ctx, `La explosión alcanza a ${enemyName(e)} (${fx.power} de daño).`);
+      }
+      if (hit.length === 0) say(ctx, 'El sello estalla sin tocar a nadie.');
+      ctx.events.push({ type: 'TechniqueCast', techniqueId: 'sello_explosivo', target: p.pos, cells });
+      return;
+    }
+    case 'bind':
+    case 'stun': {
+      const status: StatusId = fx.kind === 'bind' ? 'atado' : 'aturdido';
+      const visible = visibleCells(s);
+      let n = 0;
+      for (const e of s.enemies) {
+        if (e.hp <= 0 || !canSeeEntity(s, visible, e.pos) || isBoss(e)) continue;
+        applyStatus(e, status, fx.turns);
+        ctx.events.push({ type: 'StatusApplied', targetId: e.id, status, turns: fx.turns });
+        alertEnemy(ctx, e);
+        n += 1;
+      }
+      say(ctx, n > 0 ? `${n} ${n === 1 ? 'enemigo queda' : 'enemigos quedan'} ${fx.kind === 'bind' ? 'inmovilizados' : 'aturdidos'} ${fx.turns} rondas.` : 'No hay nadie a la vista (o se resisten).');
+      return;
+    }
+    case 'upgrade': {
+      const w = p.equipment.weapon;
+      if (!w || weaponLevel(p, w) >= BALANCE.forge.maxLevel) {
+        say(ctx, 'Tu arma ya no admite más refuerzos: el sello se consume sin efecto.');
+        return;
+      }
+      p.weaponLevels[w] = weaponLevel(p, w) + 1;
+      ctx.events.push({ type: 'WeaponUpgraded', weaponId: w, level: p.weaponLevels[w] });
+      say(ctx, `${itemName(w, s)} se refuerza: +${p.weaponLevels[w]}.`);
+      return;
+    }
+    case 'identify': {
+      let n = 0;
+      for (const id of [...p.weapons, ...p.armors]) {
+        if (!p.identified.includes(id)) {
+          markIdentified(p, id);
+          ctx.events.push({ type: 'GearIdentified', itemId: id });
+          n += 1;
+        }
+      }
+      const unknown = [...Object.keys(POTIONS).map((k) => `pocion:${k}`), ...Object.keys(SCROLLS).map((k) => `pergamino:${k}`)].filter((k) => !p.known.includes(k) && (p.inventory[k] ?? 0) > 0);
+      if (unknown.length > 0) {
+        const k = unknown[Math.floor(rand(ctx) * unknown.length)];
+        p.known.push(k);
+        ctx.events.push({ type: 'ArcanaIdentified', itemId: k });
+        say(ctx, `Reconoces ${itemName(k, s)}.`);
+      }
+      say(ctx, n > 0 ? `Tu equipo revela sus secretos (${n} ${n === 1 ? 'pieza' : 'piezas'}).` : 'Todo tu equipo ya estaba identificado.');
+      return;
+    }
+    case 'alarm':
+      raiseAlarm(ctx, 'Un trueno sin tormenta retumba por la cripta: todos saben dónde estás.');
+      return;
+  }
 }
 
 /** Gasta una unidad de un objeto de la mochila. */
@@ -719,7 +917,7 @@ function rollFrom(ctx: Ctx, table: readonly LootEntry[]): LootEntry {
   const floorTable = lootTableFor(ctx.state.floor, table);
   const useful = floorTable.filter((e) => {
     if (e.kind === 'weapon') return !p.weapons.includes(e.id);
-    if (e.kind === 'equipment') return (getEquipment(e.id)?.bonus ?? 0) > (getEquipment(p.equipment.armor)?.bonus ?? 0);
+    if (e.kind === 'equipment') return !p.armors.some((a) => a.split('~')[0] === e.id) && p.equipment.armor?.split('~')[0] !== e.id;
     return true;
   });
   const pool = useful.length > 0 ? useful : floorTable;
@@ -848,6 +1046,87 @@ function pullEnemy(ctx: Ctx, enemy: Enemy, steps: number): void {
   }
 }
 
+/** Número en [0,1) del generador de la partida. */
+function rand(ctx: Ctx): number {
+  const r = nextRandom(ctx.state.rngState);
+  ctx.state.rngState = r.state;
+  return r.value;
+}
+
+/** Sortea el modificador de una pieza nueva: maldita, encantada o corriente (null). */
+function rollGearMod(ctx: Ctx, baseId: string): string | null {
+  const slot: GearSlot = getWeapon(baseId) ? 'weapon' : 'armor';
+  const roll = rand(ctx);
+  const kind = roll < BALANCE.gear.curseChance ? 'curse' : roll < BALANCE.gear.curseChance + BALANCE.gear.enchantChance ? 'enchant' : null;
+  if (!kind) return null;
+  const pool = modsFor(slot, kind);
+  return pool[Math.floor(rand(ctx) * pool.length)].id;
+}
+
+function markIdentified(p: Player, id: string): void {
+  if (!p.identified.includes(id)) p.identified.push(id);
+}
+
+/** Al equipar por primera vez una pieza se descubre qué escondía. */
+function identifyGear(ctx: Ctx, id: string): void {
+  const p = ctx.state.player;
+  if (p.identified.includes(id)) return;
+  p.identified.push(id);
+  ctx.events.push({ type: 'GearIdentified', itemId: id });
+  const mod = getMod(id);
+  if (!mod) say(ctx, 'No tiene nada de particular: es una pieza corriente.');
+  else say(ctx, mod.kind === 'curse' ? `¡Está maldita! ${itemName(id, ctx.state)}: ${mod.description}` : `Está encantada: ${itemName(id, ctx.state)}. ${mod.description}`);
+}
+
+/** Rompe la maldición de una pieza concreta; traslada su sitio, su mejora de forja y su identificación. Devuelve el id nuevo. */
+function purifyGear(ctx: Ctx, id: string): string {
+  const p = ctx.state.player;
+  const clean = purified(id);
+  if (clean === id) return id;
+  const swap = (list: string[]) => {
+    const i = list.indexOf(id);
+    if (i < 0) return;
+    if (list.includes(clean)) list.splice(i, 1);
+    else list[i] = clean;
+  };
+  swap(p.weapons);
+  swap(p.armors);
+  if (p.equipment.weapon === id) p.equipment.weapon = clean;
+  if (p.equipment.armor === id) p.equipment.armor = clean;
+  if (p.weaponLevels[id] !== undefined) {
+    p.weaponLevels[clean] = Math.max(p.weaponLevels[clean] ?? 0, p.weaponLevels[id]);
+    delete p.weaponLevels[id];
+  }
+  markIdentified(p, clean);
+  ctx.events.push({ type: 'GearPurified', itemId: clean });
+  return clean;
+}
+
+/** Efectos del arma encantada o maldita tras un golpe cuerpo a cuerpo. */
+function applyWeaponMod(ctx: Ctx, enemy: Enemy): void {
+  const p = ctx.state.player;
+  const mod = getMod(p.equipment.weapon);
+  if (!mod) return;
+  if (mod.onHitStatus && enemy.hp > 0 && !(isBoss(enemy) && BOSS_IMMUNE.includes(mod.onHitStatus.status)) && rand(ctx) < mod.onHitStatus.chance) {
+    applyStatus(enemy, mod.onHitStatus.status, mod.onHitStatus.turns);
+    ctx.events.push({ type: 'StatusApplied', targetId: enemy.id, status: mod.onHitStatus.status, turns: mod.onHitStatus.turns });
+  }
+  if (mod.onHitHeal && p.hp < p.maxHp) {
+    p.hp += 1;
+    ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
+  }
+  if (mod.onHitKiro) {
+    const before = p.kiro;
+    p.kiro = Math.max(0, Math.min(p.maxKiro, p.kiro + mod.onHitKiro));
+    if (p.kiro !== before) ctx.events.push({ type: 'HealApplied', amount: p.kiro - before, resource: 'kiro' });
+  }
+  if (mod.onHitSelfDamage && p.hp > 1) {
+    p.hp -= mod.onHitSelfDamage;
+    ctx.state.stats.damageTaken += mod.onHitSelfDamage;
+    ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount: mod.onHitSelfDamage, source: 'sello_de_sangre' });
+  }
+}
+
 function openChest(ctx: Ctx, chest: Chest): void {
   const p = ctx.state.player;
   const floor = ctx.state.floor;
@@ -876,8 +1155,13 @@ function placeDrop(s: GameState, pos: Vec, itemId: string, count = 1): void {
  * Pasa un objeto al jugador: monedas y esquirlas se suman a su cartera, las llaves a su llavero, las armas a su colección,
  * la vestimenta se equipa si mejora la actual y lo demás va a la mochila. Lo repetido o peor se desmonta en esquirlas.
  */
-function collect(ctx: Ctx, itemId: string, count: number, verb: string): void {
+function collect(ctx: Ctx, rawId: string, count: number, verb: string, fixed = false): void {
   const p = ctx.state.player;
+  let itemId = rawId;
+  // Los ids «al azar» se resuelven al recoger (tirada determinista con el generador de la partida).
+  if (rawId === RANDOM_POTION) itemId = rollArcana('potion', rand(ctx));
+  else if (rawId === RANDOM_SCROLL) itemId = rollArcana('scroll', rand(ctx));
+  else if (!fixed && !rawId.includes('~') && (getWeapon(rawId) || getEquipment(rawId))) itemId = makeGearId(rawId, rollGearMod(ctx, rawId));
   ctx.events.push({ type: 'ItemPickedUp', itemId, count });
   if (itemId === 'moneda') {
     p.coins += count;
@@ -896,25 +1180,24 @@ function collect(ctx: Ctx, itemId: string, count: number, verb: string): void {
     return;
   }
   if (itemId === MANUAL_ITEM) {
-    // El manual sin abrir se convierte en el de una técnica que aún no conoces (tirada determinista con el generador de la partida).
+    // El manual sin abrir se convierte en el de una técnica que aún no conoces.
     const pool = learnableFor(p.affinity).filter((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
     if (pool.length === 0) {
       p.shards += 3;
       say(ctx, `${verb} un manual, pero ya dominas todo lo que enseña: lo desmontas (+3 esquirlas).`);
       return;
     }
-    const r = nextRandom(ctx.state.rngState);
-    ctx.state.rngState = r.state;
-    const id = pool[Math.floor(r.value * pool.length)];
+    const id = pool[Math.floor(rand(ctx) * pool.length)];
     p.inventory[MANUAL_PREFIX + id] = 1;
     say(ctx, `${verb} un manual: «${getTechnique(id)?.name ?? id}». Léelo desde el menú (Tab → Objetos) para aprenderla.`);
     return;
   }
   const weapon = getWeapon(itemId);
   if (weapon) {
-    if (!p.weapons.includes(weapon.id)) {
-      p.weapons.push(weapon.id);
-      say(ctx, `${verb} ${weapon.name}. Puedes equiparla desde el menú (Tab).`);
+    if (!p.weapons.includes(itemId)) {
+      p.weapons.push(itemId);
+      if (fixed) markIdentified(p, itemId);
+      say(ctx, `${verb} ${itemName(itemId, ctx.state)}. Equípala desde el menú (Tab) para saber qué esconde.`);
     } else {
       p.shards += 2;
       say(ctx, `${verb} ${weapon.name}, pero ya la tienes: la desmontas (+2 esquirlas).`);
@@ -923,19 +1206,18 @@ function collect(ctx: Ctx, itemId: string, count: number, verb: string): void {
   }
   const armor = getEquipment(itemId);
   if (armor) {
-    const current = getEquipment(p.equipment[armor.slot])?.bonus ?? -1;
-    if (armor.bonus > current) {
-      p.equipment[armor.slot] = armor.id;
-      ctx.events.push({ type: 'EquipmentEquipped', slot: armor.slot, itemId: armor.id });
-      say(ctx, `${verb} ${armor.name} y te la equipas (${armor.description}).`);
+    if (!p.armors.includes(itemId) && p.equipment.armor !== itemId) {
+      p.armors.push(itemId);
+      if (fixed) markIdentified(p, itemId);
+      say(ctx, `${verb} ${itemName(itemId, ctx.state)}. Póntela desde el menú (Tab) para saber qué esconde.`);
     } else {
       p.shards += 1;
-      say(ctx, `${verb} ${armor.name}, pero tu vestimenta actual es mejor: la desmontas (+1 esquirla).`);
+      say(ctx, `${verb} ${armor.name}, pero ya la tienes: la desmontas (+1 esquirla).`);
     }
     return;
   }
   p.inventory[itemId] = (p.inventory[itemId] ?? 0) + count;
-  say(ctx, `${verb} ${count > 1 ? `${count}× ` : ''}${itemName(itemId)}.`);
+  say(ctx, `${verb} ${count > 1 ? `${count}× ` : ''}${itemName(itemId, ctx.state)}.`);
 }
 
 /** Recoge lo que haya en el suelo bajo el jugador. */
@@ -1016,6 +1298,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
           say(ctx, `Golpeas a ${enemyName(enemy)} (${dmg} de daño).`);
         }
         damageEnemy(ctx, enemy, dmg, 'ataque_basico');
+        applyWeaponMod(ctx, enemy);
       }
       return;
     }
@@ -1058,7 +1341,21 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
     case 'EquipWeapon': {
       p.equipment.weapon = cmd.weaponId;
       ctx.events.push({ type: 'WeaponEquipped', weaponId: cmd.weaponId });
-      say(ctx, `Equipas: ${getWeapon(cmd.weaponId)?.name ?? cmd.weaponId}.`);
+      say(ctx, `Equipas: ${itemName(cmd.weaponId, s)}.`);
+      identifyGear(ctx, cmd.weaponId);
+      return;
+    }
+    case 'EquipArmor': {
+      p.equipment.armor = cmd.armorId;
+      ctx.events.push({ type: 'EquipmentEquipped', slot: 'armor', itemId: cmd.armorId });
+      say(ctx, `Te pones: ${itemName(cmd.armorId, s)}.`);
+      identifyGear(ctx, cmd.armorId);
+      return;
+    }
+    case 'Purify': {
+      p.coins -= BALANCE.purifyCost;
+      const clean = purifyGear(ctx, cmd.itemId);
+      say(ctx, `El herrero rompe el sello (−${BALANCE.purifyCost} monedas): ${itemName(clean, s)}.`);
       return;
     }
     case 'UseTechnique':
@@ -1085,6 +1382,10 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         ctx.state.stats.itemsUsed += 1;
         ctx.events.push({ type: 'ItemUsed', itemId: cmd.itemId });
         learnTechnique(ctx, cmd.itemId.slice(MANUAL_PREFIX.length));
+        return;
+      }
+      if (isArcana(cmd.itemId)) {
+        useArcana(ctx, cmd.itemId);
         return;
       }
       const item = getItem(cmd.itemId);
@@ -1365,6 +1666,11 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
     const dmg = calcDamage(enemy.power, 0, effectiveDefense(p));
     damagePlayer(ctx, dmg, enemy.id);
     say(ctx, `${enemyName(enemy)} ${verb} (${dmg} de daño).`);
+    const thorns = getMod(p.equipment.armor)?.thorns;
+    if (thorns && s.status === 'playing' && enemy.hp > 0 && chebyshev(enemy.pos, p.pos) <= 1) {
+      damageEnemy(ctx, enemy, thorns, 'espinas');
+      say(ctx, `Tus espinas hieren a ${enemyName(enemy)} (${thorns} de daño).`);
+    }
     return 'attacked';
   };
 
@@ -1531,10 +1837,16 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       s.player.hp += 1;
       ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
     }
+    const armorMod = getMod(s.player.equipment.armor);
+    if (s.status === 'playing' && armorMod?.regenEvery && (s.turn + 1) % armorMod.regenEvery === 0 && s.player.hp < s.player.maxHp) {
+      s.player.hp += 1;
+      ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
+    }
     // El kiro también vuelve solo, más deprisa que la vida.
-    if (s.status === 'playing' && (s.turn + 1) % BALANCE.kiroRegenEvery === 0 && s.player.kiro < s.player.maxKiro) {
-      s.player.kiro += 1;
-      ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'kiro' });
+    if (s.status === 'playing' && !armorMod?.noKiroRegen && (s.turn + 1) % BALANCE.kiroRegenEvery === 0 && s.player.kiro < s.player.maxKiro) {
+      const gain = Math.min(1 + (armorMod?.kiroRegenBonus ?? 0), s.player.maxKiro - s.player.kiro);
+      s.player.kiro += gain;
+      ctx.events.push({ type: 'HealApplied', amount: gain, resource: 'kiro' });
     }
   }
 

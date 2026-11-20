@@ -55,6 +55,10 @@ export const BALANCE = {
   },
   /** Mesas de forja: solo aparecen en estos sectores. */
   forgeFloors: [2, 3],
+  /** Probabilidad de que un arma o vestimenta nueva venga maldita o encantada (el resto, corriente). */
+  gear: { curseChance: 0.2, enchantChance: 0.28 },
+  /** Monedas que cuesta purificar una pieza maldita en la forja. */
+  purifyCost: 10,
   /** Mejora de armas: +1 de poder por nivel. Cada nivel se paga con monedas O con esquirlas. */
   forge: { maxLevel: 3, bonusPerLevel: 1, coins: [12, 20, 30], shards: [2, 3, 4] },
   /** Monedas que sueltan los enemigos al caer, y botín fijo del jefe. */

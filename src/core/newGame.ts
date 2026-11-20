@@ -5,10 +5,11 @@ import { generateLevel } from '../dungeon/generator';
 import { levelFromRoom } from '../dungeon/ascii';
 import { computeVisible } from './grid';
 import { visionRadiusOf } from './sight';
+import { shuffleAppearances, STARTING_KNOWN } from '../content/arcana';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -61,6 +62,9 @@ export function createGame(opts: NewGameOptions): GameState {
       techniques: techniquesFor(affinity, 1),
       grimoire: [],
       weapons: ['tanto_gastado'],
+      armors: [],
+      identified: ['tanto_gastado'],
+      known: [...STARTING_KNOWN[affinity]],
       notes: [],
       relics: [],
       inventory: { unguento_musgo: 1, shuriken: 5 },
@@ -83,12 +87,18 @@ export function createGame(opts: NewGameOptions): GameState {
     floorEnemies: level.enemies.length,
     floorKilled: 0,
     floorCleared: false,
+    appearance: {},
     seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),
     status: 'playing',
     log: ['Entras en la cripta. El aire huele a ceniza.'],
   };
 
+  state.appearance = shuffleAppearances(() => {
+    const r = nextRandom(state.rngState);
+    state.rngState = r.state;
+    return r.value;
+  });
   for (const i of computeVisible(state.map, state.player.pos, visionRadiusOf(state))) {
     state.explored[i] = true;
   }

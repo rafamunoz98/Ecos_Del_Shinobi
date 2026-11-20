@@ -55,8 +55,14 @@ export interface Player {
   techniques: string[];
   /** Técnicas conocidas que no están equipadas (cambiar una por otra gasta un turno). */
   grimoire: string[];
-  /** Armas cuerpo a cuerpo que posee (la equipada es equipment.weapon). */
+  /** Armas cuerpo a cuerpo que posee (la equipada es equipment.weapon). Un id puede llevar modificador: «hoja_afilada~llama». */
   weapons: string[];
+  /** Vestimentas que posee (la puesta es equipment.armor). */
+  armors: string[];
+  /** Ids de equipo ya identificados (se equiparon alguna vez, o los reveló un pergamino). Los demás se ven como «(?)». */
+  identified: string[];
+  /** Pociones y pergaminos cuyo efecto conoces: «pocion:sanacion», «pergamino:mapa». */
+  known: string[];
   /** Notas de lore encontradas (ids de content/story). */
   notes: string[];
   /** Reliquias ganadas en la expedición (p. ej. el sello antiguo del Campanero). */
@@ -205,6 +211,8 @@ export interface GameState {
   floorCleared: boolean;
   /** Diálogos que ya se mostraron y no deben repetirse solos (introducción del jefe, etc.). */
   seenDialogues: string[];
+  /** Apariencia de cada poción y pergamino en esta partida: «pocion:sanacion» → «Poción ámbar». */
+  appearance: Record<string, string>;
   /** Casillas ya vistas (niebla de guerra). Mismo índice que map.tiles. */
   explored: boolean[];
   status: RunStatus;
@@ -221,6 +229,9 @@ export type Command =
   | { type: 'UseItem'; itemId: string }
   | { type: 'Throw'; itemId: string; target: Vec }
   | { type: 'EquipWeapon'; weaponId: string }
+  | { type: 'EquipArmor'; armorId: string }
+  /** Rompe la maldición de una pieza en una mesa de forja adyacente (cuesta monedas). */
+  | { type: 'Purify'; npcId: string; itemId: string }
   /** Equipa una técnica del grimorio; si no hay ranura libre sustituye a `replace`. Gasta un turno. */
   | { type: 'EquipTechnique'; techniqueId: string; replace?: string }
   | { type: 'Interact'; target: Vec }
@@ -250,6 +261,7 @@ export type InvalidReason =
   | 'no_item'
   | 'not_throwable'
   | 'already_equipped'
+  | 'cursed'
   | 'already_known'
   | 'not_in_grimoire'
   | 'bad_slot'
@@ -284,6 +296,9 @@ export type GameEvent =
   | { type: 'DoorUnlocked'; pos: Vec }
   | { type: 'WeaponUpgraded'; weaponId: string; level: number }
   | { type: 'WeaponEquipped'; weaponId: string }
+  | { type: 'GearIdentified'; itemId: string }
+  | { type: 'ArcanaIdentified'; itemId: string }
+  | { type: 'GearPurified'; itemId: string }
   | { type: 'TechniqueLearned'; techniqueId: string; equipped: boolean }
   | { type: 'TechniqueEquipped'; techniqueId: string; replaced: string | null }
   | { type: 'AllySummoned'; allyId: string; pos: Vec }

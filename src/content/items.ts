@@ -1,4 +1,6 @@
 import type { EquipSlot } from '../core/types';
+import { RANDOM_POTION, RANDOM_SCROLL } from './arcana';
+import { baseGearId } from './enchants';
 
 export type ItemEffect =
   | { kind: 'restoreKiro'; amount: number }
@@ -47,8 +49,10 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   coraza_de_pizarra: { id: 'coraza_de_pizarra', name: 'Coraza de pizarra', slot: 'armor', bonus: 3, description: '+3 de defensa.' },
 };
 
+/** Acepta ids con modificador («cota_de_laminas~roca»): devuelve la definición de la vestimenta base. */
 export function getEquipment(id: string | null | undefined): EquipmentDef | undefined {
-  return id && Object.hasOwn(EQUIPMENT, id) ? EQUIPMENT[id] : undefined;
+  const base = id ? baseGearId(id) : '';
+  return base && Object.hasOwn(EQUIPMENT, base) ? EQUIPMENT[base] : undefined;
 }
 
 // ---------- Moneda, materiales y llaves ----------
@@ -90,8 +94,10 @@ export interface LootEntry {
 export const GROUND_LOOT: readonly LootEntry[] = [
   { kind: 'coins', id: 'moneda', weight: 5, minFloor: 1, amount: 2 },
   { kind: 'shards', id: 'esquirla', weight: 2, minFloor: 1, amount: 1 },
-  { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1 },
-  { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1 },
+  { kind: 'item', id: 'tonico_kiro', weight: 2, minFloor: 1 },
+  { kind: 'item', id: 'unguento_musgo', weight: 2, minFloor: 1 },
+  { kind: 'item', id: RANDOM_POTION, weight: 4, minFloor: 1 },
+  { kind: 'item', id: RANDOM_SCROLL, weight: 4, minFloor: 1 },
   { kind: 'throwable', id: 'shuriken', weight: 2, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 1 },
@@ -110,6 +116,8 @@ export const CHEST_LOOT: readonly LootEntry[] = [
   { kind: 'equipment', id: 'coraza_de_pizarra', weight: 1, minFloor: 3 },
   { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1, amount: 2 },
+  { kind: 'item', id: RANDOM_POTION, weight: 3, minFloor: 1, amount: 2 },
+  { kind: 'item', id: RANDOM_SCROLL, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'shuriken', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 2 },
@@ -134,6 +142,8 @@ export const VAULT_EXTRAS: readonly LootEntry[] = [
   { kind: 'shards', id: 'esquirla', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'coins', id: 'moneda', weight: 3, minFloor: 1, amount: 6 },
   { kind: 'item', id: 'manual_tecnica', weight: 3, minFloor: 1 },
+  { kind: 'item', id: RANDOM_SCROLL, weight: 3, minFloor: 1, amount: 2 },
+  { kind: 'item', id: RANDOM_POTION, weight: 2, minFloor: 1, amount: 2 },
 ];
 
 export const ALL_LOOT_TABLES: readonly (readonly LootEntry[])[] = [GROUND_LOOT, CHEST_LOOT, LACQUER_LOOT, VAULT_EXTRAS];

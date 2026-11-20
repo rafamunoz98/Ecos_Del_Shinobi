@@ -101,32 +101,31 @@ describe('equipo', () => {
     expect(r.state.player.hp).toBe(20 - 1); // 4 - 3
   });
 
-  it('un cofre equipa la vestimenta si mejora y nunca te la cambia por una peor', () => {
-    let equipped = 0;
+  it('la vestimenta encontrada va a tu colección sin ponérsela y sin identificar', () => {
+    let found = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const s = makeGame(['#####', '#@C.#', '#####'], (g) => {
-        g.floor = 3; // en el sector 3 puede salir vestimenta mejor que la actual
+        g.floor = 3;
         g.rngState = seed;
         g.player.equipment.armor = 'cota_de_laminas';
       });
       const r = applyCommand(s, interact({ x: 2, y: 1 }));
-      const ev = r.events.find((e) => e.type === 'EquipmentEquipped');
-      if (ev && ev.type === 'EquipmentEquipped') {
-        equipped++;
-        expect(r.state.player.equipment.armor).toBe('coraza_de_pizarra');
+      expect(r.state.player.equipment.armor).toBe('cota_de_laminas');
+      for (const a of r.state.player.armors) {
+        found++;
+        expect(r.state.player.identified).not.toContain(a);
       }
-      expect(['cota_de_laminas', 'coraza_de_pizarra']).toContain(r.state.player.equipment.armor);
     }
-    expect(equipped).toBeGreaterThan(0);
+    expect(found).toBeGreaterThan(0);
   });
 
-  it('una vestimenta peor encontrada en el suelo se desmonta en esquirlas', () => {
+  it('una vestimenta idéntica a la que ya tienes se desmonta en esquirlas', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
-      g.player.equipment.armor = 'cota_de_laminas';
-      g.drops.push({ pos: { x: 2, y: 1 }, itemId: 'chaleco_acolchado', count: 1 });
+      g.player.equipment.armor = 'cota_de_laminas~roca';
+      g.drops.push({ pos: { x: 2, y: 1 }, itemId: 'cota_de_laminas~roca', count: 1 });
     });
     const r = applyCommand(s, move(1, 0));
-    expect(r.state.player.equipment.armor).toBe('cota_de_laminas');
+    expect(r.state.player.armors).toHaveLength(0);
     expect(r.state.player.shards).toBe(1);
   });
 
