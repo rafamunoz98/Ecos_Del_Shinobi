@@ -1,9 +1,13 @@
 import { AFFINITY_NAMES } from '../content/affinities';
+import { getArcana, isArcana } from '../content/arcana';
+import { BALANCE } from '../content/balance';
 import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describeShape, describeWeaponPattern } from '../content/describe';
+import { getMod, isCursedGear } from '../content/enchants';
 import { CURRENCY, KEYS, getEquipment, getItem } from '../content/items';
+import { gearLabel, iconIdFor, itemName } from '../content/names';
 import { NOTES, getNote, getRelic } from '../content/story';
-import { TECHNIQUES, type TechniqueDef } from '../content/techniques';
-import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
+import { TECHNIQUES, getTechnique, type TechniqueDef } from '../content/techniques';
+import { THROWABLES, getWeapon } from '../content/weapons';
 import { effectiveDefense, effectivePower, weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
 import { drawNinja } from '../presentation/art/actors';
@@ -16,7 +20,7 @@ const TABS: { id: MenuTab; label: string; icon: string }[] = [
   { id: 'estado', label: 'Estado', icon: 'hp' },
   { id: 'tecnicas', label: 'Técnicas', icon: 'ascua' },
   { id: 'objetos', label: 'Objetos', icon: 'tonico_kiro' },
-  { id: 'armas', label: 'Armas', icon: 'hoja_afilada' },
+  { id: 'armas', label: 'Equipo', icon: 'hoja_afilada' },
   { id: 'notas', label: 'Notas', icon: 'pergamino' },
   { id: 'mapa', label: 'Mapa', icon: 'cofre' },
 ];
@@ -27,6 +31,9 @@ export interface MenuActions {
   useItem(itemId: string): void;
   throwItem(itemId: string): void;
   equipWeapon(weaponId: string): void;
+  equipArmor(armorId: string): void;
+  /** Cambia una técnica del grimorio por otra equipada (o la equipa si hay ranura libre). No cierra el menú. */
+  equipTechnique(techniqueId: string, replace?: string): void;
 }
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -53,6 +60,8 @@ function stat(label: string, value: string): HTMLElement {
 export class Menu {
   private tab: MenuTab = 'estado';
   private noteSel: string | null = null;
+  /** Técnica del grimorio que se está equipando (esperando elegir cuál sustituir). */
+  private swapId: string | null = null;
   private state: GameState | null = null;
   private readonly root: HTMLElement;
   actions: MenuActions;
@@ -71,8 +80,9 @@ export class Menu {
     return !this.root.hidden;
   }
 
-  open(state: GameState, tab?: MenuTab): void {
+  open(state: GameState, tab?: MenuTab, swapId?: string): void {
     if (tab) this.tab = tab;
+    if (swapId !== undefined) this.swapId = swapId;
     this.state = state;
     this.root.hidden = false;
     this.render();
@@ -80,6 +90,7 @@ export class Menu {
 
   close(): void {
     this.root.hidden = true;
+    this.swapId = null;
   }
 
   toggle(state: GameState): void {
@@ -110,6 +121,7 @@ export class Menu {
 
   private setTab(tab: MenuTab): void {
     this.tab = tab;
+    this.swapId = null;
     this.render();
   }
 
@@ -170,7 +182,7 @@ export class Menu {
       stat('Kiro', `${p.kiro} / ${p.maxKiro}`),
       stat('Poder de ataque', String(effectivePower(p))),
       stat('Defensa', String(effectiveDefense(p))),
-      stat('Sector', s.floorCleared ? 'despejado (nivel ganado)' : `${s.floorKilled} / ${s.floorEnemies} enemigos`),
+      stat('Enemigos del sector', s.floorCleared ? 'despejado (nivel ganado)' : `${s.floorKilled} / ${s.floorEnemies}`),
       stat('Sector', `${s.floor} / ${s.maxFloor}`),
       stat('Turno', String(s.turn)),
       stat('Semilla', String(s.seed)),
@@ -180,15 +192,29 @@ export class Menu {
     const gear = h('div', 'gear');
     const w = getWeapon(p.equipment.weapon);
     const a = getEquipment(p.equipment.armor);
-    const lvl = weaponLevel(p, w?.id);
-    gear.append(this.row(w?.id ?? 'tanto_gastado', `Arma: ${w ? weaponLabel(w.id, lvl) : '—'}`, w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus + lvl} de poder · alcance ${w.reach}` : ''));
-    gear.append(this.row(a?.id ?? 'chaleco_acolchado', `Vestimenta: ${a?.name ?? 'ninguna'}`, a ? `+${a.bonus} de defensa` : 'Encuentra vestimenta en los cofres.'));
+    const lvl = weaponLevel(p, p.equipment.weapon);
+    const wMod = getMod(p.equipment.weapon);
+    const aMod = getMod(p.equipment.armor);
+    gear.append(
+      this.row(
+        p.equipment.weapon ?? 'tanto_gastado',
+        `Arma: ${p.equipment.weapon ? gearLabel(p.equipment.weapon, lvl, s) : '—'}`,
+        w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus + lvl + (wMod?.power ?? 0)} de poder · alcance ${w.reach}${wMod ? ` · ${wMod.description}` : ''}` : '',
+      ),
+    );
+    gear.append(
+      this.row(
+        p.equipment.armor ?? 'chaleco_acolchado',
+        `Vestimenta: ${p.equipment.armor ? gearLabel(p.equipment.armor, 0, s) : 'ninguna'}`,
+        a ? `+${a.bonus + (aMod?.defense ?? 0)} de defensa${aMod ? ` · ${aMod.description}` : ''}` : 'Encuentra vestimenta en los cofres.',
+      ),
+    );
     right.append(h('h4', undefined, 'Equipo'), gear);
 
     right.append(h('h4', undefined, 'Cartera y llaves'));
     right.append(this.row('moneda', `${p.coins} monedas`, CURRENCY.moneda.description));
     right.append(this.row('esquirla', `${p.shards} esquirlas de campana`, CURRENCY.esquirla.description));
-    if (p.keys.length === 0) right.append(h('div', 'muted', 'Sin llaves. Las llaves solo valen en el sector donde las encuentras.'));
+    if (p.keys.length === 0) right.append(h('div', 'muted', 'Sin llaves. Búscalas en el sector: la de hierro abre las puertas con candado y la lacada, los cofres lacados. Valen solo en ese sector.'));
     for (const k of p.keys) right.append(this.row(k, KEYS[k]?.name ?? k, KEYS[k]?.description ?? ''));
 
     right.append(h('h4', undefined, 'Estados'));
@@ -196,14 +222,14 @@ export class Menu {
     for (const st of p.statuses) right.append(this.row(st.id, `${STATUS_NAMES[st.id]} (${st.turns})`, STATUS_HELP[st.id]));
 
     right.append(h('h4', undefined, 'Reliquias'));
-    if (p.relics.length === 0) right.append(h('div', 'muted', 'Aún no has conseguido ninguna. El guardián del último sector guarda la primera.'));
+    if (p.relics.length === 0) right.append(h('div', 'muted', 'Aún no has conseguido ninguna. Cada jefe shinobi guarda una.'));
     for (const id of p.relics) {
       const rel = getRelic(id);
       if (rel) right.append(this.row(rel.id, rel.name, rel.description));
     }
 
     right.append(h('h4', undefined, 'Sigilo'));
-    right.append(h('div', 'muted', 'Los arbustos y las puertas cerradas tapan la visión. Dentro de un arbusto solo te ven desde una casilla, pero tú también ves menos. Atacar a un enemigo que no te ha visto hace el doble de daño.'));
+    right.append(h('div', 'muted', 'Los arbustos y las puertas cerradas tapan la visión. Dentro de un arbusto solo te ven desde una casilla, pero tú también ves menos. Atacar a un enemigo que no te ha visto hace el doble de daño. Sube un nivel por sector, y solo si derrotas a todos sus enemigos.'));
     const wrap = h('div', 'two');
     wrap.append(left, right);
     return [wrap];
@@ -217,19 +243,21 @@ export class Menu {
     return r;
   }
 
-  private card(def: TechniqueDef, learned: boolean, level: number, slot: number, kiro: number): HTMLElement {
-    const c = h('div', `card${learned ? '' : ' locked'}`);
+  private card(def: TechniqueDef, opts: { slot?: number; kiro: number; level: number; locked?: boolean; extra?: HTMLElement[]; pick?: boolean }): HTMLElement {
+    const { slot = -1, kiro, level, locked = false } = opts;
+    const c = h('div', `card${locked ? ' locked' : ''}${opts.pick ? ' pick' : ''}`);
     const top = h('div', 'ctop');
     top.append(icon(def.affinity ?? 'ascua', 52));
     const t = h('div', 'rt');
-    t.append(h('b', undefined, def.name), h('span', undefined, `${def.kiroCost} de kiro · ${learned ? 'aprendida' : `se aprende en el nivel ${def.minLevel}`}`));
+    const origin = def.learnable ? 'se aprende (manual, maestro o jefe)' : `se desbloquea en el nivel ${def.minLevel}`;
+    t.append(h('b', undefined, def.name), h('span', undefined, `${def.kiroCost} de kiro${locked ? ` · ${origin}` : ''}`));
     top.append(t);
     c.append(top, h('p', undefined, def.description), h('div', 'shape', describeShape(def)));
     const tags = h('div', 'tags');
     for (const e of describeEffects(def)) tags.append(h('span', 'tag', e));
     c.append(tags);
-    if (learned && slot >= 0) {
-      const b = h('button', 'use', slot < 3 ? `Usar (tecla ${['Z', 'X', 'C'][slot]})` : 'Usar');
+    if (slot >= 0) {
+      const b = h('button', 'use', `Usar (tecla ${slot + 1})`);
       b.type = 'button';
       b.disabled = kiro < def.kiroCost;
       if (b.disabled) b.title = 'Sin kiro suficiente';
@@ -238,48 +266,130 @@ export class Menu {
         this.actions.cast(slot);
       });
       c.append(b);
-    } else if (!learned) {
+    } else if (locked && !def.learnable) {
       c.append(h('div', 'muted', `Nivel actual: ${level}`));
     }
+    for (const x of opts.extra ?? []) c.append(x);
     return c;
   }
 
   private tecnicas(s: GameState): HTMLElement[] {
     const p = s.player;
-    const grid = h('div', 'cards');
-    for (const def of Object.values(TECHNIQUES).filter((t) => t.affinity === p.affinity)) {
-      const slot = p.techniques.indexOf(def.id);
-      grid.append(this.card(def, slot >= 0, p.level, slot, p.kiro));
+    const out: HTMLElement[] = [];
+    out.push(
+      h(
+        'p',
+        'lead',
+        `Afinidad ${AFFINITY_NAMES[p.affinity]}. Llevas ${p.techniques.length} de ${BALANCE.techniqueSlots} técnicas (teclas 1-${BALANCE.techniqueSlots}). Las demás quedan en el grimorio: cambiar una gasta un turno. Esperar recupera kiro y también se recupera solo con el tiempo.`,
+      ),
+    );
+    out.push(h('h4', undefined, 'Equipadas'));
+    const eq = h('div', 'cards');
+    p.techniques.forEach((id, slot) => {
+      const def = getTechnique(id);
+      if (!def) return;
+      const extra: HTMLElement[] = [];
+      if (this.swapId && this.swapId !== id) {
+        const b = h('button', 'use', `Sustituir por ${getTechnique(this.swapId)?.name ?? '…'}`);
+        b.type = 'button';
+        const swap = this.swapId;
+        b.addEventListener('click', () => {
+          this.swapId = null;
+          this.actions.equipTechnique(swap, id);
+        });
+        extra.push(b);
+      }
+      eq.append(this.card(def, { slot, kiro: p.kiro, level: p.level, extra }));
+    });
+    out.push(eq);
+
+    if (p.grimoire.length > 0) {
+      out.push(h('h4', undefined, 'Grimorio'));
+      const gr = h('div', 'cards');
+      for (const id of p.grimoire) {
+        const def = getTechnique(id);
+        if (!def) continue;
+        const free = p.techniques.length < BALANCE.techniqueSlots;
+        const b = h('button', 'use', free ? 'Equipar (gasta un turno)' : this.swapId === id ? 'Elige abajo cuál sustituir ↑' : 'Equipar en lugar de otra…');
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          if (free) this.actions.equipTechnique(id);
+          else {
+            this.swapId = this.swapId === id ? null : id;
+            this.render();
+          }
+        });
+        gr.append(this.card(def, { kiro: p.kiro, level: p.level, extra: [b], pick: this.swapId === id }));
+      }
+      out.push(gr);
     }
-    return [h('p', 'lead', `Afinidad ${AFFINITY_NAMES[p.affinity]}. Las técnicas gastan kiro; esperar recupera 1.`), grid];
+
+    const known = new Set([...p.techniques, ...p.grimoire]);
+    const byLevel = Object.values(TECHNIQUES).filter((t) => t.affinity === p.affinity && !t.learnable && !known.has(t.id) && t.minLevel > p.level);
+    if (byLevel.length > 0) {
+      out.push(h('h4', undefined, 'Por desbloquear con el nivel'));
+      const g = h('div', 'cards');
+      for (const def of byLevel) g.append(this.card(def, { kiro: p.kiro, level: p.level, locked: true }));
+      out.push(g);
+    }
+    const toLearn = Object.values(TECHNIQUES).filter((t) => t.learnable && (t.affinity === p.affinity || t.affinity === null) && !known.has(t.id));
+    if (toLearn.length > 0) {
+      out.push(h('h4', undefined, 'Por aprender'));
+      out.push(h('div', 'muted', 'Se consiguen en manuales (cofres lacados y cámaras selladas, o a la venta), enseñadas por maestros o ganadas a los jefes.'));
+      const g = h('div', 'cards');
+      for (const def of toLearn) g.append(this.card(def, { kiro: p.kiro, level: p.level, locked: true }));
+      out.push(g);
+    }
+    return out;
   }
 
   private objetos(s: GameState): HTMLElement[] {
     const p = s.player;
     const out: HTMLElement[] = [];
-    out.push(h('h4', undefined, 'Consumibles'));
-    const cons = h('div', 'cards');
-    for (const id of Object.keys(p.inventory)) {
-      const it = getItem(id);
-      const n = p.inventory[id] ?? 0;
-      if (!it) continue;
-      const c = h('div', 'card');
-      const top = h('div', 'ctop');
-      const t = h('div', 'rt');
-      t.append(h('b', undefined, it.name), h('span', undefined, `×${n}`));
-      top.append(icon(id, 52), t);
-      c.append(top, h('p', undefined, it.description));
-      const b = h('button', 'use', 'Usar');
-      b.type = 'button';
-      b.disabled = n === 0;
-      b.addEventListener('click', () => {
-        this.close();
-        this.actions.useItem(id);
-      });
-      c.append(b);
-      cons.append(c);
+    const ids = Object.keys(p.inventory).filter((id) => (p.inventory[id] ?? 0) > 0);
+    const groups: { title: string; test: (id: string) => boolean; verb: (id: string) => string }[] = [
+      { title: 'Consumibles', test: (id) => !!getItem(id), verb: () => 'Usar' },
+      {
+        title: 'Pociones',
+        test: (id) => id.startsWith('pocion:'),
+        verb: (id) => (p.known.includes(id) ? 'Beber' : 'Beber (efecto desconocido)'),
+      },
+      {
+        title: 'Pergaminos de ninjutsu',
+        test: (id) => id.startsWith('pergamino:'),
+        verb: (id) => (p.known.includes(id) ? 'Leer' : 'Leer (efecto desconocido)'),
+      },
+      { title: 'Manuales de técnica', test: (id) => id.startsWith('manual:'), verb: () => 'Estudiar (aprende la técnica)' },
+    ];
+    for (const g of groups) {
+      const list = ids.filter(g.test);
+      if (list.length === 0) continue;
+      out.push(h('h4', undefined, g.title));
+      const cons = h('div', 'cards');
+      for (const id of list) {
+        const n = p.inventory[id] ?? 0;
+        const known = isArcana(id) ? p.known.includes(id) : true;
+        const c = h('div', 'card');
+        const top = h('div', 'ctop');
+        const t = h('div', 'rt');
+        t.append(h('b', undefined, itemName(id, s)), h('span', undefined, `×${n}${known ? '' : ' · sin identificar'}`));
+        top.append(icon(iconIdFor(id, s), 52), t);
+        let desc = getItem(id)?.description ?? '';
+        if (isArcana(id)) desc = known ? (getArcana(id)?.description ?? '') : 'Nadie sabe qué hace. Pruébala con cuidado: algunas son malas. Tu afinidad ya reconoce un tipo de cada clase.';
+        else if (id.startsWith('manual:')) desc = getTechnique(id.slice(7))?.description ?? '';
+        c.append(top, h('p', undefined, desc));
+        const b = h('button', 'use', g.verb(id));
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          this.close();
+          this.actions.useItem(id);
+        });
+        c.append(b);
+        cons.append(c);
+      }
+      out.push(cons);
     }
-    out.push(cons);
+    if (out.length === 0) out.push(h('div', 'muted', 'No llevas consumibles. Los hay en el suelo, en los cofres y en la tienda que aparece tras cada jefe.'));
     out.push(h('h4', undefined, 'Armas arrojadizas'));
     const thr = h('div', 'cards');
     for (const def of Object.values(THROWABLES)) {
@@ -297,7 +407,7 @@ export class Menu {
         h('span', 'tag', def.breakChance >= 1 ? 'Se gasta' : `Se pierde ${Math.round(def.breakChance * 100)}%`),
       );
       c.append(tags);
-      const b = h('button', 'use', 'Lanzar (tecla G)');
+      const b = h('button', 'use', 'Lanzar esta (tecla G; V cambia de tipo)');
       b.type = 'button';
       b.disabled = n === 0;
       b.addEventListener('click', () => {
@@ -318,7 +428,7 @@ export class Menu {
     cv.height = s.map.height * 8;
     cv.className = 'bigmap';
     drawMinimap(cv, s);
-    const legend = h('div', 'muted', 'Blanco: tú · Rojo: enemigo a la vista · Dorado: cofre (rojo: lacado) · Naranja: forja · Celeste: maestro/altar · Violeta: escalera · Verde: arbusto · Marrón: puerta · Ocre: puerta con candado');
+    const legend = h('div', 'muted', 'Blanco: tú · Rojo: enemigo a la vista · Dorado: cofre (rojo: lacado) · Naranja: forja · Amarillo: mercader · Blanco/rosa: llave de hierro/laca · Celeste: maestro/altar · Violeta: escalera · Verde: arbusto · Marrón: puerta · Ocre: puerta con candado');
     return [h('p', 'lead', `Sector ${s.floor} de ${s.maxFloor}. Solo se muestra lo ya explorado.`), cv, legend];
   }
 
@@ -351,24 +461,40 @@ export class Menu {
 
   private armas(s: GameState): HTMLElement[] {
     const p = s.player;
+    const out: HTMLElement[] = [];
+    out.push(
+      h(
+        'p',
+        'lead',
+        'Un arma y una vestimenta puestas. Lo que encuentras viene sin identificar (?): al equiparlo descubres si está encantado o maldito. Lo maldito se queda pegado hasta que lo purifiques (pergamino o mesa de forja).',
+      ),
+    );
+    const weaponCursed = isCursedGear(p.equipment.weapon);
+    const armorCursed = isCursedGear(p.equipment.armor);
+
+    out.push(h('h4', undefined, 'Armas'));
     const grid = h('div', 'cards');
     for (const id of p.weapons) {
       const w = getWeapon(id);
       if (!w) continue;
       const on = p.equipment.weapon === id;
+      const known = p.identified.includes(id);
+      const mod = known ? getMod(id) : undefined;
       const c = h('div', `card${on ? ' equipped' : ''}`);
       const top = h('div', 'ctop');
       const t = h('div', 'rt');
       const lvl = weaponLevel(p, id);
-      t.append(h('b', undefined, weaponLabel(id, lvl)), h('span', undefined, `${WEAPON_KIND_NAMES[w.kind]}${on ? ' · equipada' : ''}`));
-      top.append(icon(id, 52), t);
+      t.append(h('b', mod?.kind === 'curse' ? 'cursed' : undefined, gearLabel(id, lvl, s)), h('span', undefined, `${WEAPON_KIND_NAMES[w.kind]}${on ? ' · equipada' : ''}`));
+      top.append(icon(iconIdFor(id, s), 52), t);
       c.append(top, h('p', undefined, w.description), h('div', 'shape', describeWeaponPattern(w)));
       const tags = h('div', 'tags');
-      tags.append(h('span', 'tag', `+${w.bonus + lvl} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`));
+      tags.append(h('span', 'tag', `+${w.bonus + lvl + (mod?.power ?? 0)} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`));
+      if (mod) tags.append(h('span', `tag${mod.kind === 'curse' ? ' cursed' : ''}`, mod.description));
+      else if (!known) tags.append(h('span', 'tag', 'Sin identificar: ¿encantada? ¿maldita?'));
       c.append(tags);
-      const b = h('button', 'use', on ? 'Equipada' : 'Equipar (gasta un turno)');
+      const b = h('button', 'use', on ? 'Equipada' : weaponCursed ? 'Tu arma está maldita' : 'Equipar (gasta un turno)');
       b.type = 'button';
-      b.disabled = on;
+      b.disabled = on || weaponCursed;
       b.addEventListener('click', () => {
         this.close();
         this.actions.equipWeapon(id);
@@ -376,6 +502,39 @@ export class Menu {
       c.append(b);
       grid.append(c);
     }
-    return [h('p', 'lead', 'Una sola arma equipada. Las nuevas están en cofres y cámaras selladas; las mesas de forja (sectores 2 y 3) las mejoran con monedas o esquirlas.'), grid];
+    out.push(grid);
+
+    out.push(h('h4', undefined, 'Vestimentas'));
+    const agrid = h('div', 'cards');
+    for (const id of p.armors) {
+      const a = getEquipment(id);
+      if (!a) continue;
+      const on = p.equipment.armor === id;
+      const known = p.identified.includes(id);
+      const mod = known ? getMod(id) : undefined;
+      const c = h('div', `card${on ? ' equipped' : ''}`);
+      const top = h('div', 'ctop');
+      const t = h('div', 'rt');
+      t.append(h('b', mod?.kind === 'curse' ? 'cursed' : undefined, gearLabel(id, 0, s)), h('span', undefined, on ? 'Puesta' : 'Vestimenta'));
+      top.append(icon(iconIdFor(id, s), 52), t);
+      c.append(top, h('p', undefined, a.description));
+      const tags = h('div', 'tags');
+      tags.append(h('span', 'tag', `+${a.bonus + (mod?.defense ?? 0)} de defensa`));
+      if (mod) tags.append(h('span', `tag${mod.kind === 'curse' ? ' cursed' : ''}`, mod.description));
+      else if (!known) tags.append(h('span', 'tag', 'Sin identificar: ¿encantada? ¿maldita?'));
+      c.append(tags);
+      const b = h('button', 'use', on ? 'Puesta' : armorCursed ? 'Tu vestimenta está maldita' : 'Ponerse (gasta un turno)');
+      b.type = 'button';
+      b.disabled = on || armorCursed;
+      b.addEventListener('click', () => {
+        this.close();
+        this.actions.equipArmor(id);
+      });
+      c.append(b);
+      agrid.append(c);
+    }
+    out.push(agrid);
+    out.push(h('div', 'muted', 'Las mesas de forja mejoran las armas con monedas o esquirlas y purifican lo maldito. El mercader que aparece tras cada jefe vende equipo ya identificado.'));
+    return out;
   }
 }

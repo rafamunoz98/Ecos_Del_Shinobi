@@ -290,7 +290,7 @@ describe('maestros, eventos y notas', () => {
 describe('generación con jefe, eventos y lore', () => {
   const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1);
 
-  it('el último sector tiene la arena del jefe: un Campanero en la sala de la salida y nada más allí', () => {
+  it('el último sector tiene la arena del jefe: Sōkan en la sala de la salida y nada más allí', () => {
     for (const seed of SEEDS) {
       const lv = generateLevel({ seed, floor: 3, boss: true });
       expect(lv.bossRoom).not.toBeNull();

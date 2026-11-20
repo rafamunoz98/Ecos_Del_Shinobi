@@ -1,3 +1,4 @@
+import { floorHints } from './hints';
 import { AFFINITIES } from '../content/affinities';
 import { BALANCE } from '../content/balance';
 import { isBossFloor } from '../content/enemies';
@@ -104,5 +105,6 @@ export function createGame(opts: NewGameOptions): GameState {
   for (const i of computeVisible(state.map, state.player.pos, visionRadiusOf(state))) {
     state.explored[i] = true;
   }
+  state.log.push(...floorHints(state));
   return state;
 }

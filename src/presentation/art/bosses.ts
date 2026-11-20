@@ -3,7 +3,7 @@ import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './
 import { drawShinobiFigure } from './shinobi';
 
 /**
- * Enemigos del Hito 6 (Monje Hueco, Eco Menor, Campanero Sepultado) y personajes fijos (Maestra Sayoko,
+ * Enemigos del Hito 6 (Monje Hueco, Eco Menor) y personajes fijos (Maestra Sayoko,
  * Altar del Eco Roto). Mismas convenciones que actors.ts: 1 unidad = 1 casilla, pies en y ≈ +0.34.
  */
 
@@ -187,8 +187,6 @@ export function echoWisp(ctx: Ctx, { t, walk, phase }: ChargePose): void {
   ctx.stroke();
   ctx.restore();
 }
-
-// ---------- El Campanero Sepultado ----------
 
 // ---------- Personajes fijos ----------
 

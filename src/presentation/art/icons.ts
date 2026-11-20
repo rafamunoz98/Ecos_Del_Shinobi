@@ -613,6 +613,297 @@ function ancientSeal(ctx: Ctx): void {
   ctx.fill();
 }
 
+
+// ---------- Pociones, pergaminos, manuales, estados y reliquias nuevas ----------
+
+const POTION_COLORS: Record<string, [string, string]> = {
+  sanacion: ['#d94a5a', '#ffc2c8'],
+  kiro_mayor: ['#2f6fd6', '#9fd0ff'],
+  sombra: ['#4a3a7a', '#a898d8'],
+  regeneracion: ['#3f9a4a', '#b6f0b0'],
+  piel_roca: ['#8a6a44', '#d6c0a0'],
+  ojo_blanco: ['#cfd6e6', '#ffffff'],
+  veneno: ['#4a7a24', '#b8e070'],
+  niebla_oscura: ['#26222e', '#6a6478'],
+  ignea: ['#e0561c', '#ffd070'],
+  estridente: ['#e0c020', '#fff2a0'],
+};
+
+const LOOK_COLORS: Record<string, [string, string]> = {
+  turbia: ['#9c9468', '#d8d2a8'],
+  ámbar: ['#d8901c', '#ffd98a'],
+  carmesí: ['#b01838', '#ff8aa0'],
+  jade: ['#1f9468', '#9cf0c8'],
+  violeta: ['#7a38b8', '#d0a8f4'],
+  marfil: ['#d8d0b4', '#fffaf0'],
+  índigo: ['#2a3898', '#98a8f0'],
+  ceniza: ['#767680', '#c8c8d0'],
+  azafrán: ['#e8a410', '#fff0a0'],
+  cobalto: ['#1858c8', '#8cbcff'],
+  ébano: ['#1e1824', '#645a70'],
+  coral: ['#f06a58', '#ffc0b4'],
+};
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Píldora Akimichi: una bolita rojiza con una marca. */
+function pill(ctx: Ctx): void {
+  circle(ctx, 0, 0.02, 0.3);
+  ctx.fillStyle = vGrad(ctx, -0.28, 0.32, '#ffb25a', '#c4561c');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#6a2a10';
+  ctx.lineWidth = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(-0.14, 0.02);
+  ctx.lineTo(0.14, 0.02);
+  ctx.moveTo(0, -0.12);
+  ctx.lineTo(0, 0.16);
+  ctx.stroke();
+}
+
+/** Pergamino cerrado con un sello de runa generado a partir de `seed` (cada aspecto lleva el suyo). */
+function sealedScroll(ctx: Ctx, seed: string): void {
+  const h = hashStr(seed);
+  const hue = h % 360;
+  roundRectPath(ctx, -0.3, -0.32, 0.6, 0.64, 0.06);
+  ctx.fillStyle = vGrad(ctx, -0.32, 0.32, '#f1e3bd', '#cdb784');
+  ctx.fill();
+  outline(ctx, 0.05);
+  for (const y of [-0.32, 0.32]) {
+    roundRectPath(ctx, -0.36, y - 0.05, 0.72, 0.1, 0.05);
+    ctx.fillStyle = '#8a5a2e';
+    ctx.fill();
+    outline(ctx, 0.035);
+  }
+  // Cinta con el color del aspecto.
+  ctx.fillStyle = `hsl(${hue} 62% 48%)`;
+  ctx.fillRect(-0.3, -0.05, 0.6, 0.1);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.03;
+  ctx.strokeRect(-0.3, -0.05, 0.6, 0.1);
+  // Runa: 4 trazos cuya posición sale del hash.
+  ctx.strokeStyle = '#3a2410';
+  ctx.lineWidth = 0.045;
+  ctx.lineCap = 'round';
+  let r = h;
+  const next = (): number => {
+    r = Math.imul(r ^ (r >>> 13), 1274126177) >>> 0;
+    return (r % 1000) / 1000;
+  };
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const x0 = -0.14 + next() * 0.28;
+    const y0 = (i < 2 ? -0.27 : 0.09) + next() * 0.12;
+    const x1 = -0.14 + next() * 0.28;
+    const y1 = y0 + 0.05 + next() * 0.07;
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+  }
+  ctx.stroke();
+  // Sello de lacre.
+  circle(ctx, 0, 0, 0.1);
+  ctx.fillStyle = `hsl(${(hue + 180) % 360} 55% 38%)`;
+  ctx.fill();
+  outline(ctx, 0.03);
+}
+
+/** Libro de técnica. */
+function manualBook(ctx: Ctx): void {
+  roundRectPath(ctx, -0.28, -0.34, 0.56, 0.68, 0.05);
+  ctx.fillStyle = vGrad(ctx, -0.34, 0.34, '#3f6a9a', '#1f3858');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.fillStyle = '#f0dca0';
+  ctx.fillRect(-0.2, -0.28, 0.44, 0.08);
+  ctx.fillRect(-0.2, 0.2, 0.44, 0.08);
+  ctx.strokeStyle = '#e6c96a';
+  ctx.lineWidth = 0.04;
+  circle(ctx, 0.02, 0, 0.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0.02, -0.18);
+  ctx.lineTo(0.02, 0.18);
+  ctx.stroke();
+}
+
+function poisonDrop(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(0, -0.42);
+  ctx.bezierCurveTo(0.34, 0.0, 0.3, 0.38, 0, 0.4);
+  ctx.bezierCurveTo(-0.3, 0.38, -0.34, 0.0, 0, -0.42);
+  ctx.fillStyle = vGrad(ctx, -0.42, 0.4, '#b8e070', '#3f7a1c');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ellipse(ctx, -0.1, 0.05, 0.04, 0.1, 0.3);
+  ctx.fill();
+}
+
+function snail(ctx: Ctx): void {
+  circle(ctx, -0.04, -0.02, 0.26);
+  ctx.fillStyle = vGrad(ctx, -0.28, 0.24, '#e6b878', '#9a6a30');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#5a3a14';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  ctx.arc(-0.04, -0.02, 0.13, 0, Math.PI * 1.6);
+  ctx.stroke();
+  roundRectPath(ctx, -0.36, 0.2, 0.74, 0.14, 0.07);
+  ctx.fillStyle = '#9ab0c8';
+  ctx.fill();
+  outline(ctx, 0.04);
+}
+
+function bindKnot(ctx: Ctx): void {
+  ctx.strokeStyle = '#c8a460';
+  ctx.lineWidth = 0.1;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-0.34, -0.2);
+  ctx.bezierCurveTo(0.2, -0.4, 0.4, 0.1, -0.1, 0.12);
+  ctx.bezierCurveTo(-0.4, 0.14, -0.1, 0.42, 0.34, 0.24);
+  ctx.stroke();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.025;
+  ctx.stroke();
+}
+
+function crackedShield(ctx: Ctx): void {
+  shield(ctx);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.06;
+  ctx.beginPath();
+  ctx.moveTo(0.02, -0.34);
+  ctx.lineTo(-0.08, -0.08);
+  ctx.lineTo(0.08, 0.06);
+  ctx.lineTo(-0.02, 0.34);
+  ctx.stroke();
+}
+
+function mend(ctx: Ctx): void {
+  heart(ctx);
+  ctx.strokeStyle = '#d8ffd0';
+  ctx.lineWidth = 0.07;
+  ctx.beginPath();
+  ctx.moveTo(0, -0.1);
+  ctx.lineTo(0, 0.14);
+  ctx.moveTo(-0.12, 0.02);
+  ctx.lineTo(0.12, 0.02);
+  ctx.stroke();
+}
+
+function empower(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(0, -0.42);
+  ctx.lineTo(0.3, -0.04);
+  ctx.lineTo(0.12, -0.04);
+  ctx.lineTo(0.12, 0.4);
+  ctx.lineTo(-0.12, 0.4);
+  ctx.lineTo(-0.12, -0.04);
+  ctx.lineTo(-0.3, -0.04);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.42, 0.4, '#ffd070', '#e0561c');
+  ctx.fill();
+  outline(ctx, 0.05);
+}
+
+function cloak(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(-0.34, 0.1);
+  ctx.bezierCurveTo(-0.3, -0.32, 0.3, -0.32, 0.34, 0.1);
+  ctx.bezierCurveTo(0.2, 0.4, -0.2, 0.4, -0.34, 0.1);
+  ctx.fillStyle = 'rgba(160,150,210,0.55)';
+  ctx.fill();
+  ctx.setLineDash([0.06, 0.05]);
+  outline(ctx, 0.045);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ellipse(ctx, 0, 0.08, 0.13, 0.06);
+  ctx.fill();
+}
+
+function darkEye(ctx: Ctx): void {
+  ellipse(ctx, 0, 0, 0.38, 0.2);
+  ctx.fillStyle = '#1a1624';
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#8a82a8';
+  ctx.lineWidth = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(-0.3, -0.3);
+  ctx.lineTo(0.3, 0.3);
+  ctx.stroke();
+}
+
+function brokenSpool(ctx: Ctx): void {
+  roundRectPath(ctx, -0.12, -0.3, 0.24, 0.6, 0.04);
+  ctx.fillStyle = '#9a8a76';
+  ctx.fill();
+  outline(ctx, 0.045);
+  for (const y of [-0.34, 0.3]) {
+    roundRectPath(ctx, -0.3, y, 0.6, 0.08, 0.04);
+    ctx.fillStyle = '#6a5a48';
+    ctx.fill();
+    outline(ctx, 0.04);
+  }
+  ctx.strokeStyle = '#c8c4d8';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  ctx.moveTo(-0.1, -0.2);
+  ctx.lineTo(0.1, -0.1);
+  ctx.lineTo(-0.1, 0.0);
+  ctx.lineTo(0.12, 0.12);
+  ctx.stroke();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(-0.16, -0.06);
+  ctx.lineTo(0.16, 0.06);
+  ctx.stroke();
+}
+
+function mercantile(ctx: Ctx): void {
+  circle(ctx, 0, 0, 0.3);
+  ctx.fillStyle = vGrad(ctx, -0.3, 0.3, '#ffe08a', '#b8801e');
+  ctx.fill();
+  outline(ctx, 0.05);
+  roundRectPath(ctx, -0.08, -0.08, 0.16, 0.16, 0.02);
+  ctx.fillStyle = INK;
+  ctx.fill();
+}
+
+/** Resuelve ids dinámicos: equipo con modificador, pociones/pergaminos y sus aspectos («look:Poción ámbar»). */
+function resolveIcon(id: string): ((ctx: Ctx) => void) | undefined {
+  if (Object.hasOwn(ICONS, id)) return ICONS[id];
+  const base = id.split('~')[0];
+  if (base !== id && Object.hasOwn(ICONS, base)) return ICONS[base];
+  if (id.startsWith('manual')) return manualBook;
+  if (id === 'pocion_azar') return (c) => vial(c, '#8a6aa8', '#e0d0f0');
+  if (id === 'pergamino_azar') return (c) => sealedScroll(c, 'azar');
+  if (id.startsWith('pocion:')) {
+    const k = id.slice(7);
+    if (k === 'akimichi') return pill;
+    const col = POTION_COLORS[k] ?? ['#8a6aa8', '#e0d0f0'];
+    return (c) => vial(c, col[0], col[1]);
+  }
+  if (id.startsWith('pergamino:')) return (c) => sealedScroll(c, id);
+  if (id.startsWith('look:')) {
+    const label = id.slice(5);
+    if (label.startsWith('Poción ')) {
+      const col = LOOK_COLORS[label.slice(7)] ?? ['#8a6aa8', '#e0d0f0'];
+      return (c) => vial(c, col[0], col[1]);
+    }
+    return (c) => sealedScroll(c, label);
+  }
+  return undefined;
+}
+
 const ICONS: Record<string, (ctx: Ctx) => void> = {
   campana: bellIcon,
   sello_antiguo: ancientSeal,
@@ -648,13 +939,23 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   protegido: shield,
   hp: heart,
   kiro,
+  veneno: poisonDrop,
+  ralentizado: snail,
+  atado: bindKnot,
+  vulnerable: crackedShield,
+  regeneracion: mend,
+  potenciado: empower,
+  sigilo: cloak,
+  ceguera: darkEye,
+  carrete_roto: brokenSpool,
+  mercader: mercantile,
 };
 
-export const hasIcon = (id: string): boolean => Object.hasOwn(ICONS, id);
+export const hasIcon = (id: string): boolean => resolveIcon(id) !== undefined;
 
 /** Dibuja el icono `id` centrado en (cx, cy) con `size` de lado (en las unidades del contexto). */
 export function drawIcon(ctx: Ctx, id: string, cx: number, cy: number, size: number, rot = 0): void {
-  const fn = Object.hasOwn(ICONS, id) ? ICONS[id] : undefined;
+  const fn = resolveIcon(id);
   if (!fn) return;
   ctx.save();
   ctx.translate(cx, cy);

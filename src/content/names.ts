@@ -45,3 +45,18 @@ export function isIdentified(id: string, ctx: NameContext): boolean {
   if (getWeapon(id) || getEquipment(id)) return ctx.player.identified.includes(id);
   return true;
 }
+
+/** Id del icono con que se ve un objeto: lo no identificado usa su aspecto («look:Poción ámbar») para no delatar su efecto. */
+export function iconIdFor(id: string, ctx?: NameContext): string {
+  if (!ctx) return id;
+  if (id.startsWith(POTION_PREFIX) || id.startsWith(SCROLL_PREFIX)) {
+    return ctx.player.known.includes(id) ? id : `look:${ctx.appearance[id] ?? id}`;
+  }
+  return id;
+}
+
+/** Nombre con modificador y nivel de forja: «Hoja afilada de Llama +2». */
+export function gearLabel(id: string, level = 0, ctx?: NameContext): string {
+  const name = itemName(id, ctx);
+  return level > 0 ? `${name} +${level}` : name;
+}

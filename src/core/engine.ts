@@ -1,3 +1,4 @@
+import { floorHints } from './hints';
 import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, isBossFloor, type EnemyDef, type SkillDef } from '../content/enemies';
 import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getEquipment, getItem, isKey, lootTableFor, type LootEntry } from '../content/items';
@@ -1326,6 +1327,7 @@ function descend(ctx: Ctx): void {
   }
   ctx.events.push({ type: 'FloorChanged', floor: s.floor });
   say(ctx, `Desciendes al sector ${s.floor}.`);
+  for (const h of floorHints(s)) say(ctx, h);
 }
 
 function resolvePlayerAction(ctx: Ctx, cmd: Command): void {

@@ -45,7 +45,7 @@ export interface LevelParams {
   floor: number;
   width?: number;
   height?: number;
-  /** Último sector: la sala de la salida se convierte en la arena del Campanero Sepultado. */
+  /** Sectores de jefe (3 y 6): la sala de la salida se convierte en la arena del jefe shinobi del sector. */
   boss?: boolean;
 }
 

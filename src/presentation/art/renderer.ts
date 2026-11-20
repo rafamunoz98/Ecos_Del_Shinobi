@@ -144,6 +144,51 @@ export class WorldRenderer {
     return this.userZoom;
   }
 
+  /** Desplazamiento libre de la cámara (en casillas) respecto al jugador: arrastrar el ratón o el dedo. */
+  private pan = { x: 0, y: 0 };
+
+  /** Mueve la vista `dx,dy` píxeles de pantalla; se limita a lo ya explorado del sector. */
+  panByPixels(dx: number, dy: number): void {
+    const s = this.state;
+    if (!s) return;
+    const px = this.pos(PLAYER, performance.now() / 1000);
+    const t = this.tilePx;
+    const nx = this.pan.x - dx / t;
+    const ny = this.pan.y - dy / t;
+    this.pan = { x: nx, y: ny };
+    this.clampPan(s, px.x + 0.5, px.y + 0.5);
+  }
+
+  /** Vuelve a centrar la cámara en el jugador. */
+  resetPan(): void {
+    this.pan = { x: 0, y: 0 };
+  }
+
+  get isPanned(): boolean {
+    return Math.abs(this.pan.x) > 0.01 || Math.abs(this.pan.y) > 0.01;
+  }
+
+  /** La cámara no sale del rectángulo que contiene las casillas exploradas (más un margen). */
+  private clampPan(s: GameState, cx: number, cy: number): void {
+    let minX = s.map.width;
+    let maxX = 0;
+    let minY = s.map.height;
+    let maxY = 0;
+    for (let i = 0; i < s.explored.length; i++) {
+      if (!s.explored[i]) continue;
+      const x = i % s.map.width;
+      const y = Math.floor(i / s.map.width);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    if (maxX < minX) return;
+    const tx = clamp(cx + this.pan.x, minX + 0.5, maxX + 0.5);
+    const ty = clamp(cy + this.pan.y, minY + 0.5, maxY + 0.5);
+    this.pan = { x: tx - cx, y: ty - cy };
+  }
+
   // ---------- Estado ----------
 
   /** Empieza de cero con un estado nuevo (nueva expedición o nuevo sector). */
@@ -163,6 +208,7 @@ export class WorldRenderer {
     this.syncDisp(state, null, now, true);
     const p = this.pos(PLAYER, now);
     this.cam = { x: p.x + 0.5, y: p.y + 0.5 };
+    this.pan = { x: 0, y: 0 };
     this.visible = visibleCells(state);
     this.doors = openDoors(state);
     this.fog.fill(1);
@@ -596,8 +642,8 @@ export class WorldRenderer {
 
     // Cámara.
     const pp = this.pos(PLAYER, now);
-    const tx = pp.x + 0.5;
-    const ty = pp.y + 0.5;
+    const tx = pp.x + 0.5 + this.pan.x;
+    const ty = pp.y + 0.5 + this.pan.y;
     const k = Math.min(1, dt * 9);
     this.cam.x += (tx - this.cam.x) * k;
     this.cam.y += (ty - this.cam.y) * k;

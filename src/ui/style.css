@@ -641,16 +641,55 @@ button.use:disabled {
   grid-column: 2;
   grid-row: 3;
 }
-#dpad .cancel {
+#dpad .nw {
+  grid-column: 1;
+  grid-row: 1;
+}
+#dpad .ne {
+  grid-column: 3;
+  grid-row: 1;
+}
+#dpad .sw {
   grid-column: 1;
   grid-row: 3;
-  font-size: 15px;
 }
-#dpad .act {
+#dpad .se {
   grid-column: 3;
   grid-row: 3;
+}
+#dpad button.diag {
+  font-size: 15px;
+  opacity: 0.8;
+}
+
+#padr {
+  display: none;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  flex-direction: column;
+  gap: 8px;
+  touch-action: manipulation;
+  opacity: 0.9;
+}
+
+#padr button {
+  font: inherit;
   font-size: 15px;
   font-weight: 700;
+  width: 56px;
+  height: 56px;
+  color: var(--text);
+  border: 1px solid #4a4670;
+  border-radius: 16px;
+  background: rgba(26, 24, 44, 0.78);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#padr button:active {
+  background: rgba(90, 70, 184, 0.85);
 }
 
 .bigmap {
@@ -666,6 +705,9 @@ button.use:disabled {
 @media (pointer: coarse), (max-width: 720px) {
   #dpad {
     display: grid;
+  }
+  #padr {
+    display: flex;
   }
 }
 
@@ -836,7 +878,8 @@ button.use:disabled {
 /* ---------- Decisión de maestro / evento ---------- */
 
 #choice,
-#forge {
+#forge,
+#shop {
   position: fixed;
   inset: 0;
   z-index: 12;
@@ -849,7 +892,8 @@ button.use:disabled {
 }
 
 #choice[hidden],
-#forge[hidden] {
+#forge[hidden],
+#shop[hidden] {
   display: none;
 }
 
@@ -1097,4 +1141,70 @@ button.note-item .ico {
     flex-direction: row;
     width: 100%;
   }
+}
+
+.forge-row.sold {
+  opacity: 0.45;
+}
+
+.forge-row .pay .muted {
+  font-size: 12px;
+}
+
+/* Grimorio y mejoras de técnica */
+.swap-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.swap-pick button {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: #2b2850;
+  border: 1px solid #5a54a0;
+  border-radius: 10px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.card.pick {
+  border-color: #e6c96a;
+  box-shadow: 0 0 0 1px #e6c96a55;
+}
+
+.cursed {
+  color: #ff8a9a;
+}
+
+.pan-hint {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(20, 18, 36, 0.8);
+  border: 1px solid #4a4670;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+#game {
+  touch-action: none;
+  cursor: grab;
+}
+#game.panning {
+  cursor: grabbing;
+}
+
+.forge-sub {
+  padding: 10px 14px 0;
+  color: #ff8a9a;
+  font-size: 13px;
+  font-weight: 600;
 }

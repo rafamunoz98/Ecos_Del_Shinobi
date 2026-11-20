@@ -4,7 +4,9 @@ import { ENEMIES } from '../content/enemies';
 import { NOTES, getRelic } from '../content/story';
 import { KEYS, getEquipment, getItem } from '../content/items';
 import { getTechnique } from '../content/techniques';
-import { THROWABLES, getWeapon, weaponLabel } from '../content/weapons';
+import { THROWABLES, getWeapon } from '../content/weapons';
+import { getMod } from '../content/enchants';
+import { gearLabel } from '../content/names';
 import { weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -16,6 +18,8 @@ export interface AimInfo {
   detail: string;
   valid: boolean;
   message?: string;
+  /** Hay más de una arrojadiza para alternar. */
+  canCycle?: boolean;
 }
 
 /** Órdenes que se pueden dar con el ratón o el dedo desde el panel. */
@@ -23,6 +27,7 @@ export type UiAction =
   | { type: 'technique'; slot: number }
   | { type: 'item'; itemId: string }
   | { type: 'throw' }
+  | { type: 'cycleThrow' }
   | { type: 'reach' }
   | { type: 'weapon' }
   | { type: 'wait' }
@@ -30,10 +35,10 @@ export type UiAction =
   | { type: 'menu' }
   | { type: 'key'; key: string };
 
-export const TECHNIQUE_KEYS = ['Z', 'X', 'C'] as const;
+export const TECHNIQUE_KEYS = ['1', '2', '3', '4'] as const;
 export const ITEM_SLOTS: readonly { key: string; itemId: string }[] = [
-  { key: '1', itemId: 'tonico_kiro' },
-  { key: '2', itemId: 'unguento_musgo' },
+  { key: '5', itemId: 'tonico_kiro' },
+  { key: '6', itemId: 'unguento_musgo' },
 ];
 
 function el(id: string): HTMLElement {
@@ -54,15 +59,19 @@ interface SlotSpec {
 /** HUD en DOM: recursos, estados, barra de acciones pulsable, minimapa, registro y pantalla de resultado. */
 export class Hud {
   onAction: (a: UiAction) => void = () => undefined;
+  /** Arrojadiza elegida con V (la usa el botón de lanzar). */
+  throwSel = '';
   private lastQuick = '';
 
   constructor() {
     (el('hp-icon') as HTMLImageElement).src = iconDataUrl('hp', 40);
     (el('kiro-icon') as HTMLImageElement).src = iconDataUrl('kiro', 40);
-    el('dpad').addEventListener('click', (ev) => {
-      const btn = (ev.target as HTMLElement).closest('button[data-key]') as HTMLElement | null;
-      if (btn?.dataset.key) this.onAction({ type: 'key', key: btn.dataset.key });
-    });
+    for (const id of ['dpad', 'padr']) {
+      el(id).addEventListener('click', (ev) => {
+        const btn = (ev.target as HTMLElement).closest('button[data-key]') as HTMLElement | null;
+        if (btn?.dataset.key) this.onAction({ type: 'key', key: btn.dataset.key });
+      });
+    }
     el('result-new').addEventListener('click', () => this.onAction({ type: 'key', key: 'r' }));
     el('actions').addEventListener('click', (ev) => {
       const btn = (ev.target as HTMLElement).closest('button[data-i]') as HTMLElement | null;
@@ -88,8 +97,8 @@ export class Hud {
     const armor = getEquipment(p.equipment.armor);
     el('meta').textContent = [
       `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}`,
-      `Arma: ${weapon ? `${weaponLabel(weapon.id, weaponLevel(p, weapon.id))} (+${weapon.bonus + weaponLevel(p, weapon.id)})` : '—'}`,
-      `Vestimenta: ${armor ? `${armor.name} (+${armor.bonus})` : '—'}`,
+      `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : '—'}`,
+      `Vestimenta: ${armor && p.equipment.armor ? `${gearLabel(p.equipment.armor, 0, state)} (+${armor.bonus + (getMod(p.equipment.armor)?.defense ?? 0)})` : '—'}`,
       `Semilla ${state.seed}`,
     ].join('\n');
 
@@ -134,7 +143,8 @@ export class Hud {
     );
     log.scrollTop = log.scrollHeight;
 
-    el('help').textContent = 'Tab: menú · E: interactuar/hablar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · Q: cambiar arma · Rueda o +/−: zoom · R: nueva expedición';
+    el('help').textContent =
+      'WASD/flechas: mover · Q E Z C (o teclado numérico): diagonales · 1-4: técnicas · 5-6: tónico y ungüento · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición';
     this.drawMinimap(state);
 
     this.renderResult(state);
@@ -155,7 +165,7 @@ export class Hud {
     el('result-title').textContent = won ? 'Expedición completada' : 'Has caído';
     const killer = st.defeatedBy ? (st.defeatedBy === 'quemadura' ? 'las quemaduras' : ENEMIES[st.defeatedBy]?.name ?? st.defeatedBy) : null;
     el('result-text').textContent = won
-      ? 'El Campanero calla y el sello aguanta. Sales de la cripta con el Sello antiguo.'
+      ? 'Yūgiri, la Hilandera, cae y el hilo gris se afloja. Sales de la cripta con el rastro del Sello antiguo.'
       : `Caes en el sector ${state.floor} de ${state.maxFloor}${killer ? `, a manos de ${killer}` : ''}. La cripta guarda tu eco.`;
     const stat = (label: string, value: string): HTMLElement => {
       const d = document.createElement('div');
@@ -194,8 +204,7 @@ export class Hud {
       c.append(img, text);
       return c;
     };
-    if (st.bossDefeated) extra.append(chip('campana', 'Campanero Sepultado derrotado'));
-    else if (state.floor >= state.maxFloor) extra.append(chip('campana', 'Campanero Sepultado sigue en pie'));
+    extra.append(chip('campana', `Jefes derrotados: ${state.bossesDefeated} / 2`));
     for (const id of p.relics) extra.append(chip(id, getRelic(id)?.name ?? id));
   }
 
@@ -219,6 +228,14 @@ export class Hud {
       k.className = aim.valid ? 'ok' : 'bad';
       k.textContent = aim.valid ? 'Enter: confirmar · Esc: cancelar' : `✗ ${aim.message ?? 'No válido'}`;
       t.append(h, d, k);
+      if (aim.canCycle) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'use';
+        b.textContent = 'Cambiar arrojadiza (V)';
+        b.addEventListener('click', () => this.onAction({ type: 'cycleThrow' }));
+        t.append(b);
+      }
       box.replaceChildren(t);
       return;
     }
@@ -242,22 +259,24 @@ export class Hud {
       specs.push({ key: slot.key, icon: slot.itemId, name: item?.name ?? slot.itemId, sub: `×${n}`, disabled: n === 0, action: { type: 'item', itemId: slot.itemId } });
     }
     const throwables = Object.keys(THROWABLES).filter((id) => (p.inventory[id] ?? 0) > 0);
-    const total = throwables.reduce((a, id) => a + (p.inventory[id] ?? 0), 0);
-    const tId = throwables[0];
+    const tId = throwables.includes(this.throwSel) ? this.throwSel : throwables[0];
     specs.push({
       key: 'G',
       icon: tId ?? 'shuriken',
       name: 'Lanzar',
-      sub: tId ? `${THROWABLES[tId].name} · ${total} en total` : 'sin arrojadizas',
+      sub: tId ? `${THROWABLES[tId].name} ×${p.inventory[tId] ?? 0}` : 'sin arrojadizas',
       disabled: !tId,
       action: { type: 'throw' },
     });
+    if (throwables.length > 1) {
+      specs.push({ key: 'V', icon: tId ?? 'shuriken', name: 'Cambiar arrojadiza', sub: `${throwables.length} tipos`, action: { type: 'cycleThrow' } });
+    }
     const w = getWeapon(p.equipment.weapon);
     if (w && w.reach >= 2) {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
-    if (p.weapons.length > 1) specs.push({ key: 'Q', icon: w?.id ?? 'tanto_gastado', name: 'Cambiar arma', sub: w?.name ?? '', action: { type: 'weapon' } });
-    specs.push({ key: 'E', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
+    if (p.weapons.length > 1) specs.push({ key: 'B', icon: w?.id ?? 'tanto_gastado', name: 'Cambiar arma', sub: w?.name ?? '', action: { type: 'weapon' } });
+    specs.push({ key: 'X', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 
     const sig = JSON.stringify(specs.map((s) => [s.key, s.icon, s.name, s.sub, s.disabled]));

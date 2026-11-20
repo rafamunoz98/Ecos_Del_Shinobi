@@ -17,9 +17,16 @@
           <button type="button" data-key=" " class="mid" aria-label="Esperar o confirmar">●</button>
           <button type="button" data-key="arrowright" class="right" aria-label="Derecha">▶</button>
           <button type="button" data-key="arrowdown" class="down" aria-label="Abajo">▼</button>
-          <button type="button" data-key="escape" class="cancel" aria-label="Cancelar">✕</button>
-          <button type="button" data-key="e" class="act" aria-label="Interactuar">E</button>
+          <button type="button" data-key="q" class="diag nw" aria-label="Arriba a la izquierda">◤</button>
+          <button type="button" data-key="e" class="diag ne" aria-label="Arriba a la derecha">◥</button>
+          <button type="button" data-key="z" class="diag sw" aria-label="Abajo a la izquierda">◣</button>
+          <button type="button" data-key="c" class="diag se" aria-label="Abajo a la derecha">◢</button>
         </div>
+        <div id="padr" aria-label="Acciones táctiles">
+          <button type="button" data-key="x" aria-label="Interactuar">Usar</button>
+          <button type="button" data-key="escape" aria-label="Cancelar">✕</button>
+        </div>
+        <div id="pan-hint" class="pan-hint" hidden>Vista libre · cualquier acción te recentra</div>
         <div id="dialogue" hidden></div>
       </div>
       <aside id="hud">
@@ -53,6 +60,7 @@
       <div id="menu" hidden></div>
       <div id="choice" hidden></div>
       <div id="forge" hidden></div>
+      <div id="shop" hidden></div>
       <div id="result" hidden>
         <div class="card">
           <h1 id="result-title"></h1>

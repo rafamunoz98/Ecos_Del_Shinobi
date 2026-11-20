@@ -65,7 +65,7 @@ export interface Player {
   known: string[];
   /** Notas de lore encontradas (ids de content/story). */
   notes: string[];
-  /** Reliquias ganadas en la expedición (p. ej. el sello antiguo del Campanero). */
+  /** Reliquias ganadas en la expedición (p. ej. el carrete roto de Sōkan). */
   relics: string[];
   /** Consumibles y arrojadizas: id → cantidad. */
   inventory: Record<string, number>;
@@ -368,6 +368,6 @@ export interface NewGameOptions {
   affinity?: Affinity;
   /** Sala en ASCII (pruebas y prototipos). Sin ella, se genera el sector 1 proceduralmente. */
   room?: readonly string[];
-  /** Número de sectores. Por defecto 3 (o 1 si se usa `room`). */
+  /** Número de sectores. Por defecto BALANCE.maxFloors (o 1 si se usa `room`). */
   floors?: number;
 }
