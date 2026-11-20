@@ -21,7 +21,8 @@ export function openDoors(s: GameState): Set<number> {
 }
 
 export function visionRadiusOf(s: GameState): number {
-  return terrainAt(s.map, s.player.pos) === 'bush' ? BALANCE.bushVision : BALANCE.visionRadius;
+  const base = terrainAt(s.map, s.player.pos) === 'bush' ? BALANCE.bushVision : BALANCE.visionRadius;
+  return s.player.statuses.some((st) => st.id === 'ceguera') ? Math.min(base, 2) : base;
 }
 
 /** Casillas que el jugador ve ahora mismo. */
@@ -42,6 +43,7 @@ export function enemySees(s: GameState, e: Enemy): boolean {
   const d = manhattan(e.pos, p);
   if (equals(e.pos, p)) return true;
   if (chebyshev(e.pos, p) === 1) return true;
+  if (s.player.statuses.some((st) => st.id === 'sigilo')) return false; // invisible salvo a quemarropa
   if (d > e.aggroRange) return false;
   if (terrainAt(s.map, p) === 'bush') return false;
   return hasLineOfSight(s.map, e.pos, p, openDoors(s));

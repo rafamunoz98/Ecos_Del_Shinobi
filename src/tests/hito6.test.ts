@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../content/enemies';
+import { learnableFor } from '../content/techniques';
 import { NOTES, NPCS, notesForFloor } from '../content/story';
 import { applyCommand, bossAlive, optionBlocker } from '../core/engine';
 import { createGame } from '../core/newGame';
@@ -218,11 +219,13 @@ describe('maestros, eventos y notas', () => {
     expect(c.defense).toBe(base.player.defense + 1);
     expect(c.maxHp).toBe(base.player.maxHp + 4);
     const l = applyCommand(base, choose('npc-0', 'leccion')).state.player;
-    expect(l.techniques).toContain('lengua_de_fuego');
+    expect(l.techniques.concat(l.grimoire)).toContain('pira_del_condenado');
   });
 
   it('la lección adelantada no se puede pagar si ya conoces la técnica', () => {
-    const s = makeGame(room, (g) => g.player.techniques.push('lengua_de_fuego'));
+    const s = makeGame(room, (g) => {
+      g.player.grimoire.push(...learnableFor('ascua'));
+    });
     expect(applyCommand(s, choose('npc-0', 'leccion')).reason).toBe('option_unavailable');
     const opt = NPCS.maestra_sayoko.options.find((o) => o.id === 'leccion');
     expect(opt && optionBlocker(s, opt)).toMatch(/Ya conoces/);

@@ -10,6 +10,10 @@ export const BALANCE = {
   burnDamage: 1,
   /** Regeneración natural: 1 de vida cada N rondas (sin ella, la expedición es una sangría sin remedio). */
   hpRegenEvery: 10,
+  /** Poder extra mientras dura el estado "potenciado". */
+  potentiatedPower: 2,
+  /** Defensa que pierde un enemigo "vulnerable". */
+  vulnerableDefense: 2,
   /** Defensa extra mientras dura el estado "protegido". */
   protectedDefense: 2,
   /** Daño extra al estrellar a un enemigo empujado contra un obstáculo (ignora defensa). */
@@ -29,6 +33,8 @@ export const BALANCE = {
   /** Experiencia necesaria para subir del nivel N: xpBase * N. */
   xpBase: 8,
   levelUp: { hp: 4, kiro: 1, powerEvery: 2 },
+  /** Técnicas que se pueden llevar equipadas a la vez (el resto queda en el grimorio). */
+  techniqueSlots: 4,
   /** Mapas grandes al estilo Pixel Dungeon; el tamaño de casilla en pantalla es independiente. */
   level: {
     width: 64,

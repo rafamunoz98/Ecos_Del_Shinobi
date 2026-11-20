@@ -19,7 +19,18 @@ export interface GameMap {
 }
 
 export type Affinity = 'ascua' | 'marea' | 'vendaval' | 'piedra' | 'rayo';
-export type StatusId = 'quemadura' | 'aturdido' | 'protegido';
+export type StatusId =
+  | 'quemadura'
+  | 'aturdido'
+  | 'protegido'
+  | 'veneno'
+  | 'ralentizado'
+  | 'atado'
+  | 'vulnerable'
+  | 'regeneracion'
+  | 'potenciado'
+  | 'sigilo'
+  | 'ceguera';
 export type EquipSlot = 'weapon' | 'armor';
 
 export interface StatusEffect {
@@ -40,7 +51,10 @@ export interface Player {
   level: number;
   xp: number;
   affinity: Affinity;
+  /** Técnicas equipadas (hasta BALANCE.techniqueSlots). */
   techniques: string[];
+  /** Técnicas conocidas que no están equipadas (cambiar una por otra gasta un turno). */
+  grimoire: string[];
   /** Armas cuerpo a cuerpo que posee (la equipada es equipment.weapon). */
   weapons: string[];
   /** Notas de lore encontradas (ids de content/story). */
@@ -58,6 +72,18 @@ export interface Player {
   weaponLevels: Record<string, number>;
   equipment: Record<EquipSlot, string | null>;
   statuses: StatusEffect[];
+}
+
+/** Aliado invocado (clon de sombra, sapo...): lucha contra los enemigos unas rondas y desaparece. */
+export interface Ally {
+  id: string;
+  kind: string;
+  pos: Vec;
+  hp: number;
+  maxHp: number;
+  power: number;
+  /** Rondas que le quedan. */
+  turns: number;
 }
 
 export interface Enemy {
@@ -165,6 +191,7 @@ export interface GameState {
   map: GameMap;
   player: Player;
   enemies: Enemy[];
+  allies: Ally[];
   chests: Chest[];
   barriers: Barrier[];
   drops: Drop[];
@@ -194,6 +221,8 @@ export type Command =
   | { type: 'UseItem'; itemId: string }
   | { type: 'Throw'; itemId: string; target: Vec }
   | { type: 'EquipWeapon'; weaponId: string }
+  /** Equipa una técnica del grimorio; si no hay ranura libre sustituye a `replace`. Gasta un turno. */
+  | { type: 'EquipTechnique'; techniqueId: string; replace?: string }
   | { type: 'Interact'; target: Vec }
   /** Elige una opción de un maestro o altar (ver content/story). */
   | { type: 'Choose'; npcId: string; optionId: string }
@@ -221,6 +250,9 @@ export type InvalidReason =
   | 'no_item'
   | 'not_throwable'
   | 'already_equipped'
+  | 'already_known'
+  | 'not_in_grimoire'
+  | 'bad_slot'
   | 'nothing_to_interact'
   | 'already_opened'
   | 'exit_sealed'
@@ -252,6 +284,11 @@ export type GameEvent =
   | { type: 'DoorUnlocked'; pos: Vec }
   | { type: 'WeaponUpgraded'; weaponId: string; level: number }
   | { type: 'WeaponEquipped'; weaponId: string }
+  | { type: 'TechniqueLearned'; techniqueId: string; equipped: boolean }
+  | { type: 'TechniqueEquipped'; techniqueId: string; replaced: string | null }
+  | { type: 'AllySummoned'; allyId: string; pos: Vec }
+  | { type: 'AllyDefeated'; allyId: string }
+  | { type: 'AllyMoved'; allyId: string; from: Vec; to: Vec }
   | { type: 'EnemyAlerted'; enemyId: string }
   | { type: 'EnemyLostTrack'; enemyId: string }
   | { type: 'SneakAttack'; enemyId: string }

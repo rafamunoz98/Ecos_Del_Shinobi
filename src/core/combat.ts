@@ -16,7 +16,8 @@ export function weaponLevel(p: Player, weaponId: string | null | undefined): num
 /** Poder base + bonificación del arma equipada + mejoras de forja. */
 export function effectivePower(p: Player): number {
   const w = getWeapon(p.equipment.weapon);
-  return p.power + (w?.bonus ?? 0) + weaponLevel(p, w?.id) * BALANCE.forge.bonusPerLevel;
+  const boosted = p.statuses.some((s) => s.id === 'potenciado') ? BALANCE.potentiatedPower : 0;
+  return p.power + (w?.bonus ?? 0) + weaponLevel(p, p.equipment.weapon) * BALANCE.forge.bonusPerLevel + boosted;
 }
 
 /** Defensa base + vestimenta + estado "protegido". */

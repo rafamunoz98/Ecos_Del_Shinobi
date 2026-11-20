@@ -1,9 +1,11 @@
 import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, type EnemyDef } from '../content/enemies';
-import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, coinAmount, getEquipment, getItem, isKey, lootTableFor, type LootEntry } from '../content/items';
+import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getEquipment, getItem, isKey, lootTableFor, type LootEntry } from '../content/items';
 import { itemName } from '../content/names';
-import { getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { getAllyDef } from '../content/allies';
 import { getNpc, getNote, type NpcOption } from '../content/story';
+import { STATUS_NAMES } from '../content/describe';
 import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
 import { FORGE_KIND, generateLevel } from '../dungeon/generator';
 import { createEnemy } from '../dungeon/spawn';
@@ -54,6 +56,9 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   no_item: 'No te quedan de ese objeto.',
   not_throwable: 'Eso no se puede lanzar.',
   already_equipped: 'Ya la llevas equipada.',
+  already_known: 'Ya conoces esa técnica.',
+  not_in_grimoire: 'Esa técnica no está en tu grimorio.',
+  bad_slot: 'Elige cuál de tus técnicas equipadas sustituir.',
   nothing_to_interact: 'No hay nada con lo que interactuar ahí.',
   already_opened: 'Ya está abierto.',
   exit_sealed: 'La salida está sellada: algo guarda esta cámara.',
@@ -78,11 +83,17 @@ const isBoss = (e: Enemy): boolean => getEnemy(e.kind)?.behavior === 'boss';
 /** ¿Queda un jefe vivo en el sector? (mientras viva, la salida está sellada) */
 export const bossAlive = (s: GameState): boolean => s.enemies.some(isBoss);
 const enemyName = (e: Enemy): string => getEnemy(e.kind)?.name ?? e.kind;
+/** Defensa de un enemigo contando el estado «vulnerable». */
+const defenseOf = (e: Enemy): number => Math.max(0, e.defense - (e.statuses.some((st) => st.id === 'vulnerable') ? BALANCE.vulnerableDefense : 0));
+/** Estados a los que un jefe es inmune. */
+const BOSS_IMMUNE: readonly string[] = ['aturdido', 'atado', 'ralentizado'];
+/** Los manuales de técnica viven en la mochila como «manual:<id de técnica>». */
+export const MANUAL_PREFIX = 'manual:';
 
 /** Casilla transitable y vacía: sin pared, enemigo, cofre, barrera ni jugador. */
 function cellFree(s: GameState, p: Vec): boolean {
   return (
-    inBounds(s.map, p) && isWalkable(s.map, p) && !enemyAt(s, p) && !chestAt(s, p) && !npcAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
+    inBounds(s.map, p) && isWalkable(s.map, p) && !enemyAt(s, p) && !allyAt(s, p) && !chestAt(s, p) && !npcAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
   );
 }
 
@@ -114,11 +125,12 @@ function pushDir(from: Vec, to: Vec): Vec {
   return d ?? dominantDir(from, to);
 }
 
-function diamond(s: GameState, origin: Vec, radius: number, needLos: boolean): Vec[] {
+/** Casillas transitables a distancia ≤ radius: en rombo (cruz) o en cuadrado (con diagonales), con o sin línea de visión. */
+function region(s: GameState, origin: Vec, radius: number, needLos: boolean, shape: 'diamond' | 'square' = 'diamond'): Vec[] {
   const cells: Vec[] = [];
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
-      if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+      if (shape === 'diamond' && Math.abs(dx) + Math.abs(dy) > radius) continue;
       const p = { x: origin.x + dx, y: origin.y + dy };
       if (!inBounds(s.map, p) || !isWalkable(s.map, p)) continue;
       if (needLos && !hasLineOfSight(s.map, origin, p, openDoors(s))) continue;
@@ -126,6 +138,35 @@ function diamond(s: GameState, origin: Vec, radius: number, needLos: boolean): V
     }
   }
   return cells;
+}
+
+const diamond = (s: GameState, origin: Vec, radius: number, needLos: boolean): Vec[] => region(s, origin, radius, needLos, 'diamond');
+
+const allyAt = (s: GameState, p: Vec) => s.allies.find((a) => equals(a.pos, p));
+
+/** Carrera de una técnica 'dash': casillas recorridas, destino (null si no te mueves) y enemigo golpeado. */
+function dashPlan(s: GameState, length: number, target: Vec): { cells: Vec[]; dest: Vec | null; victim: Enemy | undefined } {
+  const from = s.player.pos;
+  const dir = alignedDir(from, target);
+  const cells: Vec[] = [];
+  let dest: Vec | null = null;
+  let victim: Enemy | undefined;
+  if (!dir) return { cells, dest, victim };
+  let prev = from;
+  for (let i = 1; i <= length; i++) {
+    const c = { x: from.x + dir.x * i, y: from.y + dir.y * i };
+    if (!inBounds(s.map, c) || !isWalkable(s.map, c) || !stepOk(s.map, prev, c) || barrierAt(s, c) || chestAt(s, c) || npcAt(s, c) || allyAt(s, c)) break;
+    const e = enemyAt(s, c);
+    if (e) {
+      victim = e;
+      cells.push(c);
+      break;
+    }
+    cells.push(c);
+    dest = c;
+    prev = c;
+  }
+  return { cells, dest, victim };
 }
 
 /** Casillas que afecta una técnica lanzada sobre `target` (sirve para el aviso previo y para resolverla). */
@@ -136,9 +177,11 @@ function techniqueCells(s: GameState, def: TechniqueDef, target: Vec): Vec[] {
     case 'self':
       return [from];
     case 'area':
-      return inBounds(s.map, target) ? diamond(s, target, t.areaRadius, false) : [];
+      return inBounds(s.map, target) ? region(s, target, t.areaRadius, false, t.shape) : [];
     case 'burst':
-      return diamond(s, from, t.radius, true).filter((c) => !equals(c, from));
+      return region(s, from, t.radius, true, t.shape).filter((c) => !equals(c, from));
+    case 'dash':
+      return dashPlan(s, t.length, target).cells;
     case 'blink':
       return inBounds(s.map, target) ? [target] : [];
     case 'line': {
@@ -175,6 +218,7 @@ function validateTechnique(s: GameState, techniqueId: string, target: Vec): Inva
     case 'burst':
       return null;
     case 'line':
+    case 'dash':
       if (!inBounds(s.map, target)) return 'out_of_bounds';
       if (!alignedDir(p.pos, target)) return 'not_aligned';
       return techniqueCells(s, def, target).length > 0 ? null : 'blocked';
@@ -317,8 +361,8 @@ export function optionBlocker(state: GameState, opt: NpcOption): string | null {
   if (c?.item && (p.inventory[c.item.id] ?? 0) < c.item.count) {
     return `Necesitas ${c.item.count} × ${getThrowable(c.item.id)?.name ?? getItem(c.item.id)?.name ?? c.item.id}.`;
   }
-  if (opt.gains.some((g) => g.kind === 'advancedTechnique') && techniquesFor(p.affinity, 3).every((id) => p.techniques.includes(id))) {
-    return 'Ya conoces las técnicas de tu afinidad.';
+  if (opt.gains.some((g) => g.kind === 'advancedTechnique') && !nextLearnable(p)) {
+    return 'Ya conoces todas las técnicas que se pueden enseñar.';
   }
   return null;
 }
@@ -368,9 +412,21 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       return attackPlan(state, cmd.target).reason;
     case 'UseTechnique':
       return validateTechnique(state, cmd.techniqueId, cmd.target);
-    case 'UseItem':
+    case 'UseItem': {
+      if (cmd.itemId.startsWith(MANUAL_PREFIX)) {
+        const tech = getTechnique(cmd.itemId.slice(MANUAL_PREFIX.length));
+        if (!tech) return 'unknown_item';
+        if ((p.inventory[cmd.itemId] ?? 0) <= 0) return 'no_item';
+        return p.techniques.includes(tech.id) || p.grimoire.includes(tech.id) ? 'already_known' : null;
+      }
       if (!getItem(cmd.itemId)) return 'unknown_item';
       return (p.inventory[cmd.itemId] ?? 0) > 0 ? null : 'no_item';
+    }
+    case 'EquipTechnique': {
+      if (!p.grimoire.includes(cmd.techniqueId)) return 'not_in_grimoire';
+      if (p.techniques.length < BALANCE.techniqueSlots) return null;
+      return cmd.replace && p.techniques.includes(cmd.replace) ? null : 'bad_slot';
+    }
     case 'Throw':
       return validateThrow(state, cmd.itemId, cmd.target);
     case 'EquipWeapon':
@@ -525,15 +581,26 @@ function applyStatus(target: { statuses: { id: StatusId; turns: number }[] }, id
 
 function tickStatuses(ctx: Ctx, target: Player | Enemy, targetId: string): void {
   for (const st of target.statuses) {
-    if (st.id === 'quemadura') {
+    if (st.id === 'regeneracion' && targetId === 'player' && target.hp < target.maxHp) {
+      target.hp += 1;
+      ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
+    }
+    if (st.id === 'quemadura' || st.id === 'veneno') {
       target.hp = Math.max(0, target.hp - BALANCE.burnDamage);
       if (targetId === 'player') ctx.state.stats.damageTaken += BALANCE.burnDamage;
       else ctx.state.stats.damageDealt += BALANCE.burnDamage;
-      ctx.events.push({ type: 'DamageApplied', targetId, amount: BALANCE.burnDamage, source: 'quemadura' });
+      ctx.events.push({ type: 'DamageApplied', targetId, amount: BALANCE.burnDamage, source: st.id });
     }
     st.turns -= 1;
   }
   target.statuses = target.statuses.filter((st) => st.turns > 0);
+}
+
+/** Gasta una unidad de un objeto de la mochila. */
+function consume(p: Player, itemId: string, n = 1): void {
+  const left = (p.inventory[itemId] ?? 0) - n;
+  if (left > 0) p.inventory[itemId] = left;
+  else delete p.inventory[itemId];
 }
 
 /** Sube un nivel (solo se llama al despejar un sector): más vida, kiro y poder, y técnicas de la afinidad. */
@@ -545,11 +612,27 @@ function levelUp(ctx: Ctx): void {
   p.maxKiro += BALANCE.levelUp.kiro;
   p.kiro += BALANCE.levelUp.kiro;
   if (p.level % BALANCE.levelUp.powerEvery === 0) p.power += 1;
-  const learned = techniquesFor(p.affinity, p.level).filter((id) => !p.techniques.includes(id));
-  p.techniques.push(...learned);
+  const learned = techniquesFor(p.affinity, p.level).filter((id) => !p.techniques.includes(id) && !p.grimoire.includes(id));
   ctx.events.push({ type: 'LevelUp', level: p.level, learned });
   say(ctx, `¡Sector despejado! Subes al nivel ${p.level}.`);
-  for (const id of learned) say(ctx, `Aprendes ${getTechnique(id)?.name ?? id}.`);
+  for (const id of learned) learnTechnique(ctx, id);
+}
+
+/** Aprende una técnica: va a una ranura libre si la hay y, si no, al grimorio (el jugador elige luego cuál sustituir). */
+function learnTechnique(ctx: Ctx, id: string): boolean {
+  const p = ctx.state.player;
+  const def = getTechnique(id);
+  if (!def || p.techniques.includes(id) || p.grimoire.includes(id)) return false;
+  const equipped = p.techniques.length < BALANCE.techniqueSlots;
+  (equipped ? p.techniques : p.grimoire).push(id);
+  ctx.events.push({ type: 'TechniqueLearned', techniqueId: id, equipped });
+  say(ctx, equipped ? `Aprendes ${def.name}.` : `Aprendes ${def.name}, pero no tienes ranura libre: elige cuál de tus técnicas sustituir (Tab → Técnicas).`);
+  return true;
+}
+
+/** Primera técnica aprendible de tu afinidad (o común) que todavía no conoces ni llevas como manual. */
+function nextLearnable(p: Player): string | undefined {
+  return learnableFor(p.affinity).find((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
 }
 
 /** Cuenta una baja del sector; al caer el último enemigo (los convocados no cuentan) se sube de nivel, una vez por sector. */
@@ -622,6 +705,7 @@ function dropEnemyLoot(ctx: Ctx, e: Enemy): void {
   if (isBoss(e)) {
     placeDrop(s, e.pos, 'moneda', BALANCE.bossLoot.coins);
     placeDrop(s, e.pos, 'esquirla', BALANCE.bossLoot.shards);
+    placeDrop(s, { x: e.pos.x, y: e.pos.y }, MANUAL_ITEM, 1);
     return;
   }
   const rng = new Rng(mixSeed((s.seed + Math.imul(s.turn, 0x9e3779b1)) >>> 0, s.floor, hashId(e.id)));
@@ -681,10 +765,48 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
     applyStatus(p, def.selfStatus.status, def.selfStatus.turns);
     ctx.events.push({ type: 'StatusApplied', targetId: 'player', status: def.selfStatus.status, turns: def.selfStatus.turns });
   }
+  if (def.heal) {
+    const gained = Math.min(def.heal, p.maxHp - p.hp);
+    p.hp += gained;
+    ctx.events.push({ type: 'HealApplied', amount: gained, resource: 'hp' });
+    say(ctx, `Recuperas ${gained} de vida.`);
+  }
+  if (def.selfDamage) {
+    const paid = Math.max(0, Math.min(def.selfDamage, p.hp - 1));
+    p.hp -= paid;
+    s.stats.damageTaken += paid;
+    ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount: paid, source: def.id });
+  }
+  if (def.restoreKiro) {
+    const gained = Math.min(def.restoreKiro, p.maxKiro - p.kiro);
+    p.kiro += gained;
+    ctx.events.push({ type: 'HealApplied', amount: gained, resource: 'kiro' });
+    say(ctx, `Recuperas ${gained} de kiro.`);
+  }
+  if (def.summon) summonAllies(ctx, def.summon.kind, def.summon.count, def.summon.turns);
   if (def.target.kind === 'blink') {
     const from = p.pos;
     p.pos = target;
     ctx.events.push({ type: 'PlayerMoved', from, to: target });
+  }
+  if (def.target.kind === 'dash') {
+    const plan = dashPlan(s, def.target.length, target);
+    if (plan.dest) {
+      const from = p.pos;
+      p.pos = plan.dest;
+      ctx.events.push({ type: 'PlayerMoved', from, to: plan.dest });
+    }
+  }
+  if (def.losePursuers) {
+    for (const e of s.enemies) {
+      if (e.alert > 0 && chebyshev(e.pos, p.pos) > 1) {
+        e.alert = 0;
+        e.lastSeen = null;
+        e.tracking = false;
+        ctx.events.push({ type: 'EnemyLostTrack', enemyId: e.id });
+      }
+    }
+    say(ctx, 'Un tronco ocupa tu lugar: tus perseguidores pierden tu rastro.');
   }
   if (def.target.kind === 'barrier') {
     for (const c of cells) s.barriers.push({ pos: c, turns: def.barrierTurns ?? 6 });
@@ -696,19 +818,33 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
   for (const enemy of [...s.enemies]) {
     if (!cells.some((c) => equals(c, enemy.pos))) continue;
     if (def.damage) {
-      const dmg = calcDamage(def.damage.power, levelBonus, def.damage.ignoreDefense ? 0 : enemy.defense);
+      const dmg = calcDamage(def.damage.power, levelBonus, def.damage.ignoreDefense ? 0 : defenseOf(enemy));
       damageEnemy(ctx, enemy, dmg, def.id);
       say(ctx, `${enemyName(enemy)} recibe ${dmg} de daño.`);
     }
     if (def.inflict && enemy.hp > 0) {
-      if (def.inflict.status === 'aturdido' && isBoss(enemy)) {
-        say(ctx, `${enemyName(enemy)} es inmune al aturdimiento.`);
+      if (isBoss(enemy) && BOSS_IMMUNE.includes(def.inflict.status)) {
+        say(ctx, `${enemyName(enemy)} es inmune a ${STATUS_NAMES[def.inflict.status].toLowerCase()}.`);
       } else {
         applyStatus(enemy, def.inflict.status, def.inflict.turns);
         ctx.events.push({ type: 'StatusApplied', targetId: enemy.id, status: def.inflict.status, turns: def.inflict.turns });
       }
     }
     if (def.push && enemy.hp > 0 && !isBoss(enemy)) pushEnemy(ctx, enemy, def.push);
+    if (def.pull && enemy.hp > 0 && !isBoss(enemy)) pullEnemy(ctx, enemy, def.pull);
+  }
+}
+
+/** Arrastra a un enemigo `steps` casillas hacia el jugador (se detiene ante obstáculos y ante el propio jugador). */
+function pullEnemy(ctx: Ctx, enemy: Enemy, steps: number): void {
+  const s = ctx.state;
+  for (let i = 0; i < steps; i++) {
+    const dir = pushDir(enemy.pos, s.player.pos);
+    const next = { x: enemy.pos.x + dir.x, y: enemy.pos.y + dir.y };
+    if (!cellFree(s, next) || !stepOk(s.map, enemy.pos, next)) return;
+    const from = enemy.pos;
+    enemy.pos = next;
+    ctx.events.push({ type: 'EnemyMoved', enemyId: enemy.id, from, to: next });
   }
 }
 
@@ -757,6 +893,21 @@ function collect(ctx: Ctx, itemId: string, count: number, verb: string): void {
   if (isKey(itemId)) {
     if (!p.keys.includes(itemId)) p.keys.push(itemId);
     say(ctx, `${verb} ${KEYS[itemId].name}.`);
+    return;
+  }
+  if (itemId === MANUAL_ITEM) {
+    // El manual sin abrir se convierte en el de una técnica que aún no conoces (tirada determinista con el generador de la partida).
+    const pool = learnableFor(p.affinity).filter((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
+    if (pool.length === 0) {
+      p.shards += 3;
+      say(ctx, `${verb} un manual, pero ya dominas todo lo que enseña: lo desmontas (+3 esquirlas).`);
+      return;
+    }
+    const r = nextRandom(ctx.state.rngState);
+    ctx.state.rngState = r.state;
+    const id = pool[Math.floor(r.value * pool.length)];
+    p.inventory[MANUAL_PREFIX + id] = 1;
+    say(ctx, `${verb} un manual: «${getTechnique(id)?.name ?? id}». Léelo desde el menú (Tab → Objetos) para aprenderla.`);
     return;
   }
   const weapon = getWeapon(itemId);
@@ -809,6 +960,7 @@ function descend(ctx: Ctx): void {
   s.map = level.map;
   s.player.pos = level.playerStart;
   s.enemies = level.enemies;
+  s.allies = [];
   s.chests = level.chests;
   s.barriers = [];
   s.drops = level.drops;
@@ -834,6 +986,12 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
     case 'Move': {
       const from = p.pos;
       p.pos = { x: from.x + cmd.dx, y: from.y + cmd.dy };
+      const friend = allyAt(s, p.pos);
+      if (friend) {
+        // Cambias de sitio con tu aliado en vez de bloquearle el paso.
+        friend.pos = { ...from };
+        ctx.events.push({ type: 'AllyMoved', allyId: friend.id, from: p.pos, to: from });
+      }
       ctx.events.push({ type: 'PlayerMoved', from, to: p.pos });
       return;
     }
@@ -848,7 +1006,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       const plan = attackPlan(s, cmd.target);
       ctx.events.push({ type: 'PlayerAttacked', weaponId: plan.weapon.id, cells: plan.cells, targets: plan.hits.map((e) => e.pos) });
       for (const enemy of plan.hits) {
-        let dmg = calcDamage(effectivePower(p), 0, enemy.defense);
+        let dmg = calcDamage(effectivePower(p), 0, defenseOf(enemy));
         if (enemy.alert === 0) {
           dmg *= BALANCE.sneakMultiplier;
           ctx.state.stats.sneakAttacks += 1;
@@ -870,7 +1028,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       ctx.events.push({ type: 'ItemThrown', itemId: def.id, from: p.pos, to: landing, hit: Boolean(victim) });
       if (victim) {
         const bonus = Math.floor((p.level - 1) / 2);
-        let dmg = calcDamage(def.damage, bonus, def.ignoreDefense ? 0 : victim.defense);
+        let dmg = calcDamage(def.damage, bonus, def.ignoreDefense ? 0 : defenseOf(victim));
         if (victim.alert === 0) {
           dmg *= BALANCE.sneakMultiplier;
           ctx.state.stats.sneakAttacks += 1;
@@ -906,7 +1064,29 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
     case 'UseTechnique':
       castTechnique(ctx, getTechnique(cmd.techniqueId) as TechniqueDef, cmd.target);
       return;
+    case 'EquipTechnique': {
+      p.grimoire = p.grimoire.filter((id) => id !== cmd.techniqueId);
+      let replaced: string | null = null;
+      if (p.techniques.length < BALANCE.techniqueSlots) {
+        p.techniques.push(cmd.techniqueId);
+      } else {
+        const i = p.techniques.indexOf(cmd.replace as string);
+        replaced = p.techniques[i];
+        p.techniques[i] = cmd.techniqueId;
+        p.grimoire.push(replaced);
+      }
+      ctx.events.push({ type: 'TechniqueEquipped', techniqueId: cmd.techniqueId, replaced });
+      say(ctx, replaced ? `Cambias ${getTechnique(replaced)?.name} por ${getTechnique(cmd.techniqueId)?.name}.` : `Equipas ${getTechnique(cmd.techniqueId)?.name}.`);
+      return;
+    }
     case 'UseItem': {
+      if (cmd.itemId.startsWith(MANUAL_PREFIX)) {
+        consume(p, cmd.itemId);
+        ctx.state.stats.itemsUsed += 1;
+        ctx.events.push({ type: 'ItemUsed', itemId: cmd.itemId });
+        learnTechnique(ctx, cmd.itemId.slice(MANUAL_PREFIX.length));
+        return;
+      }
       const item = getItem(cmd.itemId);
       if (!item) return;
       const left = (p.inventory[cmd.itemId] ?? 0) - 1;
@@ -1006,9 +1186,8 @@ function applyOption(ctx: Ctx, npc: Npc, opt: NpcOption): void {
         p.hp = p.maxHp;
         break;
       case 'advancedTechnique': {
-        const learned = techniquesFor(p.affinity, 3).filter((id) => !p.techniques.includes(id));
-        p.techniques.push(...learned);
-        for (const id of learned) say(ctx, `Aprendes ${getTechnique(id)?.name ?? id}.`);
+        const id = nextLearnable(p);
+        if (id) learnTechnique(ctx, id);
         break;
       }
     }
@@ -1029,10 +1208,80 @@ function enemyCanEnter(s: GameState, self: Enemy, p: Vec): boolean {
     inBounds(s.map, p) &&
     isWalkable(s.map, p) &&
     !s.enemies.some((o) => o !== self && equals(o.pos, p)) &&
+    !allyAt(s, p) &&
     !chestAt(s, p) &&
     !barrierAt(s, p) &&
     !equals(s.player.pos, p)
   );
+}
+
+// ---------- Aliados invocados ----------
+
+/** Invoca aliados en casillas libres junto al jugador. */
+function summonAllies(ctx: Ctx, kind: string, count: number, turns: number): void {
+  const s = ctx.state;
+  const def = getAllyDef(kind);
+  if (!def) return;
+  const cells = freeCellsAround(s, s.player.pos, 2);
+  for (let i = 0; i < count && i < cells.length; i++) {
+    const ally = {
+      id: `ally-${s.turn}-${s.allies.length}`,
+      kind,
+      pos: cells[i],
+      hp: def.maxHp,
+      maxHp: def.maxHp,
+      power: def.power + Math.floor((s.player.level - 1) / 2),
+      turns,
+    };
+    s.allies.push(ally);
+    ctx.events.push({ type: 'AllySummoned', allyId: ally.id, pos: cells[i] });
+    say(ctx, `${def.name} aparece a tu lado.`);
+  }
+  if (cells.length === 0) say(ctx, 'No hay sitio para invocar nada aquí.');
+}
+
+/** Turno de los aliados: golpean al enemigo más cercano a su alcance o se acercan; sin enemigos, siguen al jugador. */
+function runAllies(ctx: Ctx): void {
+  const s = ctx.state;
+  for (const ally of s.allies) {
+    const def = getAllyDef(ally.kind);
+    if (!def || ally.hp <= 0) continue;
+    for (let a = 0; a < def.actions; a++) {
+      const foes = s.enemies.filter((e) => e.hp > 0 && chebyshev(e.pos, ally.pos) <= 8).sort((x, y) => chebyshev(x.pos, ally.pos) - chebyshev(y.pos, ally.pos));
+      const foe = foes[0];
+      if (foe && adjacent(s.map, ally.pos, foe.pos)) {
+        const dmg = calcDamage(ally.power, 0, defenseOf(foe));
+        damageEnemy(ctx, foe, dmg, 'aliado');
+        say(ctx, `${def.name} golpea a ${enemyName(foe)} (${dmg} de daño).`);
+        break;
+      }
+      const goal = foe ? foe.pos : chebyshev(ally.pos, s.player.pos) > 2 ? s.player.pos : null;
+      if (!goal) break;
+      const blocked = (q: Vec): boolean => !cellFree(s, q) || equals(q, ally.pos);
+      const path = findPath(s.map, ally.pos, goal, blocked);
+      if (!path || path.length === 0) break;
+      const next = path[0];
+      if (!cellFree(s, next)) break;
+      const from = ally.pos;
+      ally.pos = next;
+      ctx.events.push({ type: 'AllyMoved', allyId: ally.id, from, to: next });
+    }
+  }
+}
+
+/** Retira a los aliados caídos o que se agotan (tras contar la ronda). */
+function reapAllies(ctx: Ctx, countDown: boolean): void {
+  const s = ctx.state;
+  const keep = [];
+  for (const a of s.allies) {
+    if (countDown) a.turns -= 1;
+    if (a.hp > 0 && a.turns > 0) keep.push(a);
+    else {
+      ctx.events.push({ type: 'AllyDefeated', allyId: a.id });
+      say(ctx, a.hp > 0 ? `${getAllyDef(a.kind)?.name ?? 'Tu aliado'} se desvanece.` : `${getAllyDef(a.kind)?.name ?? 'Tu aliado'} cae.`);
+    }
+  }
+  s.allies = keep;
 }
 
 // ---------- Ataques anunciados ----------
@@ -1155,7 +1404,20 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
     }
   }
 
+  // Si no estás a su alcance pero un aliado tuyo sí, se ensaña con él.
+  if (def.behavior === 'melee' && !adjacent(s.map, enemy.pos, p.pos)) {
+    const friend = s.allies.find((a) => adjacent(s.map, enemy.pos, a.pos));
+    if (friend) {
+      const dmg = calcDamage(enemy.power, 0, 0);
+      friend.hp -= dmg;
+      ctx.events.push({ type: 'DamageApplied', targetId: friend.id, amount: dmg, source: enemy.id });
+      say(ctx, `${enemyName(enemy)} golpea a ${getAllyDef(friend.kind)?.name ?? 'tu aliado'} (${dmg} de daño).`);
+      return 'attacked';
+    }
+  }
+
   if (enemy.aggroRange === 0) return 'none'; // centinela: ataca a quien tiene al lado pero no se mueve
+  if (enemy.statuses.some((st) => st.id === 'atado')) return 'none'; // inmovilizado
   if (def.behavior === 'boss' && s.turn % 2 !== 0) return 'none'; // el Campanero avanza despacio
   // Sin verte, va a donde te vio por última vez; al llegar sigue tu rastro hasta donde estés, aunque sea tras una puerta.
   let goal = sees ? p.pos : enemy.lastSeen;
@@ -1202,6 +1464,7 @@ function enemyAct(ctx: Ctx, enemy: Enemy, index: number): void {
   if (enemy.alert === 0) return; // no sabe de ti: permanece quieto
   // Los lentos actúan una de cada N rondas; el índice escalona a los de la misma clase (determinista).
   if (def.actEvery > 1 && (ctx.state.turn + index) % def.actEvery !== 0) return;
+  if (enemy.statuses.some((st) => st.id === 'ralentizado') && (ctx.state.turn + index) % 2 !== 0) return;
   let progressed = false;
   for (let n = 0; n < def.actionsPerTurn; n++) {
     const r = enemyStep(ctx, enemy, def, sees);
@@ -1251,6 +1514,10 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
   resolvePlayerAction(ctx, cmd); // pasos 4-5
   if (s.status === 'playing') pickUp(ctx);
   reapDead(ctx);
+  if (s.status === 'playing') {
+    runAllies(ctx); // tus aliados actúan tras ti y antes que los enemigos
+    reapDead(ctx);
+  }
 
   if (s.status === 'playing') {
     // paso 6: estados del jugador
@@ -1283,6 +1550,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     // paso 8: estados de enemigos y duración de barreras
     for (const enemy of s.enemies) tickStatuses(ctx, enemy, enemy.id);
     s.barriers = s.barriers.map((b) => ({ ...b, turns: b.turns - 1 })).filter((b) => b.turns > 0);
+    reapAllies(ctx, true);
     reapDead(ctx);
   }
 

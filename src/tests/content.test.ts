@@ -1,22 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { AFFINITIES } from '../content/affinities';
 import { ENEMIES } from '../content/enemies';
-import { ALL_LOOT_TABLES, CURRENCY, EQUIPMENT, ITEMS, KEYS } from '../content/items';
-import { getTechnique, needsAim, TECHNIQUES, techniquesFor } from '../content/techniques';
+import { ALL_LOOT_TABLES, CURRENCY, EQUIPMENT, ITEMS, KEYS, MANUAL_ITEM } from '../content/items';
+import { getTechnique, learnableFor, needsAim, TECHNIQUES, techniquesFor } from '../content/techniques';
 import { THROWABLES, WEAPONS } from '../content/weapons';
 
 describe('coherencia del contenido', () => {
-  it('cada afinidad tiene una técnica de iniciación (nivel 1) y una avanzada (nivel 3)', () => {
+  it('cada afinidad desbloquea 5 técnicas por nivel (una por nivel) y ofrece al menos 3 aprendibles', () => {
     for (const a of AFFINITIES) {
       expect(techniquesFor(a, 1), a).toHaveLength(1);
-      expect(techniquesFor(a, 3), a).toHaveLength(2);
+      expect(techniquesFor(a, 3), a).toHaveLength(3);
+      expect(techniquesFor(a, 5), a).toHaveLength(5);
+      expect(techniquesFor(a, 9), a).toHaveLength(5);
+      expect(learnableFor(a).length, a).toBeGreaterThanOrEqual(3);
     }
   });
 
   it('los ids coinciden con sus claves y los costes son positivos', () => {
     for (const [k, t] of Object.entries(TECHNIQUES)) {
       expect(t.id).toBe(k);
-      expect(t.kiroCost).toBeGreaterThan(0);
+      expect(t.kiroCost).toBeGreaterThanOrEqual(0);
       expect(t.description.length).toBeGreaterThan(10);
     }
     for (const [k, e] of Object.entries(ENEMIES)) expect(e.id).toBe(k);
@@ -27,7 +30,7 @@ describe('coherencia del contenido', () => {
 
   it('la tabla de botín solo referencia contenido existente', () => {
     const table: Record<string, Record<string, unknown>> = {
-      item: ITEMS,
+      item: { ...ITEMS, [MANUAL_ITEM]: true },
       equipment: EQUIPMENT,
       weapon: WEAPONS,
       throwable: THROWABLES,

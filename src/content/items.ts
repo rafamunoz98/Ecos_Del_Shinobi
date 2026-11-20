@@ -65,6 +65,9 @@ export const KEYS: Record<string, { id: string; name: string; description: strin
   llave_laca: { id: 'llave_laca', name: 'Llave de laca', description: 'Abre un cofre lacado de este sector.' },
 };
 
+/** Manual sin abrir (en el suelo o un cofre): al recogerlo se convierte en el manual de una técnica que aún no conoces. */
+export const MANUAL_ITEM = 'manual_tecnica';
+
 export const isKey = (id: string): boolean => Object.hasOwn(KEYS, id);
 export const isCurrency = (id: string): boolean => Object.hasOwn(CURRENCY, id);
 
@@ -92,6 +95,7 @@ export const GROUND_LOOT: readonly LootEntry[] = [
   { kind: 'throwable', id: 'shuriken', weight: 2, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 1 },
+  { kind: 'item', id: 'manual_tecnica', weight: 1, minFloor: 2 },
 ];
 
 /** Cofre de madera: equipo y reservas generosas. */
@@ -129,6 +133,7 @@ export const VAULT_EXTRAS: readonly LootEntry[] = [
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'shards', id: 'esquirla', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'coins', id: 'moneda', weight: 3, minFloor: 1, amount: 6 },
+  { kind: 'item', id: 'manual_tecnica', weight: 3, minFloor: 1 },
 ];
 
 export const ALL_LOOT_TABLES: readonly (readonly LootEntry[])[] = [GROUND_LOOT, CHEST_LOOT, LACQUER_LOOT, VAULT_EXTRAS];
