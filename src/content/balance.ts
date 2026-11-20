@@ -29,7 +29,7 @@ export const BALANCE = {
   /** Multiplicador del golpe a un enemigo que no sabe de ti. */
   sneakMultiplier: 2,
   /** Sectores de una expedición (el último se completa cruzando su salida). */
-  maxFloors: 3,
+  maxFloors: 6,
   /** Experiencia necesaria para subir del nivel N: xpBase * N. */
   xpBase: 8,
   levelUp: { hp: 4, kiro: 1, powerEvery: 2 },
@@ -54,7 +54,7 @@ export const BALANCE = {
     lacquerChance: 0.6,
   },
   /** Mesas de forja: solo aparecen en estos sectores. */
-  forgeFloors: [2, 3],
+  forgeFloors: [2, 3, 5],
   /** Probabilidad de que un arma o vestimenta nueva venga maldita o encantada (el resto, corriente). */
   gear: { curseChance: 0.2, enchantChance: 0.28 },
   /** Monedas que cuesta purificar una pieza maldita en la forja. */

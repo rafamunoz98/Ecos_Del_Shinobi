@@ -22,10 +22,11 @@ export function createEnemy(def: EnemyDef, id: string, pos: Vec, floor: number):
     statuses: [],
     phase: def.behavior === 'boss' ? 1 : 0,
     stuck: {},
+    cooldowns: {},
   };
 }
 
-/** Un jefe no escala con el sector: sus números ya están pensados para el último. */
+/** Un jefe no escala con el sector: sus números ya están pensados para su sector. */
 export function createBoss(def: EnemyDef, id: string, pos: Vec): Enemy {
   return { ...createEnemy(def, id, pos, 1), phase: 1 };
 }

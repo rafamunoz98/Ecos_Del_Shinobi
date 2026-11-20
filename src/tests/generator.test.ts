@@ -134,10 +134,10 @@ describe('partida nueva', () => {
     expect(seen.size).toBe(5);
   });
 
-  it('empieza en el sector 1 de 3, con una zona explorada y el estado serializable', () => {
+  it('empieza en el sector 1 de 6, con una zona explorada y el estado serializable', () => {
     const s = createGame({ seed: 3 });
     expect(s.floor).toBe(1);
-    expect(s.maxFloor).toBe(3);
+    expect(s.maxFloor).toBe(6);
     expect(s.explored.some(Boolean)).toBe(true);
     expect(s.explored.filter(Boolean).length).toBeLessThan(s.map.tiles.length / 4);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);

@@ -113,6 +113,8 @@ export interface Enemy {
   phase: number;
   /** Armas arrojadizas clavadas en él (id → cantidad); caen al suelo cuando muere. */
   stuck: Record<string, number>;
+  /** Rondas que le faltan para volver a usar cada habilidad (id de habilidad → rondas). */
+  cooldowns: Record<string, number>;
 }
 
 /** Ataque anunciado: las casillas se marcan y se liberan cuando `turns` llega a 0 (hay tiempo de apartarse o interrumpirlo). */
@@ -125,6 +127,8 @@ export interface Telegraph {
   power: number;
   /** Rondas que faltan para liberarse. */
   turns: number;
+  /** Estado que deja en el jugador si lo alcanza. */
+  inflict?: { status: StatusId; turns: number };
 }
 
 /** Personaje no jugador o evento fijo en el mapa (maestra, altar...). Bloquea el paso como un cofre. */
@@ -134,6 +138,17 @@ export interface Npc {
   pos: Vec;
   /** Ya se eligió una opción: no ofrece más. */
   used: boolean;
+  /** Solo el mercader: lo que vende. */
+  stock?: Offer[];
+}
+
+/** Artículo de la tienda. El equipo y los objetos de la tienda se entregan ya identificados. */
+export interface Offer {
+  id: string;
+  itemId: string;
+  count: number;
+  price: number;
+  sold: boolean;
 }
 
 /** Pergamino de lore en el suelo; se recoge al pisarlo. */
@@ -209,6 +224,8 @@ export interface GameState {
   floorEnemies: number;
   floorKilled: number;
   floorCleared: boolean;
+  /** Jefes derrotados: decide la estética de la zona (cambia al caer cada jefe). */
+  bossesDefeated: number;
   /** Diálogos que ya se mostraron y no deben repetirse solos (introducción del jefe, etc.). */
   seenDialogues: string[];
   /** Apariencia de cada poción y pergamino en esta partida: «pocion:sanacion» → «Poción ámbar». */
@@ -239,6 +256,8 @@ export type Command =
   | { type: 'Choose'; npcId: string; optionId: string }
   /** Mejora un arma en una mesa de forja adyacente, pagando con monedas o con esquirlas. */
   | { type: 'Upgrade'; npcId: string; weaponId: string; pay: 'coins' | 'shards' }
+  /** Compra un artículo a un mercader adyacente. */
+  | { type: 'Buy'; npcId: string; offerId: string }
   | { type: 'Extract' };
 
 export type InvalidReason =
@@ -273,6 +292,7 @@ export type InvalidReason =
   | 'not_at_forge'
   | 'max_upgrade'
   | 'cannot_afford'
+  | 'sold_out'
   | 'unknown_option'
   | 'option_unavailable'
   | 'already_used'
@@ -319,6 +339,9 @@ export type GameEvent =
   | { type: 'TelegraphCancelled'; ownerId: string }
   | { type: 'BossPhase'; enemyId: string; phase: number }
   | { type: 'EnemySummoned'; enemyId: string; pos: Vec }
+  | { type: 'EnemySkill'; enemyId: string; skillId: string; from: Vec; to: Vec }
+  | { type: 'MerchantAppeared'; npcId: string; pos: Vec }
+  | { type: 'ItemBought'; itemId: string; price: number }
   | { type: 'Dialogue'; id: string }
   | { type: 'NpcTalked'; npcId: string }
   | { type: 'NpcChoice'; npcId: string; optionId: string }

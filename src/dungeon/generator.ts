@@ -1,7 +1,7 @@
 import { BALANCE } from '../content/balance';
 import { DIRS, fromIdx, idx, inBounds, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
-import { BOSS_ID, ENEMIES } from '../content/enemies';
+import { BOSS_BY_FLOOR, BOSS_ID, ENEMIES } from '../content/enemies';
 import { GROUND_LOOT, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
 import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
 import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
@@ -287,7 +287,7 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     }
     spot ??= { x: exit.x + 1, y: exit.y };
     used.add(idx(map, spot));
-    enemies.push(createBoss(ENEMIES[BOSS_ID], `enemy-${enemies.length}`, spot));
+    enemies.push(createBoss(ENEMIES[BOSS_BY_FLOOR[floor] ?? BOSS_ID], `enemy-${enemies.length}`, spot));
   }
 
   const npcs: Npc[] = [];

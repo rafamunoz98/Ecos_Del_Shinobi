@@ -50,37 +50,93 @@ export const DIALOGUES: Record<string, DialogueDef> = {
     portrait: { kind: 'npc', id: 'maestra_sayoko' },
     lines: ['Ya tienes mi lección. El resto es tuyo: respira, mide y golpea.'],
   },
-  campanero_intro: {
-    id: 'campanero_intro',
-    speaker: 'El Campanero Sepultado',
-    portrait: { kind: 'enemy', id: 'campanero_sepultado' },
+  sokan_intro: {
+    id: 'sokan_intro',
+    speaker: 'Sōkan, Predicador Hueco',
+    portrait: { kind: 'enemy', id: 'sokan_predicador' },
     lines: [
-      'Otra vez pasos... Hace siglos que cuento cada uno.',
-      'Soy quien ató su cuerpo a la campana para que no se rompiera el último sello.',
-      'Si llegas al sello, tendré que soltarlo. No me lo pidas: dame silencio.',
+      'Otro Custodio con paso ligero. Las campanas ya te habían contado.',
+      'Soy Sōkan, del Círculo de la Campana Hueca. Vacié mi nombre para que el Pulso cupiera entero en mí.',
+      'El sello de abajo no se repara: se escucha. Déjame tocarlo y los Ecos serán libres.',
     ],
   },
-  campanero_fase2: {
-    id: 'campanero_fase2',
-    speaker: 'El Campanero Sepultado',
-    portrait: { kind: 'enemy', id: 'campanero_sepultado' },
-    lines: ['¡La campana se resquebraja! Escucha cómo el Pulso se agita...'],
+  sokan_fase2: {
+    id: 'sokan_fase2',
+    speaker: 'Sōkan, Predicador Hueco',
+    portrait: { kind: 'enemy', id: 'sokan_predicador' },
+    lines: ['¡Mi cayado vibra! Oye cómo la cripta responde a mis campanillas...'],
   },
-  campanero_fase3: {
-    id: 'campanero_fase3',
-    speaker: 'El Campanero Sepultado',
-    portrait: { kind: 'enemy', id: 'campanero_sepultado' },
-    lines: ['Los Ecos que guardaba despiertan. No los he llamado yo.'],
+  sokan_fase3: {
+    id: 'sokan_fase3',
+    speaker: 'Sōkan, Predicador Hueco',
+    portrait: { kind: 'enemy', id: 'sokan_predicador' },
+    lines: ['Salid, hermanos del hueco. No hay sello que baste contra tantos ecos.'],
   },
-  campanero_derrota: {
-    id: 'campanero_derrota',
-    speaker: 'El Campanero Sepultado',
-    portrait: { kind: 'enemy', id: 'campanero_sepultado' },
+  sokan_derrota: {
+    id: 'sokan_derrota',
+    speaker: 'Sōkan, Predicador Hueco',
+    portrait: { kind: 'enemy', id: 'sokan_predicador' },
     lines: [
-      'Silencio... al fin.',
-      'Toma el sello antiguo. Si el Círculo llega antes que tú, la campana sonará mil veces.',
-      'Sal. Y no mires atrás: todavía quedan campanas.',
+      'Silencio... qué pesado es el silencio cuando uno lo ha temido tanto.',
+      'Toma el sello antiguo. Pero no te fíes de quien me envió: bajo la cripta hay un bosque que nadie plantó.',
+      'Allí manda alguien que fue de los tuyos. Cuídate de sus hilos.',
     ],
+  },
+  yugiri_intro: {
+    id: 'yugiri_intro',
+    speaker: 'Yūgiri, el Hilo Roto',
+    portrait: { kind: 'enemy', id: 'yugiri_hilo_roto' },
+    lines: [
+      'Has llegado hasta el último nudo. La Casa del Hilo Gris no enseña a rendirse, y yo fui su mejor rastreadora.',
+      'Cartografié estas raíces hasta que me susurraron. Ahora no trazo mapas: tejo caminos que no tienen salida.',
+      'Si quieres cruzar, tendrás que cortar todos mis hilos. Uno a uno.',
+    ],
+  },
+  yugiri_fase2: {
+    id: 'yugiri_fase2',
+    speaker: 'Yūgiri, el Hilo Roto',
+    portrait: { kind: 'enemy', id: 'yugiri_hilo_roto' },
+    lines: ['Buen corte. Pero el suelo entero es mi telar: no pises donde brilla.'],
+  },
+  yugiri_fase3: {
+    id: 'yugiri_fase3',
+    speaker: 'Yūgiri, el Hilo Roto',
+    portrait: { kind: 'enemy', id: 'yugiri_hilo_roto' },
+    lines: ['Quien me sigue no ve a quién persigue. ¿Cuál de nosotras soy?'],
+  },
+  yugiri_derrota: {
+    id: 'yugiri_derrota',
+    speaker: 'Yūgiri, el Hilo Roto',
+    portrait: { kind: 'enemy', id: 'yugiri_hilo_roto' },
+    lines: [
+      'Se rompió... el último hilo. Qué ligero.',
+      'Llévate mi carrete: dibuja caminos de vuelta a casa. Yo ya no los necesito.',
+      'La cripta aún respira ahí abajo. Alguien tendrá que seguir escuchando.',
+    ],
+  },
+  mercader_intro: {
+    id: 'mercader_intro',
+    speaker: 'Mercader del Hilo Gris',
+    portrait: { kind: 'npc', id: 'mercader' },
+    lines: [
+      'Los jefes caen y yo aparezco: es mi oficio. Oro por mercancía, sin preguntas.',
+      'Todo lo que vendo viene identificado y sin maldiciones. Lo que encuentres por ahí... ya es cosa tuya.',
+    ],
+  },
+  tobari_intro: {
+    id: 'tobari_intro',
+    speaker: 'Maestro Tobari',
+    portrait: { kind: 'npc', id: 'maestro_tobari' },
+    lines: [
+      'Peregrino del Pulso, como mi hermana Sayoko. Ella enseña en lo alto; yo, donde la raíz se traga el sonido.',
+      'Más abajo espera quien rompió el último hilo. No te enseño a ganar: te enseño a no perder lo que ya tienes.',
+    ],
+  },
+  tobari_after: {
+    id: 'tobari_after',
+    speaker: 'Maestro Tobari',
+    portrait: { kind: 'npc', id: 'maestro_tobari' },
+    lines: ['Eso es todo lo que puedo darte. Respira hondo antes del último nudo.'],
   },
 };
 
@@ -190,6 +246,19 @@ export const NPCS: Record<string, NpcDef> = {
       },
     ],
   },
+  maestro_tobari: {
+    id: 'maestro_tobari',
+    name: 'Maestro Tobari',
+    kindLabel: 'Maestro',
+    introId: 'tobari_intro',
+    afterId: 'tobari_after',
+    options: [
+      { id: 'tecnica_oculta', label: 'Técnica oculta', description: 'Aprendes una técnica de tu afinidad que no podrías conseguir por nivel (si queda alguna).', gains: [{ kind: 'advancedTechnique' }] },
+      { id: 'temple', label: 'Temple de raíz', description: '+6 de vida máxima y recuperas toda la vida.', gains: [{ kind: 'maxHp', amount: 6 }, { kind: 'healFull' }] },
+      { id: 'aliento', label: 'Aliento del bosque', description: '+6 de kiro máximo.', gains: [{ kind: 'maxKiro', amount: 6 }] },
+      { id: 'filo_y_piel', label: 'Filo y piel', description: 'Pagas 5 de vida. +1 de poder y +1 de defensa.', cost: { hp: 5 }, gains: [{ kind: 'power', amount: 1 }, { kind: 'defense', amount: 1 }] },
+    ],
+  },
 };
 
 export function getNpc(kind: string): NpcDef | undefined {
@@ -200,6 +269,8 @@ export function getNpc(kind: string): NpcDef | undefined {
 export const NPC_BY_FLOOR: Record<number, string> = {
   1: 'altar_eco_roto',
   2: 'maestra_sayoko',
+  4: 'altar_eco_roto',
+  5: 'maestro_tobari',
 };
 
 // ---------- Notas de lectura opcional ----------
@@ -245,8 +316,8 @@ export const NOTES: Record<string, NoteDef> = {
   ultimo_registro: {
     id: 'ultimo_registro',
     floor: 3,
-    title: 'Último registro del Campanero',
-    text: 'Me ofrecí yo. Até mi cuerpo al badajo para que ninguna mano ajena lo moviera. Cuento mis latidos para no olvidar quién fui. Si lees esto, el sello aguanta. Si no, ya no recuerdo mi nombre.',
+    title: 'Último registro de un Custodio',
+    text: 'Sōkan vino a la cripta como uno de los nuestros. Cada noche se quedaba más rato junto a la campana rota, oyendo. Al décimo día dejó de decir su nombre. Si encuentras esto, no te acerques a su cayado: las campanillas no suenan, responden.',
   },
   marca_del_sello: {
     id: 'marca_del_sello',
@@ -259,6 +330,36 @@ export const NOTES: Record<string, NoteDef> = {
     floor: 3,
     title: 'Nota arrugada',
     text: 'Esa noche el cielo sonó como metal golpeado. Dicen que de cada campana salió un Eco. Pero nadie cuenta que algunos eran niños que se escondieron dentro para no oír.',
+  },
+  mapa_sin_final: {
+    id: 'mapa_sin_final',
+    floor: 4,
+    title: 'Mapa sin final',
+    text: 'Casa del Hilo Gris, cuaderno de Yūgiri. Hoy el bosque cambió la senda otra vez. Ya no dibujo lo que veo: dibujo lo que me pide. Si algún día no regreso, quemad mis mapas. Los caminos de este sitio no llevan a ninguna parte, llevan a ella.',
+  },
+  carta_envenenador: {
+    id: 'carta_envenenador',
+    floor: 4,
+    title: 'Receta manchada',
+    text: 'Una gota de savia de raíz hundida en agua de pozo da una fiebre lenta. Dos gotas, un sueño sin despertar. No uses la tercera: la tercera responde. (Anotado debajo, con otra letra: «Funciona. Maldito sea el bosque.»)',
+  },
+  voz_de_la_raiz: {
+    id: 'voz_de_la_raiz',
+    floor: 5,
+    title: 'Lo que dicen las raíces',
+    text: 'Los viejos Peregrinos dicen que bajo las ruinas no hay cimientos, hay un árbol. Que la Noche de las Mil Campanas fue el crujido de su tronco. Que los Ecos son lo que cae de sus hojas.',
+  },
+  hilo_gris: {
+    id: 'hilo_gris',
+    floor: 5,
+    title: 'Juramento del Hilo Gris',
+    text: '«Seguimos el rastro hasta el final, volvemos con el mapa o no volvemos.» Yūgiri lo recitaba en voz alta cada mañana. Un día dejó de volver. Una parte de ella siguió el rastro y no encontró el final: encontró el principio.',
+  },
+  ultimo_nudo: {
+    id: 'ultimo_nudo',
+    floor: 6,
+    title: 'Último nudo',
+    text: 'Quien llegue hasta aquí que sepa que cada hilo tiene dos puntas. Yo ato la mía a la raíz y la otra a quien me siga. Si la tiras con fuerza, se rompe. Si la sigues con calma, ves quién tira del otro lado.',
   },
 };
 
@@ -279,6 +380,11 @@ export interface RelicDef {
 }
 
 export const RELICS: Record<string, RelicDef> = {
+  carrete_roto: {
+    id: 'carrete_roto',
+    name: 'Carrete del Hilo Roto',
+    description: 'Un carrete de hilo gris que aún tira hacia un norte que ya no existe. Recuerdo de Yūgiri.',
+  },
   sello_antiguo: {
     id: 'sello_antiguo',
     name: 'Sello antiguo',

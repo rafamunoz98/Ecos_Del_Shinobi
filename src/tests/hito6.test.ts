@@ -81,21 +81,21 @@ describe('Monje Hueco: ataque anunciado', () => {
   });
 });
 
-describe('El Campanero Sepultado', () => {
+describe('Sōkan, Predicador Hueco (jefe shinobi)', () => {
   const big = ['#############', '#@..........#', '#...........#', '#........B..#', '#############'];
   const near = ['#####', '#@>.#', '#B..#', '#####'];
 
-  it('está en el catálogo como jefe con 40 de vida', () => {
-    expect(ENEMIES.campanero_sepultado.behavior).toBe('boss');
-    expect(ENEMIES.campanero_sepultado.maxHp).toBe(40);
+  it('está en el catálogo como jefe con 44 de vida', () => {
+    expect(ENEMIES.sokan_predicador.behavior).toBe('boss');
+    expect(ENEMIES.sokan_predicador.maxHp).toBe(44);
   });
 
-  it('a corta distancia marca un golpe cercano (Campanada) que no incluye su casilla', () => {
+  it('a corta distancia marca un golpe cercano (Golpe de Cayado) que no incluye su casilla', () => {
     const s = makeGame(near);
     const r = applyCommand(s, wait());
     expect(r.state.telegraphs).toHaveLength(1);
     const tg = r.state.telegraphs[0];
-    expect(tg.name).toBe('Campanada');
+    expect(tg.name).toBe('Golpe de Cayado');
     expect(hasCell(tg.cells, { x: 1, y: 2 })).toBe(false);
     expect(hasCell(tg.cells, { x: 1, y: 1 })).toBe(true);
   });
@@ -108,10 +108,11 @@ describe('El Campanero Sepultado', () => {
     const r2 = applyCommand(r1.state, wait()); // turno impar: se queda
     expect(r2.state.enemies[0].pos).toEqual(r1.state.enemies[0].pos);
 
-    const f2 = makeGame(big, (g) => (g.enemies[0].phase = 2));
+    const mid = ['#############', '#@..........#', '#...........#', '#.....B.....#', '#############'];
+    const f2 = makeGame(mid, (g) => (g.enemies[0].phase = 2));
     const r = applyCommand(f2, wait());
     const tg = r.state.telegraphs[0];
-    expect(tg.name).toBe('Onda de la Campana');
+    expect(tg.name).toBe('Onda de Campana');
     expect(hasCell(tg.cells, { x: 1, y: 1 })).toBe(true);
     expect(hasCell(tg.cells, { x: 5, y: 1 })).toBe(true); // su fila, hasta el largo de la onda
     expect(hasCell(tg.cells, { x: 2, y: 2 })).toBe(false); // fuera de la cruz
@@ -123,9 +124,9 @@ describe('El Campanero Sepultado', () => {
       g.enemies[0].lastSeen = null;
     });
     const r = applyCommand(s, wait());
-    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'campanero_intro' });
+    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'sokan_intro' });
     const again = applyCommand(r.state, wait());
-    expect(again.events.some((e) => e.type === 'Dialogue' && e.id === 'campanero_intro')).toBe(false);
+    expect(again.events.some((e) => e.type === 'Dialogue' && e.id === 'sokan_intro')).toBe(false);
   });
 
   it('cambia de fase al perder vida: 2 por debajo de 2/3 y 3 por debajo de 1/3 (convoca dos ecos)', () => {
@@ -135,7 +136,7 @@ describe('El Campanero Sepultado', () => {
     const r = applyCommand(s, attack({ x: 1, y: 2 }));
     expect(r.state.enemies[0].phase).toBe(2);
     expect(r.events).toContainEqual({ type: 'BossPhase', enemyId: 'enemy-b0', phase: 2 });
-    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'campanero_fase2' });
+    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'sokan_fase2' });
 
     const s3 = makeGame(near, (g) => {
       g.enemies[0].hp = 14;
@@ -167,7 +168,7 @@ describe('El Campanero Sepultado', () => {
     expect(r.state.player.relics).toContain('sello_antiguo');
     expect(r.state.stats.bossDefeated).toBe(true);
     expect(r.events.some((e) => e.type === 'BossDefeated')).toBe(true);
-    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'campanero_derrota' });
+    expect(r.events).toContainEqual({ type: 'Dialogue', id: 'sokan_derrota' });
     const win = applyCommand(r.state, interact({ x: 2, y: 1 }));
     expect(win.state.status).toBe('won');
   });
@@ -295,12 +296,12 @@ describe('generación con jefe, eventos y lore', () => {
       expect(lv.bossRoom).not.toBeNull();
       const room = lv.bossRoom as NonNullable<typeof lv.bossRoom>;
       const inRoom = (p: Vec) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h;
-      const bosses = lv.enemies.filter((e) => e.kind === 'campanero_sepultado');
+      const bosses = lv.enemies.filter((e) => e.kind === 'sokan_predicador');
       expect(bosses).toHaveLength(1);
       expect(inRoom(bosses[0].pos)).toBe(true);
       expect(inRoom(lv.exit)).toBe(true);
-      expect(lv.enemies.filter((e) => e.kind !== 'campanero_sepultado' && inRoom(e.pos))).toHaveLength(0);
-      expect(bosses[0].hp).toBe(ENEMIES.campanero_sepultado.maxHp);
+      expect(lv.enemies.filter((e) => e.kind !== 'sokan_predicador' && inRoom(e.pos))).toHaveLength(0);
+      expect(bosses[0].hp).toBe(ENEMIES.sokan_predicador.maxHp);
     }
   });
 
@@ -309,7 +310,7 @@ describe('generación con jefe, eventos y lore', () => {
       for (const floor of [1, 2]) {
         const lv = generateLevel({ seed, floor });
         expect(lv.bossRoom).toBeNull();
-        expect(lv.enemies.some((e) => e.kind === 'campanero_sepultado')).toBe(false);
+        expect(lv.enemies.some((e) => e.kind === 'sokan_predicador')).toBe(false);
       }
     }
   });
@@ -376,7 +377,7 @@ describe('generación con jefe, eventos y lore', () => {
     };
     const s = run();
     expect(s.floor).toBe(3);
-    expect(s.enemies.some((e) => e.kind === 'campanero_sepultado')).toBe(true);
+    expect(s.enemies.some((e) => e.kind === 'sokan_predicador')).toBe(true);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
     expect(run()).toEqual(s);
   });

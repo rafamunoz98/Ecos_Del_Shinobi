@@ -1,11 +1,12 @@
 import { BALANCE } from '../content/balance';
-import { ENEMIES, getEnemy, type EnemyDef } from '../content/enemies';
+import { ENEMIES, getEnemy, isBossFloor, type EnemyDef, type SkillDef } from '../content/enemies';
 import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getEquipment, getItem, isKey, lootTableFor, type LootEntry } from '../content/items';
 import { itemName } from '../content/names';
 import { getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { getAllyDef } from '../content/allies';
+import { MERCHANT_KIND, SHOP_PRICES } from '../content/shop';
 import { getArcana, getPotion, getScroll, isArcana, isPotion, POTIONS, RANDOM_POTION, RANDOM_SCROLL, rollArcana, SCROLLS, type PotionEffect, type ScrollEffect } from '../content/arcana';
-import { getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
+import { baseGearId, getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
 import { getNpc, getNote, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
 import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
@@ -24,6 +25,7 @@ import type {
   GameState,
   InvalidReason,
   Npc,
+  Offer,
   Player,
   StatusId,
   Telegraph,
@@ -70,6 +72,7 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   not_at_forge: 'Necesitas estar junto a una mesa de forja.',
   max_upgrade: 'Esa arma ya está al máximo.',
   cannot_afford: 'No tienes suficientes monedas o esquirlas.',
+  sold_out: 'Eso ya está vendido.',
   unknown_option: 'Esa opción no existe.',
   option_unavailable: 'No puedes pagar el coste de esa opción.',
   already_used: 'Ya elegiste aquí.',
@@ -442,6 +445,14 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       if (!p.armors.includes(cmd.armorId)) return 'no_item';
       if (p.equipment.armor === cmd.armorId) return 'already_equipped';
       return isCursedGear(p.equipment.armor) ? 'cursed' : null;
+    case 'Buy': {
+      const npc = state.npcs.find((n) => n.id === cmd.npcId && n.kind === MERCHANT_KIND);
+      if (!npc || chebyshev(p.pos, npc.pos) > 1) return 'not_adjacent';
+      const offer = npc.stock?.find((o) => o.id === cmd.offerId);
+      if (!offer) return 'unknown_item';
+      if (offer.sold) return 'sold_out';
+      return p.coins >= offer.price ? null : 'cannot_afford';
+    }
     case 'Purify': {
       if (!forgeNear(state, cmd.npcId)) return 'not_at_forge';
       if (!p.weapons.includes(cmd.itemId) && !p.armors.includes(cmd.itemId)) return 'no_item';
@@ -506,7 +517,8 @@ function dialogueOnce(ctx: Ctx, id: string): void {
 /** Un enemigo pasa de no saber de ti a saberlo. El jefe se presenta. */
 function noticePlayer(ctx: Ctx, enemy: Enemy): void {
   ctx.events.push({ type: 'EnemyAlerted', enemyId: enemy.id });
-  if (isBoss(enemy)) dialogueOnce(ctx, 'campanero_intro');
+  const intro = getEnemy(enemy.kind)?.boss?.dialogues.intro;
+  if (intro) dialogueOnce(ctx, intro);
 }
 
 /** Un enemigo que recibe daño sabe dónde estás, aunque no te viera. */
@@ -535,18 +547,19 @@ function freeCellsAround(s: GameState, origin: Vec, maxRadius: number): Vec[] {
   return out;
 }
 
-function summonEchoes(ctx: Ctx, boss: Enemy, count: number): void {
+function summonEnemies(ctx: Ctx, owner: Enemy, enemyId: string, count: number, text: string): void {
   const s = ctx.state;
-  const def = ENEMIES.eco_menor;
-  const cells = freeCellsAround(s, boss.pos, 4);
+  const def = ENEMIES[enemyId];
+  if (!def) return;
+  const cells = freeCellsAround(s, owner.pos, 4);
   for (let i = 0; i < count && i < cells.length; i++) {
-    const echo = createEnemy(def, `enemy-eco-${s.turn}-${i}`, cells[i], s.floor);
-    echo.alert = BALANCE.alertTurns;
-    echo.lastSeen = { ...s.player.pos };
-    s.enemies.push(echo);
-    ctx.events.push({ type: 'EnemySummoned', enemyId: echo.id, pos: cells[i] });
+    const minion = createEnemy(def, `enemy-${enemyId}-${s.turn}-${owner.id}-${i}`, cells[i], s.floor);
+    minion.alert = BALANCE.alertTurns;
+    minion.lastSeen = { ...s.player.pos };
+    s.enemies.push(minion);
+    ctx.events.push({ type: 'EnemySummoned', enemyId: minion.id, pos: cells[i] });
   }
-  say(ctx, 'Unos ecos brotan del suelo y se lanzan contra ti.');
+  say(ctx, text);
 }
 
 function updateBossPhase(ctx: Ctx, enemy: Enemy): void {
@@ -557,8 +570,8 @@ function updateBossPhase(ctx: Ctx, enemy: Enemy): void {
   enemy.phase = phase;
   ctx.events.push({ type: 'BossPhase', enemyId: enemy.id, phase });
   say(ctx, `${enemyName(enemy)} entra en la fase ${phase}.`);
-  dialogueOnce(ctx, `campanero_fase${phase}`);
-  if (phase === 3) summonEchoes(ctx, enemy, def.boss.echoes);
+  dialogueOnce(ctx, phase === 2 ? def.boss.dialogues.phase2 : def.boss.dialogues.phase3);
+  if (phase === 3 && def.boss.phaseSummon) summonEnemies(ctx, enemy, def.boss.phaseSummon.enemy, def.boss.phaseSummon.count, def.boss.phaseSummon.text);
 }
 
 function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string): void {
@@ -854,20 +867,74 @@ function cancelTelegraphs(ctx: Ctx, ownerId: string): boolean {
   return true;
 }
 
+/** Surtido del mercader: lo básico, una poción, un pergamino, una pieza de equipo y un manual (todo identificado, sin maldiciones). */
+function makeStock(ctx: Ctx): Offer[] {
+  const s = ctx.state;
+  const p = s.player;
+  const stock: Offer[] = [];
+  const add = (itemId: string, price: number, count = 1): void => {
+    stock.push({ id: `of-${stock.length}`, itemId, count, price, sold: false });
+  };
+  add('unguento_musgo', SHOP_PRICES.unguento_musgo);
+  add('tonico_kiro', SHOP_PRICES.tonico_kiro);
+  const potion = rollArcana('potion', rand(ctx));
+  add(potion, getArcana(potion)?.price ?? 12);
+  const scroll = rollArcana('scroll', rand(ctx));
+  add(scroll, getArcana(scroll)?.price ?? 14);
+  // Equipo: de la tabla del cofre lacado según el sector; solo corriente o encantado.
+  const gear = lootTableFor(s.floor, LACQUER_LOOT);
+  const owned = (id: string): boolean => p.weapons.some((w) => baseGearId(w) === id) || p.armors.some((a) => baseGearId(a) === id) || baseGearId(p.equipment.armor ?? '') === id;
+  const fresh = gear.filter((e) => !owned(e.id));
+  const pick = (fresh.length > 0 ? fresh : gear)[Math.floor(rand(ctx) * (fresh.length > 0 ? fresh : gear).length)];
+  const slot: GearSlot = getWeapon(pick.id) ? 'weapon' : 'armor';
+  const enchanted = rand(ctx) < 0.4;
+  const pool = modsFor(slot, 'enchant');
+  const mod = enchanted ? pool[Math.floor(rand(ctx) * pool.length)].id : null;
+  const bonus = (getWeapon(pick.id)?.bonus ?? getEquipment(pick.id)?.bonus ?? 1);
+  add(makeGearId(pick.id, mod), (slot === 'weapon' ? SHOP_PRICES.weaponBase : SHOP_PRICES.armorBase) + bonus * SHOP_PRICES.perBonus + (mod ? SHOP_PRICES.enchantExtra : 0));
+  // Un manual de técnica que aún no conozcas.
+  const pool2 = learnableFor(p.affinity).filter((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
+  if (pool2.length > 0) add(MANUAL_PREFIX + pool2[Math.floor(rand(ctx) * pool2.length)], SHOP_PRICES.manual);
+  return stock;
+}
+
+/** Tras caer un jefe aparece un mercader cerca de donde cayó (sin cerrar el camino a la salida). */
+function placeMerchant(ctx: Ctx, near: Vec): void {
+  const s = ctx.state;
+  let exit: Vec | null = null;
+  for (let y = 0; y < s.map.height && !exit; y++) for (let x = 0; x < s.map.width; x++) if (s.map.tiles[y * s.map.width + x] === 'exit') exit = { x, y };
+  const candidates = freeCellsAround(s, near, 8).filter((c) => terrainAt(s.map, c) === 'floor' && !equals(c, s.player.pos) && !s.drops.some((d) => equals(d.pos, c)));
+  for (const c of candidates) {
+    if (exit) {
+      const blocked = (q: Vec): boolean => equals(q, c) || !isWalkable(s.map, q) || chestAt(s, q) !== undefined || npcAt(s, q) !== undefined;
+      if (!findPath(s.map, s.player.pos, exit, blocked) && chebyshev(s.player.pos, exit) > 1) continue;
+    }
+    const npc: Npc = { id: `npc-merchant-${s.floor}`, kind: MERCHANT_KIND, pos: c, used: false, stock: makeStock(ctx) };
+    s.npcs.push(npc);
+    ctx.events.push({ type: 'MerchantAppeared', npcId: npc.id, pos: c });
+    say(ctx, 'Un mercader surge de entre las sombras con su fardo: «Los muertos no gastan. Los vivos, sí.»');
+    return;
+  }
+}
+
 function defeatBoss(ctx: Ctx, boss: Enemy): void {
   const s = ctx.state;
+  const bdef = getEnemy(boss.kind)?.boss;
   s.stats.bossDefeated = true;
-  if (!s.player.relics.includes('sello_antiguo')) s.player.relics.push('sello_antiguo');
-  // Los ecos convocados se desvanecen con su amo.
-  for (const e of s.enemies.filter((o) => o.kind === 'eco_menor')) {
+  s.bossesDefeated += 1;
+  if (bdef && !s.player.relics.includes(bdef.relic)) s.player.relics.push(bdef.relic);
+  // Todo lo que convocó se desvanece con su amo.
+  const minions = s.enemies.filter((o) => getEnemy(o.kind)?.summoned);
+  for (const e of minions) {
     cancelTelegraphs(ctx, e.id);
     ctx.events.push({ type: 'EnemyDefeated', enemyId: e.id });
+    releaseStuck(s, e);
   }
-  for (const e of s.enemies.filter((o) => o.kind === 'eco_menor')) releaseStuck(s, e);
-  s.enemies = s.enemies.filter((o) => o.kind !== 'eco_menor');
+  s.enemies = s.enemies.filter((o) => !getEnemy(o.kind)?.summoned);
   ctx.events.push({ type: 'BossDefeated', enemyId: boss.id });
-  say(ctx, 'La campana calla. Obtienes el Sello antiguo y la salida se abre.');
-  dialogueOnce(ctx, 'campanero_derrota');
+  say(ctx, bdef?.defeatText ?? 'El jefe cae y la salida se abre.');
+  if (bdef) dialogueOnce(ctx, bdef.dialogues.defeat);
+  placeMerchant(ctx, boss.pos);
 }
 
 function reapDead(ctx: Ctx): void {
@@ -1237,7 +1304,7 @@ function pickUp(ctx: Ctx): void {
 
 function descend(ctx: Ctx): void {
   const s = ctx.state;
-  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: s.floor + 1 >= s.maxFloor });
+  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: isBossFloor(s.floor + 1) || s.floor + 1 >= s.maxFloor });
   s.floor += 1;
   s.map = level.map;
   s.player.pos = level.playerStart;
@@ -1350,6 +1417,16 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       ctx.events.push({ type: 'EquipmentEquipped', slot: 'armor', itemId: cmd.armorId });
       say(ctx, `Te pones: ${itemName(cmd.armorId, s)}.`);
       identifyGear(ctx, cmd.armorId);
+      return;
+    }
+    case 'Buy': {
+      const npc = s.npcs.find((n) => n.id === cmd.npcId) as Npc;
+      const offer = (npc.stock as Offer[]).find((o) => o.id === cmd.offerId) as Offer;
+      p.coins -= offer.price;
+      offer.sold = true;
+      ctx.events.push({ type: 'ItemBought', itemId: offer.itemId, price: offer.price });
+      collect(ctx, offer.itemId, offer.count, 'Compras', true);
+      if (isArcana(offer.itemId) && !p.known.includes(offer.itemId)) p.known.push(offer.itemId);
       return;
     }
     case 'Purify': {
@@ -1600,11 +1677,106 @@ function crossCells(s: GameState, origin: Vec, length: number): Vec[] {
   return cells;
 }
 
-function startTelegraph(ctx: Ctx, enemy: Enemy, name: string, cells: Vec[], power: number, delay: number): void {
-  const tg: Telegraph = { id: `tg-${ctx.state.turn}-${enemy.id}`, ownerId: enemy.id, name, cells, power, turns: delay };
+// ---------- Habilidades de enemigos y jefes ----------
+
+/** Dirección (8 vías) desde `a` hasta `b` si están alineados; null si no. */
+function lineDir(a: Vec, b: Vec): Vec | null {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (dx === 0 && dy === 0) return null;
+  if (dx !== 0 && dy !== 0 && Math.abs(dx) !== Math.abs(dy)) return null;
+  return { x: sign(dx), y: sign(dy) };
+}
+
+/** Casillas de una línea desde `origin` (sin incluirlo), hasta `length`, deteniéndose en paredes. */
+function beamCells(s: GameState, origin: Vec, dir: Vec, length: number): Vec[] {
+  const out: Vec[] = [];
+  for (let i = 1; i <= length; i++) {
+    const c = { x: origin.x + dir.x * i, y: origin.y + dir.y * i };
+    if (!inBounds(s.map, c) || !isWalkable(s.map, c)) break;
+    out.push(c);
+  }
+  return out;
+}
+
+/** Casilla libre junto al jugador a la que puede saltar el enemigo (la más cercana a él). */
+function dashLanding(s: GameState, enemy: Enemy, range: number): Vec | null {
+  let best: Vec | null = null;
+  let bestD = Infinity;
+  for (const d of DIRS8) {
+    const c = { x: s.player.pos.x + d.x, y: s.player.pos.y + d.y };
+    if (!cellFree(s, c) || !stepOk(s.map, s.player.pos, c)) continue;
+    const dist = manhattan(c, enemy.pos);
+    if (dist > range || dist >= bestD) continue;
+    best = c;
+    bestD = dist;
+  }
+  return best;
+}
+
+function skillReady(ctx: Ctx, enemy: Enemy, sk: SkillDef): boolean {
+  const s = ctx.state;
+  const p = s.player.pos;
+  const dist = manhattan(enemy.pos, p);
+  const los = (): boolean => hasLineOfSight(s.map, enemy.pos, p, openDoors(s));
+  const sh = sk.shape;
+  switch (sh.kind) {
+    case 'burst':
+      return dist <= sh.radius;
+    case 'zone':
+    case 'cross':
+      return dist <= sh.range && los();
+    case 'beam': {
+      const d = lineDir(enemy.pos, p);
+      return d !== null && chebyshev(enemy.pos, p) <= sh.length && los();
+    }
+    case 'shot':
+      return chebyshev(enemy.pos, p) >= (sk.minDist ?? 1) && dist <= sh.range && los();
+    case 'dash':
+      return dist >= (sk.minDist ?? 2) && dist <= sh.range + 1 && dashLanding(s, enemy, sh.range) !== null;
+    case 'summon': {
+      const alive = s.enemies.filter((e) => e.kind === sh.enemy && e.hp > 0).length;
+      return dist >= (sk.minDist ?? 1) && alive < sh.count;
+    }
+  }
+}
+
+/** Primera habilidad disponible (cooldown, fase y geometría) en orden de prioridad. */
+function pickSkill(ctx: Ctx, enemy: Enemy, def: EnemyDef): SkillDef | null {
+  for (const sk of def.skills ?? []) {
+    if ((enemy.cooldowns[sk.id] ?? 0) > 0) continue;
+    if ((sk.minPhase ?? 1) > Math.max(1, enemy.phase)) continue;
+    if (skillReady(ctx, enemy, sk)) return sk;
+  }
+  return null;
+}
+
+function startTelegraph(ctx: Ctx, enemy: Enemy, sk: SkillDef, cells: Vec[], power: number): void {
+  const tg: Telegraph = {
+    id: `tg-${ctx.state.turn}-${enemy.id}`,
+    ownerId: enemy.id,
+    name: sk.name,
+    cells,
+    power,
+    turns: sk.delay,
+    inflict: sk.inflict ? { status: sk.inflict.status, turns: sk.inflict.turns } : undefined,
+  };
   ctx.state.telegraphs.push(tg);
-  ctx.events.push({ type: 'TelegraphStarted', ownerId: enemy.id, cells, turns: delay });
-  say(ctx, `${enemyName(enemy)} prepara ${name}: ¡apártate de las casillas marcadas!`);
+  ctx.events.push({ type: 'TelegraphStarted', ownerId: enemy.id, cells, turns: sk.delay });
+  say(ctx, `${enemyName(enemy)} prepara ${sk.name}: ¡apártate de las casillas marcadas!`);
+}
+
+/** Daño de una habilidad y el estado que deja; lo usan los ataques anunciados al liberarse y los disparos inmediatos. */
+function hitPlayerWithSkill(ctx: Ctx, enemy: Enemy, name: string, power: number, inflict?: { status: StatusId; turns: number }): void {
+  const p = ctx.state.player;
+  const dmg = calcDamage(power, 0, effectiveDefense(p));
+  damagePlayer(ctx, dmg, enemy.id);
+  say(ctx, `${name} te alcanza (${dmg} de daño).`);
+  if (inflict && ctx.state.status === 'playing') {
+    applyStatus(p, inflict.status, inflict.turns);
+    ctx.events.push({ type: 'StatusApplied', targetId: 'player', status: inflict.status, turns: inflict.turns });
+    say(ctx, `${STATUS_NAMES[inflict.status] ?? inflict.status} (${inflict.turns} rondas).`);
+  }
 }
 
 /** Cuenta atrás de un ataque anunciado; al llegar a 0 se libera y daña a quien siga dentro. */
@@ -1615,46 +1787,59 @@ function processTelegraph(ctx: Ctx, enemy: Enemy, tg: Telegraph): void {
   s.telegraphs = s.telegraphs.filter((t) => t !== tg);
   const hit = tg.cells.some((c) => equals(c, s.player.pos));
   ctx.events.push({ type: 'TelegraphReleased', ownerId: enemy.id, cells: tg.cells, hit });
-  if (hit) {
-    const dmg = calcDamage(tg.power, 0, effectiveDefense(s.player));
-    damagePlayer(ctx, dmg, enemy.id);
-    say(ctx, `${tg.name} te alcanza (${dmg} de daño).`);
-  } else {
-    say(ctx, `${tg.name} estalla en el vacío: lo esquivaste.`);
-  }
+  if (hit) hitPlayerWithSkill(ctx, enemy, tg.name, tg.power, tg.inflict);
+  else say(ctx, `${tg.name} estalla en el vacío: lo esquivaste.`);
 }
 
-/** Marca un ataque propio del Monje Hueco (área alrededor del jugador) si lo ve a su alcance. */
-function channelerAttack(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult | null {
+/** Usa una habilidad (la geometría ya se comprobó). Devuelve true si gastó la acción. */
+function useSkill(ctx: Ctx, enemy: Enemy, def: EnemyDef, sk: SkillDef): void {
   const s = ctx.state;
-  const ch = def.channel;
-  if (!ch) return null;
   const p = s.player.pos;
-  if (manhattan(enemy.pos, p) > ch.range || !hasLineOfSight(s.map, enemy.pos, p, openDoors(s))) return null;
-  startTelegraph(ctx, enemy, ch.name, diamond(s, p, ch.radius, false), enemy.power, ch.delay);
-  return 'attacked';
-}
-
-/**
- * Patrón del Campanero: golpe cercano si estás a su alcance; onda en cruz desde la fase 2; en la fase 1 avanza
- * despacio (una de cada dos rondas) mientras estés lejos.
- */
-function bossAttack(ctx: Ctx, enemy: Enemy, def: EnemyDef): StepResult | null {
-  const s = ctx.state;
-  const b = def.boss;
-  if (!b) return null;
-  const p = s.player.pos;
-  const dist = manhattan(enemy.pos, p);
-  if (dist <= b.slam.radius) {
-    const cells = diamond(s, enemy.pos, b.slam.radius, false).filter((c) => !equals(c, enemy.pos));
-    startTelegraph(ctx, enemy, b.slam.name, cells, b.slam.power, b.slam.delay);
-    return 'attacked';
+  const power = sk.power + (enemy.power - def.power); // los enemigos de sectores hondos pegan algo más fuerte
+  enemy.cooldowns[sk.id] = sk.cooldown;
+  const sh = sk.shape;
+  const announce = (cells: Vec[]): void => {
+    if (sk.delay > 0) {
+      startTelegraph(ctx, enemy, sk, cells, power);
+    } else {
+      ctx.events.push({ type: 'EnemySkill', enemyId: enemy.id, skillId: sk.id, from: enemy.pos, to: p });
+      if (cells.some((c) => equals(c, p))) hitPlayerWithSkill(ctx, enemy, sk.name, power, sk.inflict);
+    }
+  };
+  switch (sh.kind) {
+    case 'burst':
+      announce(diamond(s, enemy.pos, sh.radius, false).filter((c) => !equals(c, enemy.pos)));
+      return;
+    case 'zone':
+      announce(diamond(s, p, sh.radius, false));
+      return;
+    case 'cross':
+      announce(crossCells(s, p, sh.length));
+      return;
+    case 'beam': {
+      const d = lineDir(enemy.pos, p) as Vec;
+      announce(beamCells(s, enemy.pos, d, sh.length));
+      return;
+    }
+    case 'shot':
+      ctx.events.push({ type: 'EnemySkill', enemyId: enemy.id, skillId: sk.id, from: enemy.pos, to: p });
+      say(ctx, `${enemyName(enemy)} ${sk.flavor ?? `usa ${sk.name}`}.`);
+      hitPlayerWithSkill(ctx, enemy, sk.name, power, sk.inflict);
+      return;
+    case 'dash': {
+      const dest = dashLanding(s, enemy, sh.range);
+      if (!dest) return;
+      const from = enemy.pos;
+      enemy.pos = dest;
+      ctx.events.push({ type: 'EnemyMoved', enemyId: enemy.id, from, to: dest });
+      ctx.events.push({ type: 'EnemySkill', enemyId: enemy.id, skillId: sk.id, from, to: dest });
+      say(ctx, `${enemyName(enemy)} ${sk.flavor ?? `usa ${sk.name}`}.`);
+      return;
+    }
+    case 'summon':
+      summonEnemies(ctx, enemy, sh.enemy, sh.count, `${enemyName(enemy)} usa ${sk.name}: ${sh.count} ${ENEMIES[sh.enemy]?.name ?? 'aliados'} aparecen.`);
+      return;
   }
-  if (enemy.phase >= 2 && hasLineOfSight(s.map, enemy.pos, p, openDoors(s))) {
-    startTelegraph(ctx, enemy, b.wave.name, crossCells(s, p, b.wave.length), b.wave.power, b.wave.delay);
-    return 'attacked';
-  }
-  return null;
 }
 
 function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepResult {
@@ -1675,13 +1860,12 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
   };
 
   if (sees) {
-    if (def.behavior === 'channeler') {
-      const r = channelerAttack(ctx, enemy, def);
-      if (r) return r;
-    } else if (def.behavior === 'boss') {
-      const r = bossAttack(ctx, enemy, def);
-      if (r) return r;
-    } else if (def.behavior === 'ranged') {
+    const skill = pickSkill(ctx, enemy, def);
+    if (skill) {
+      useSkill(ctx, enemy, def, skill);
+      return skill.shape.kind === 'dash' ? 'moved' : 'attacked';
+    }
+    if (def.behavior === 'ranged') {
       const range = def.range ?? 5;
       const keepAway = def.keepAway ?? 2;
       if (dist <= keepAway) {
@@ -1724,7 +1908,7 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
 
   if (enemy.aggroRange === 0) return 'none'; // centinela: ataca a quien tiene al lado pero no se mueve
   if (enemy.statuses.some((st) => st.id === 'atado')) return 'none'; // inmovilizado
-  if (def.behavior === 'boss' && s.turn % 2 !== 0) return 'none'; // el Campanero avanza despacio
+  if (def.boss?.slowApproach && s.turn % 2 !== 0) return 'none'; // algunos jefes avanzan despacio
   // Sin verte, va a donde te vio por última vez; al llegar sigue tu rastro hasta donde estés, aunque sea tras una puerta.
   let goal = sees ? p.pos : enemy.lastSeen;
   if (!sees && goal !== null && equals(goal, enemy.pos)) enemy.tracking = true;
@@ -1750,6 +1934,7 @@ function enemyAct(ctx: Ctx, enemy: Enemy, index: number): void {
     else say(ctx, `${enemyName(enemy)} está aturdido y pierde su acción.`);
     return;
   }
+  for (const k of Object.keys(enemy.cooldowns)) if (enemy.cooldowns[k] > 0) enemy.cooldowns[k] -= 1;
   // Un ataque anunciado ocupa toda su acción hasta liberarse.
   const charging = ctx.state.telegraphs.find((t) => t.ownerId === enemy.id);
   if (charging) {
@@ -1811,7 +1996,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       ];
       return { ok: true, state, events };
     }
-    if (npc?.kind === FORGE_KIND) return { ok: true, state, events: [{ type: 'NpcTalked', npcId: npc.id }] };
+    if (npc?.kind === FORGE_KIND || npc?.kind === MERCHANT_KIND) return { ok: true, state, events: [{ type: 'NpcTalked', npcId: npc.id }] };
   }
 
   const ctx: Ctx = { state: structuredClone(state), events: [] };

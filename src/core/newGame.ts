@@ -1,5 +1,6 @@
 import { AFFINITIES } from '../content/affinities';
 import { BALANCE } from '../content/balance';
+import { isBossFloor } from '../content/enemies';
 import { techniquesFor } from '../content/techniques';
 import { generateLevel } from '../dungeon/generator';
 import { levelFromRoom } from '../dungeon/ascii';
@@ -38,7 +39,7 @@ export function createGame(opts: NewGameOptions): GameState {
   }
 
   const maxFloor = opts.floors ?? (opts.room ? 1 : BALANCE.maxFloors);
-  const level = opts.room ? levelFromRoom(opts.room) : generateLevel({ seed: opts.seed, floor: 1, boss: maxFloor <= 1 });
+  const level = opts.room ? levelFromRoom(opts.room) : generateLevel({ seed: opts.seed, floor: 1, boss: maxFloor <= 1 || isBossFloor(1) });
 
   const state: GameState = {
     schemaVersion: SCHEMA_VERSION,
@@ -87,6 +88,7 @@ export function createGame(opts: NewGameOptions): GameState {
     floorEnemies: level.enemies.length,
     floorKilled: 0,
     floorCleared: false,
+    bossesDefeated: 0,
     appearance: {},
     seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),

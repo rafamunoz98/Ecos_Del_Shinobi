@@ -1,5 +1,5 @@
 import { BALANCE } from '../content/balance';
-import { ENEMIES } from '../content/enemies';
+import { BOSS_ID, ENEMIES } from '../content/enemies';
 import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy } from './spawn';
 
@@ -70,7 +70,7 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
           monkStarts.push({ x, y });
           tiles.push('floor');
           break;
-        case 'B': // Campanero Sepultado
+        case 'B': // Sōkan, el jefe de prueba
           bossStarts.push({ x, y });
           tiles.push('floor');
           break;
@@ -120,7 +120,7 @@ export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerSt
     enemies: [
       ...room.enemyStarts.map((pos, i) => ({ ...createEnemy(def, `enemy-${i}`, pos, 1), alert: BALANCE.alertTurns })),
       ...room.monkStarts.map((pos, i) => ({ ...createEnemy(ENEMIES.monje_hueco, `enemy-m${i}`, pos, 1), alert: BALANCE.alertTurns })),
-      ...room.bossStarts.map((pos, i) => ({ ...createBoss(ENEMIES.campanero_sepultado, `enemy-b${i}`, pos), alert: BALANCE.alertTurns })),
+      ...room.bossStarts.map((pos, i) => ({ ...createBoss(ENEMIES[BOSS_ID], `enemy-b${i}`, pos), alert: BALANCE.alertTurns })),
     ],
     chests: [
       ...room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),
