@@ -3,10 +3,10 @@ import { getArcana, isArcana } from '../content/arcana';
 import { BALANCE } from '../content/balance';
 import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describeShape, describeWeaponPattern } from '../content/describe';
 import { getMod, isCursedGear } from '../content/enchants';
-import { CURRENCY, KEYS, getEquipment, getItem } from '../content/items';
+import { CURRENCY, KEYS, getEquipment } from '../content/items';
 import { gearLabel, iconIdFor, itemName } from '../content/names';
 import { NOTES, getNote, getRelic } from '../content/story';
-import { TECHNIQUES, getTechnique, type TechniqueDef } from '../content/techniques';
+import { TECHNIQUES, affinitiesOf, getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { effectiveDefense, effectivePower, weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
@@ -19,7 +19,7 @@ export type MenuTab = 'estado' | 'tecnicas' | 'objetos' | 'armas' | 'notas' | 'm
 const TABS: { id: MenuTab; label: string; icon: string }[] = [
   { id: 'estado', label: 'Estado', icon: 'hp' },
   { id: 'tecnicas', label: 'Técnicas', icon: 'ascua' },
-  { id: 'objetos', label: 'Objetos', icon: 'tonico_kiro' },
+  { id: 'objetos', label: 'Objetos', icon: 'pocion_azar' },
   { id: 'armas', label: 'Equipo', icon: 'hoja_afilada' },
   { id: 'notas', label: 'Notas', icon: 'pergamino' },
   { id: 'mapa', label: 'Mapa', icon: 'cofre' },
@@ -170,10 +170,15 @@ export class Menu {
       c.scale(170, 170);
       drawNinja(c, { t: 0.3, walk: 0, phase: 0, dir: 'down', weapon: getWeapon(p.equipment.weapon)?.kind, protected: p.statuses.some((x) => x.id === 'protegido') });
     }
-    left.append(cv, h('h3', undefined, 'Shinobi errante'), h('div', 'sub', `Nivel ${p.level} · ${AFFINITY_NAMES[p.affinity]}`));
+    left.append(cv, h('h3', undefined, 'Shinobi errante'), h('div', 'sub', `Nivel ${p.level} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`));
     const aff = h('div', 'aff');
     aff.append(icon(p.affinity, 40), h('span', undefined, `Afinidad ${AFFINITY_NAMES[p.affinity]}`));
     left.append(aff);
+    if (p.affinity2) {
+      const aff2 = h('div', 'aff');
+      aff2.append(icon(p.affinity2, 40), h('span', undefined, `Afinidad ${AFFINITY_NAMES[p.affinity2]}`));
+      left.append(aff2);
+    }
 
     const right = h('div', 'stats');
     const grid = h('div', 'statgrid');
@@ -280,7 +285,7 @@ export class Menu {
       h(
         'p',
         'lead',
-        `Afinidad ${AFFINITY_NAMES[p.affinity]}. Llevas ${p.techniques.length} de ${BALANCE.techniqueSlots} técnicas (teclas 1-${BALANCE.techniqueSlots}). Las demás quedan en el grimorio: cambiar una gasta un turno. Esperar recupera kiro y también se recupera solo con el tiempo.`,
+        `${p.affinity2 ? `Afinidades ${AFFINITY_NAMES[p.affinity]} y ${AFFINITY_NAMES[p.affinity2]}` : `Afinidad ${AFFINITY_NAMES[p.affinity]}`}. Llevas ${p.techniques.length} de ${BALANCE.techniqueSlots} técnicas (teclas 1-${BALANCE.techniqueSlots}); no hace falta sustituir ninguna hasta llenar las ${BALANCE.techniqueSlots}. Las que no caben quedan en el grimorio: cambiar una gasta un turno. El kiro vuelve solo con el tiempo y esperando.`,
       ),
     );
     out.push(h('h4', undefined, 'Equipadas'));
@@ -325,14 +330,16 @@ export class Menu {
     }
 
     const known = new Set([...p.techniques, ...p.grimoire]);
-    const byLevel = Object.values(TECHNIQUES).filter((t) => t.affinity === p.affinity && !t.learnable && !known.has(t.id) && t.minLevel > p.level);
+    const mine = affinitiesOf(p);
+    const unlocked = new Set([...techniquesFor(p.affinity, p.level), ...(p.affinity2 ? techniquesFor(p.affinity2, p.tier2) : [])]);
+    const byLevel = Object.values(TECHNIQUES).filter((t) => t.affinity !== null && mine.includes(t.affinity) && !t.learnable && !known.has(t.id) && !unlocked.has(t.id));
     if (byLevel.length > 0) {
       out.push(h('h4', undefined, 'Por desbloquear con el nivel'));
       const g = h('div', 'cards');
       for (const def of byLevel) g.append(this.card(def, { kiro: p.kiro, level: p.level, locked: true }));
       out.push(g);
     }
-    const toLearn = Object.values(TECHNIQUES).filter((t) => t.learnable && (t.affinity === p.affinity || t.affinity === null) && !known.has(t.id));
+    const toLearn = Object.values(TECHNIQUES).filter((t) => t.learnable && (t.affinity === null || mine.includes(t.affinity)) && !known.has(t.id));
     if (toLearn.length > 0) {
       out.push(h('h4', undefined, 'Por aprender'));
       out.push(h('div', 'muted', 'Se consiguen en manuales (cofres lacados y cámaras selladas, o a la venta), enseñadas por maestros como Sayoko.'));
@@ -348,7 +355,6 @@ export class Menu {
     const out: HTMLElement[] = [];
     const ids = Object.keys(p.inventory).filter((id) => (p.inventory[id] ?? 0) > 0);
     const groups: { title: string; test: (id: string) => boolean; verb: (id: string) => string }[] = [
-      { title: 'Consumibles', test: (id) => !!getItem(id), verb: () => 'Usar' },
       {
         title: 'Pociones',
         test: (id) => id.startsWith('pocion:'),
@@ -374,7 +380,7 @@ export class Menu {
         const t = h('div', 'rt');
         t.append(h('b', undefined, itemName(id, s)), h('span', undefined, `×${n}${known ? '' : ' · sin identificar'}`));
         top.append(icon(iconIdFor(id, s), 52), t);
-        let desc = getItem(id)?.description ?? '';
+        let desc = '';
         if (isArcana(id)) desc = known ? (getArcana(id)?.description ?? '') : 'Nadie sabe qué hace. Pruébala con cuidado: algunas son malas. Tu afinidad ya reconoce un tipo de cada clase.';
         else if (id.startsWith('manual:')) desc = getTechnique(id.slice(7))?.description ?? '';
         c.append(top, h('p', undefined, desc));

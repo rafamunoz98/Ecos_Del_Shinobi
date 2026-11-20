@@ -128,23 +128,6 @@ function vial(ctx: Ctx, color: string, glow: string): void {
   ctx.fill();
 }
 
-function jar(ctx: Ctx): void {
-  roundRectPath(ctx, -0.3, -0.18, 0.6, 0.58, 0.12);
-  ctx.fillStyle = vGrad(ctx, -0.18, 0.4, '#8bb36a', '#4d7a3c');
-  ctx.fill();
-  outline(ctx, 0.05);
-  roundRectPath(ctx, -0.34, -0.36, 0.68, 0.2, 0.07);
-  ctx.fillStyle = '#b08a5a';
-  ctx.fill();
-  outline(ctx, 0.05);
-  ctx.fillStyle = '#e8f1cf';
-  roundRectPath(ctx, -0.16, 0.02, 0.32, 0.22, 0.04);
-  ctx.fill();
-  outline(ctx, 0.03);
-  ctx.fillStyle = '#4d7a3c';
-  circle(ctx, 0, 0.13, 0.06);
-  ctx.fill();
-}
 
 function whip(ctx: Ctx): void {
   roundRectPath(ctx, -0.07, 0.04, 0.14, 0.4, 0.04);
@@ -918,8 +901,6 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   shuriken,
   kunai_arrojadizo: kunai,
   senbon,
-  tonico_kiro: (c) => vial(c, '#2f6fd6', '#9fd0ff'),
-  unguento_musgo: jar,
   tanto_gastado: (c) => blade(c, 0.4, 0.07, '#c9cfdb', '#7a8296'),
   kunai_de_hierro: (c) => blade(c, 0.46, 0.085, '#e4e8f2', '#8a92a6', '#3d3f52'),
   hoja_afilada: (c) => blade(c, 0.58, 0.075, '#f5f8ff', '#97a0b8'),

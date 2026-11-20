@@ -16,11 +16,12 @@ Orden de una ronda:
 Las animaciones no deciden resultados de combate. El estado del juego es la fuente de verdad.
 
 ## 2. Acciones
-- `Move(dx,dy)`: movimiento de una casilla en **8 direcciones** (también diagonales; no se puede cortar la esquina de una pared).
+- `Move(dx,dy)`: movimiento de una casilla en **8 direcciones**. Una diagonal solo se bloquea si **las dos** casillas contiguas son pared o puerta cerrada: con una libre se puede cortar la esquina. Atado impide moverse.
+- `ChooseAffinity(affinity)`: elegir la segunda afinidad ofrecida por el primer jefe. Es una decisión libre (no gasta turno) y es obligatoria antes de seguir jugando.
 - `Wait`: pasar turno y recuperar 2 de kiro. Además el kiro se recupera solo (1 cada 3 rondas) y la vida, 1 cada 10.
 - `BasicAttack(target)`: ataque con arma o combate cuerpo a cuerpo.
 - `UseTechnique(techniqueId,target)`: técnica con coste, alcance, área y enfriamiento opcional.
-- `UseItem(itemId)`: consumible, poción, pergamino o manual de técnica.
+- `UseItem(itemId)`: poción, pergamino o manual de técnica.
 - `EquipWeapon`, `EquipArmor`, `EquipTechnique(techniqueId, replace?)`: cambiar de arma, de vestimenta o una técnica del grimorio por una equipada (gastan un turno).
 - `Throw(itemId,target)`: lanzar una arrojadiza (V cambia la elegida sin gastar turno).
 - `Purify`, `Upgrade`, `Buy`: purificar o mejorar en una mesa de forja y comprar al mercader.
@@ -81,7 +82,8 @@ Cada transformación define duración, coste, efecto, limitaciones, señales vis
 - Guardián: protege una zona o invoca defensa.
 - Canalizador (Monje Hueco) **[Implementado]**: si te ve a ≤ 5 casillas, marca un rombo de radio 1 centrado en ti; el área estalla cuando el monje ha actuado dos veces más. Aturdirlo o matarlo cancela la marca.
 - Shinobi **[Implementado]**: ocho tipos con habilidades propias (kunai, tajo giratorio, salto, pulso, cruz, senbon envenenadas, clones, relámpago en cruz). Ver `08_biblia_de_contenido.md` §4.
-- Jefes shinobi (Sōkan y Yūgiri) **[Implementado]**: fases según su vida (>2/3, >1/3, resto). Ver §9.1.
+- Jefes shinobi (Sōkan y Yūgiri) **[Implementado]**: fases según su vida (>2/3, >1/3, resto) y mecánicas propias cada uno. Ver §9.1.
+- **Señuelo [Implementado]:** un enemigo alertado, que no está pegado a ti y a ≤ 40 casillas de camino de un tronco señuelo (técnica Sustitución, pergamino de Sustitución) lo persigue y lo golpea en lugar de a ti. Los jefes lo ignoran al perseguir, pero lo atacan si está a su lado.
 - **Persecución [Implementado]:** al notarte, un enemigo queda alerta 12 rondas y te sigue desde hasta 40 casillas de camino; si te pierde, rastrea tu posición real hasta 18 casillas. Las puertas no los detienen: así siempre pueden alcanzarte para el cuerpo a cuerpo.
 
 Desempates deterministas para reproducir errores.
@@ -90,9 +92,10 @@ Desempates deterministas para reproducir errores.
 - Un ataque anunciado es una marca en el mapa (`state.telegraphs`) con casillas, potencia y cuenta atrás. Empieza en 2; cada acción de su dueño la reduce y al llegar a 0 se libera y daña al jugador si está en alguna casilla marcada (la defensa cuenta). Se dibuja rayada con el número de rondas.
 - Aturdir al dueño (salvo al jefe) o matarlo cancela la marca. El procesado de marcas ocurre antes de decidir si el enemigo te ve, así que una marca ya lanzada siempre se resuelve.
 - Cada jefe y cada shinobi usa **habilidades** (`SkillDef`): ráfaga alrededor de sí, zona sobre ti, cruz, rayo en línea (8 direcciones), disparo inmediato, salto, invocación. Tienen enfriamiento y, desde cierta fase, nuevas opciones. Las anunciadas dibujan sus casillas y se liberan tras su aviso.
-- **Sōkan, Predicador Hueco** (sector 3; 44 vida, poder 7, def. 2) y **Yūgiri, el Hilo Roto** (sector 6; 52 vida, poder 8, def. 2). Inmunes a aturdimiento, empuje y ataduras. Detalle en `08_biblia_de_contenido.md` §5.
+- **Sōkan, Predicador Hueco** (sector 3; 64 vida, poder 8, def. 2) y **Yūgiri, el Hilo Roto** (sector 6; 130 vida, poder 9, def. 2). Inmunes a aturdimiento, empuje y ataduras. Cada uno tiene una mecánica distinta: Sōkan se protege con un **escudo de tablillas** (mientras quede una, no recibe daño ni quemadura ni veneno; hay que romperlas) y empuja y roba kiro; Yūgiri **arrastra** con su hilo, **ata** con su red y se **sustituye** (kawarimi) por una marioneta explosiva cuando lo golpean. Desde cierta fase se enfurecen (acción extra por ronda, enfriamientos al doble y avisos 1 ronda más rápidos). Detalle en `08_biblia_de_contenido.md` §5.
 - Mientras un jefe viva, la salida de su sector está sellada (`exit_sealed`). Al caer: reliquia, 15 monedas, 3 esquirlas, se cancelan sus ecos, **cambia la estética de la zona** y **aparece un mercader** cerca. El juego se gana al cruzar la salida del sector 6 tras derrotar a Yūgiri.
-- Los patrones están pensados para esquivar saliendo de las zonas marcadas o castigar a distancia.
+- Los patrones están pensados para esquivar saliendo de las zonas marcadas o castigar a distancia. **Los ataques anunciados también dañan a tus aliados** (clones, sapo, tronco) si están en la zona, y los jefes golpean a los aliados que tengan al lado.
+- **Recompensa del primer jefe [Implementado]:** al caer Sōkan se ofrecen **dos afinidades al azar** (distintas de la tuya). Eliges una (1 / 2 o clic): aprendes su técnica más básica, reconoces su poción y pergamino y, con cada nivel, desbloqueas la siguiente técnica de esa afinidad (`affinity2`, `tier2`). Hasta elegir, el juego queda en pausa (`affinity_pending`) y el jefe ya no suelta un manual.
 
 ### 9.2 PNJ y decisiones **[Implementado]**
 - Los PNJ (`state.npcs`) ocupan casilla y bloquean el paso. `Interact` junto a uno es una acción gratuita: muestra el diálogo, no gasta turno. `Choose {npcId, optionId}` paga el coste de la opción, aplica sus ganancias y marca al PNJ como usado (una vez por PNJ).
@@ -108,13 +111,15 @@ Estados candidatos: quemadura, marca, ralentización, aturdimiento, barrera, san
 - **Puertas:** cerradas tapan la visión; se abren mientras alguien está dentro de ellas. Las colocan los generadores en la boca de los pasillos.
 - **Percepción:** un enemigo que no te ve no actúa. Te nota si hay línea de visión y distancia ≤ su alcance de percepción (y no estás en un arbusto, salvo adyacente). Al notarte queda *alerta* 12 rondas: persigue hacia donde te vio por última vez y, si te pierde, rastrea tu posición real un buen trecho; acaba rindiéndose.
 - **Golpe furtivo:** atacar (cuerpo a cuerpo o lanzando) a un enemigo que no sabe de ti hace ×2 de daño. Un enemigo herido sabe siempre dónde estás.
+- **Línea de visión mutua:** un disparo o un ataque anunciado a distancia exige que enemigo y jugador se vean en **ambos sentidos**; una diagonal entre dos muros no deja pasar. Así nadie dispara a través de muros ni de esquinas. Las ráfagas de los enemigos tampoco atraviesan paredes.
+- **Arbustos en pasillos:** además de los grupos de las salas, hasta 7 arbustos por sector salen en los pasillos (sirven para esconderse o emboscar).
 
 ## 11. Inventario y botín
-Ranuras iniciales: arma, vestimenta, talismán y sello (en el prototipo: arma y vestimenta). **Armas cuerpo a cuerpo [Implementado]:** hoja (adyacente), látigo (alcance 2, golpea al primero de la línea) y lanza (alcance 2, atraviesa). Se llevan varias y se equipa una (cambiar gasta un turno). **Arrojadizas [Implementado]:** shuriken, kunai arrojadizo y senbon; se lanzan a una casilla visible y se detienen en el primer enemigo. Si fallan o se pierden, caen al suelo (recogibles al pisarlas); si aciertan y no se rompen, **se clavan en el enemigo** (se ven en su sprite) y **caen al suelo al morir**. Consumibles: tónicos, pergaminos, bombas de humo y kits de sellado. El botín usa tablas configurables; las recompensas raras no deben ser obligatorias para superar el juego.
+Ranuras iniciales: arma, vestimenta, talismán y sello (en el prototipo: arma y vestimenta). **Armas cuerpo a cuerpo [Implementado]:** hoja (adyacente), látigo (alcance 2, golpea al primero de la línea) y lanza (alcance 2, atraviesa). Se llevan varias y se equipa una (cambiar gasta un turno). **Arrojadizas [Implementado]:** shuriken, kunai arrojadizo y senbon; se lanzan a una casilla visible y se detienen en el primer enemigo. Si fallan o se pierden, caen al suelo (recogibles al pisarlas); si aciertan y no se rompen, **se clavan en el enemigo** (se ven en su sprite) y **caen al suelo al morir**. Consumibles: pociones, pergaminos y manuales (ya no hay tónicos ni ungüentos). El botín usa tablas configurables; las recompensas raras no deben ser obligatorias para superar el juego.
 
 ### 11.1 Objetos del suelo, cofres, llaves y monedas **[Implementado]**
 Inspirado en Pixel Dungeon: lo normal es encontrar objetos *por el suelo*; los cofres son un extra con cosas mejores.
-- **Suelo:** de 6 a 9 objetos por sector (monedas, esquirlas, tónicos, ungüentos, pociones, pergaminos y arrojadizas). Se recogen al pisarlos. Las armas y arrojadizas son escasas.
+- **Suelo:** de 6 a 9 objetos por sector (monedas, esquirlas, pociones, pergaminos y arrojadizas). Se recogen al pisarlos y **no revelan lo que son** (el aviso muestra la apariencia). Las armas y arrojadizas son escasas y los **manuales de técnica ya no salen por el suelo**. **Cada fase** (los sectores previos a un jefe) tiene asegurada **una Poción de Sanación** en el suelo de un sector sin jefe, sorteado con la semilla.
 - **Cofre de madera** (hasta 2 por sector): equipo y reservas grandes. No necesita llave.
 - **Puerta con candado:** cierra una *cámara sellada* (75 % de los sectores) con 3 tesoros. Se abre con la **llave de hierro**, que está en una sala con enemigos y brilla en el suelo. Se abre caminando contra ella o con X.
 - **Cofre lacado** (60 % de los sectores): solo se abre con la **llave de laca**, en la sala más alejada de la entrada. Contiene equipo de gama alta y manuales de técnica.
@@ -125,13 +130,13 @@ Inspirado en Pixel Dungeon: lo normal es encontrar objetos *por el suelo*; los c
 Hay mesa de forja en los sectores 2, 3 y 5. Hablar con ella (X o caminar contra ella) es gratis y abre el menú. Cada arma cuerpo a cuerpo se mejora hasta **+3**; cada nivel da +1 de poder. El coste por nivel es de **12 / 20 / 30 monedas** o de **2 / 3 / 4 esquirlas**; mejorar gasta un turno. También **purifica** piezas malditas ya identificadas por **10 monedas**.
 
 ### 11.3 Equipo sin identificar, encantamientos y maldiciones **[Implementado]**
-Las armas y vestimentas encontradas se ven como «Nombre (?)». Pueden ser corrientes, encantadas (efecto positivo) o malditas (efecto negativo y **pegadas al cuerpo** hasta purificarlas). Equipar una pieza la identifica. No se puede cambiar una ranura mientras lo puesto esté maldito; se rompe con un Sello de Purificación o en la forja. Tabla en `08_biblia_de_contenido.md` §6.2.
+Las armas y vestimentas encontradas se ven como «Nombre (?)». Pueden ser corrientes, encantadas (efecto positivo) o malditas (efecto negativo y **pegadas al cuerpo** hasta purificarlas). Una pieza normal o encantada **tarda 20 rondas puestas** en identificarse (`BALANCE.identifyTurns`; el progreso se guarda por pieza y no se pierde si la cambias); una **maldita se revela al instante al equiparla**. No se puede cambiar una ranura mientras lo puesto esté maldito; se rompe con un Sello de Purificación o en la forja. Tabla en `08_biblia_de_contenido.md` §6.2.
 
 ### 11.4 Pociones y pergaminos sin identificar **[Implementado]**
-11 pociones y 12 pergaminos con apariencias al azar por partida; se identifican al usarlos. Cada afinidad reconoce de entrada una poción y un pergamino. Muchos son invocaciones (sapo, cuervos, clones de sombra) y sellos al estilo ninja. Tabla en `08_biblia_de_contenido.md` §6.3.
+11 pociones y 12 pergaminos con apariencias al azar por partida; se identifican al usarlos. Hay **Poción de Sanación** (15 de vida y limpia estados) y **Poción de Kiro Mayor** (12 de kiro) para recuperarse; se empieza solo con 5 shuriken. Cada afinidad reconoce de entrada una poción y un pergamino. Muchos son invocaciones (sapo, cuervos, clones de sombra) y sellos al estilo ninja. Tabla en `08_biblia_de_contenido.md` §6.3.
 
 ### 11.5 Subida de nivel controlada **[Implementado]**
-Solo se sube un nivel al **despejar un sector**: derrotar a todos sus enemigos no invocados (`floorKilled === floorEnemies`). Un sector da como mucho un nivel; el nivel 6 se alcanza tras despejar el quinto sector. Cada nivel desbloquea la técnica de nivel de la afinidad (niveles 2–5).
+Solo se sube un nivel al **despejar un sector**: derrotar a todos sus enemigos no invocados (`floorKilled === floorEnemies`). Un sector da como mucho un nivel; el nivel 6 se alcanza tras despejar el quinto sector. Cada nivel desbloquea la técnica de nivel de la afinidad (niveles 2–5) y, tras el primer jefe, la siguiente de la segunda afinidad. Se pueden llevar **6 técnicas equipadas** (`BALANCE.techniqueSlots`); las que sobren van al grimorio y no hay que sustituir ninguna hasta llenar las 6.
 
 ### 11.6 Comparativa con Pixel Dungeon
 | Idea de Pixel Dungeon | Estado en Ecos del Shinobi |

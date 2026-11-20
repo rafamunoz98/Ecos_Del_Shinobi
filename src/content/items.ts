@@ -2,35 +2,10 @@ import type { EquipSlot } from '../core/types';
 import { RANDOM_POTION, RANDOM_SCROLL } from './arcana';
 import { baseGearId } from './enchants';
 
-export type ItemEffect =
-  | { kind: 'restoreKiro'; amount: number }
-  | { kind: 'restoreHp'; amount: number };
-
-export interface ItemDef {
-  id: string;
-  name: string;
-  description: string;
-  effect: ItemEffect;
-}
-
-export const ITEMS: Record<string, ItemDef> = {
-  tonico_kiro: {
-    id: 'tonico_kiro',
-    name: 'Tónico de Kiro',
-    description: 'Recupera 5 de kiro.',
-    effect: { kind: 'restoreKiro', amount: 5 },
-  },
-  unguento_musgo: {
-    id: 'unguento_musgo',
-    name: 'Ungüento de Musgo',
-    description: 'Recupera 8 de vida.',
-    effect: { kind: 'restoreHp', amount: 8 },
-  },
-};
-
-export function getItem(id: string): ItemDef | undefined {
-  return Object.hasOwn(ITEMS, id) ? ITEMS[id] : undefined;
-}
+/*
+ * Ya no hay tónicos ni ungüentos: la vida y el kiro se recuperan con pociones (sin identificar al principio; ver arcana.ts),
+ * con el paso del tiempo y descansando.
+ */
 
 // ---------- Equipo (vestimenta) ----------
 
@@ -94,14 +69,11 @@ export interface LootEntry {
 export const GROUND_LOOT: readonly LootEntry[] = [
   { kind: 'coins', id: 'moneda', weight: 5, minFloor: 1, amount: 2 },
   { kind: 'shards', id: 'esquirla', weight: 2, minFloor: 1, amount: 1 },
-  { kind: 'item', id: 'tonico_kiro', weight: 2, minFloor: 1 },
-  { kind: 'item', id: 'unguento_musgo', weight: 2, minFloor: 1 },
-  { kind: 'item', id: RANDOM_POTION, weight: 4, minFloor: 1 },
+  { kind: 'item', id: RANDOM_POTION, weight: 6, minFloor: 1 },
   { kind: 'item', id: RANDOM_SCROLL, weight: 4, minFloor: 1 },
   { kind: 'throwable', id: 'shuriken', weight: 2, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 2, amount: 1 },
-  { kind: 'item', id: 'manual_tecnica', weight: 1, minFloor: 2 },
 ];
 
 /** Cofre de madera: equipo y reservas generosas. */
@@ -114,8 +86,6 @@ export const CHEST_LOOT: readonly LootEntry[] = [
   { kind: 'equipment', id: 'chaleco_acolchado', weight: 1, minFloor: 1 },
   { kind: 'equipment', id: 'cota_de_laminas', weight: 2, minFloor: 2 },
   { kind: 'equipment', id: 'coraza_de_pizarra', weight: 1, minFloor: 3 },
-  { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1, amount: 2 },
-  { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: RANDOM_POTION, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: RANDOM_SCROLL, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'shuriken', weight: 1, minFloor: 1, amount: 3 },
@@ -135,13 +105,11 @@ export const LACQUER_LOOT: readonly LootEntry[] = [
 /** Cámara sellada (exige llave de hierro): una pieza de equipo y varias reservas. */
 export const VAULT_GEAR: readonly LootEntry[] = LACQUER_LOOT;
 export const VAULT_EXTRAS: readonly LootEntry[] = [
-  { kind: 'item', id: 'unguento_musgo', weight: 3, minFloor: 1, amount: 2 },
-  { kind: 'item', id: 'tonico_kiro', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'kunai_arrojadizo', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'throwable', id: 'senbon', weight: 1, minFloor: 1, amount: 3 },
   { kind: 'shards', id: 'esquirla', weight: 3, minFloor: 1, amount: 2 },
   { kind: 'coins', id: 'moneda', weight: 3, minFloor: 1, amount: 6 },
-  { kind: 'item', id: 'manual_tecnica', weight: 3, minFloor: 1 },
+  { kind: 'item', id: 'manual_tecnica', weight: 1, minFloor: 2 },
   { kind: 'item', id: RANDOM_SCROLL, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: RANDOM_POTION, weight: 2, minFloor: 1, amount: 2 },
 ];

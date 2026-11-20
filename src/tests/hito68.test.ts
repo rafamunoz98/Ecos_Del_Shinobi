@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { POTIONS, SCROLLS, STARTING_KNOWN } from '../content/arcana';
+import { BALANCE } from '../content/balance';
 import { MODS, makeGearId, splitGear } from '../content/enchants';
 import { itemName } from '../content/names';
 import { AFFINITIES } from '../content/affinities';
@@ -63,16 +64,44 @@ describe('equipo encantado y maldito', () => {
     for (const m of Object.values(MODS)) expect(m.description.length).toBeGreaterThan(5);
   });
 
-  it('equipar una pieza la identifica y revela su efecto', () => {
+  it('una pieza normal tarda unas rondas en identificarse; mientras tanto se ve como «(?)»', () => {
     const s = makeGame(room, (g) => {
       g.player.weapons.push('hoja_afilada~filo_fino');
+      calm(g);
     });
     expect(s.player.identified).not.toContain('hoja_afilada~filo_fino');
-    const r = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~filo_fino' });
-    expect(r.ok).toBe(true);
+    let st = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~filo_fino' }).state;
+    expect(st.player.identified).not.toContain('hoja_afilada~filo_fino');
+    expect(itemName('hoja_afilada~filo_fino', st)).toContain('(?)');
+    for (let i = 0; i < BALANCE.identifyTurns - 2; i++) st = applyCommand(st, { type: 'Wait' }).state;
+    expect(st.player.identified).not.toContain('hoja_afilada~filo_fino');
+    const r = applyCommand(st, { type: 'Wait' });
     expect(r.state.player.identified).toContain('hoja_afilada~filo_fino');
     expect(r.events).toContainEqual({ type: 'GearIdentified', itemId: 'hoja_afilada~filo_fino' });
     expect(effectivePower(r.state.player)).toBe(s.player.power + 2 + 2);
+  });
+
+  it('una pieza maldita se revela al instante al equiparla (y ya no se puede quitar)', () => {
+    const s = makeGame(room, (g) => {
+      g.player.weapons.push('hoja_afilada~oxido');
+      calm(g);
+    });
+    const r = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~oxido' });
+    expect(r.ok).toBe(true);
+    expect(r.state.player.identified).toContain('hoja_afilada~oxido');
+    expect(r.events).toContainEqual({ type: 'GearIdentified', itemId: 'hoja_afilada~oxido' });
+  });
+
+  it('cambiar de pieza antes de identificarla no la identifica', () => {
+    const s = makeGame(room, (g) => {
+      g.player.weapons.push('hoja_afilada~filo_fino');
+      calm(g);
+    });
+    let st = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~filo_fino' }).state;
+    for (let i = 0; i < 5; i++) st = applyCommand(st, { type: 'Wait' }).state;
+    st = applyCommand(st, { type: 'EquipWeapon', weaponId: 'tanto_gastado' }).state;
+    for (let i = 0; i < BALANCE.identifyTurns; i++) st = applyCommand(st, { type: 'Wait' }).state;
+    expect(st.player.identified).not.toContain('hoja_afilada~filo_fino');
   });
 
   it('una maldición se queda pegada: no puedes cambiar de arma hasta purificarla', () => {

@@ -48,8 +48,8 @@ export const RANDOM_SCROLL = 'pergamino_azar';
 export const POTIONS: Record<string, ArcanaDef<PotionEffect>> = Object.fromEntries(
   (
     [
-      { id: 'sanacion', name: 'Poción de Sanación', description: 'Cierra las heridas: recuperas 15 de vida y te libras de quemaduras y venenos.', good: true, weight: 6, price: 14, effect: { kind: 'heal', amount: 15, cleanse: true } },
-      { id: 'kiro_mayor', name: 'Poción de Kiro Mayor', description: 'Recuperas 12 de kiro.', good: true, weight: 5, price: 12, effect: { kind: 'kiro', amount: 12 } },
+      { id: 'sanacion', name: 'Poción de Sanación', description: 'Cierra las heridas: recuperas 15 de vida y te libras de quemaduras y venenos.', good: true, weight: 8, price: 14, effect: { kind: 'heal', amount: 15, cleanse: true } },
+      { id: 'kiro_mayor', name: 'Poción de Kiro Mayor', description: 'Recuperas 12 de kiro.', good: true, weight: 6, price: 12, effect: { kind: 'kiro', amount: 12 } },
       { id: 'akimichi', name: 'Píldora Akimichi', description: 'Una píldora de las que devoran la grasa y dan fuerza: +1 de poder permanente.', good: true, weight: 1, price: 40, effect: { kind: 'strength' } },
       { id: 'sombra', name: 'Poción de Sombra', description: 'Durante 20 rondas los enemigos solo te notan si están pegados a ti.', good: true, weight: 3, price: 12, effect: { kind: 'status', status: 'sigilo', turns: 20 } },
       { id: 'regeneracion', name: 'Poción de Savia', description: 'Recuperas 1 de vida por ronda durante 15 rondas.', good: true, weight: 4, price: 10, effect: { kind: 'status', status: 'regeneracion', turns: 15 } },
@@ -69,7 +69,7 @@ export const SCROLLS: Record<string, ArcanaDef<ScrollEffect>> = Object.fromEntri
       { id: 'invocacion_sapo', name: 'Pergamino de Invocación: Sapo', description: 'Sellas con sangre y aparece un sapo de piedra que combate a tu lado 15 rondas.', good: true, weight: 4, price: 16, effect: { kind: 'summon', ally: 'sapo_de_piedra', count: 1, turns: 15 } },
       { id: 'invocacion_cuervos', name: 'Pergamino de Invocación: Cuervos', description: 'Dos cuervos veloces te acompañan 12 rondas.', good: true, weight: 4, price: 16, effect: { kind: 'summon', ally: 'cuervo_aliado', count: 2, turns: 12 } },
       { id: 'clones', name: 'Pergamino de Clones', description: 'Dos clones de sombra luchan a tu lado 8 rondas.', good: true, weight: 4, price: 14, effect: { kind: 'summon', ally: 'clon_de_sombra', count: 2, turns: 8 } },
-      { id: 'sustitucion', name: 'Pergamino de Sustitución', description: 'Dejas un tronco y reapareces en otro punto explorado del sector; los perseguidores pierden tu rastro.', good: true, weight: 4, price: 12, effect: { kind: 'teleport' } },
+      { id: 'sustitucion', name: 'Pergamino de Sustitución', description: 'Dejas un tronco señuelo (8 rondas) y reapareces en otro punto explorado del sector; los perseguidores se ensañan con el tronco y pierden tu rastro.', good: true, weight: 4, price: 12, effect: { kind: 'teleport' } },
       { id: 'cartografia', name: 'Pergamino de Cartografía', description: 'Un mapa dibujado por el viento: revela todo el sector.', good: true, weight: 4, price: 12, effect: { kind: 'reveal' } },
       { id: 'purificacion', name: 'Sello de Purificación', description: 'Rompe las maldiciones del arma y la vestimenta que llevas puestas.', good: true, weight: 3, price: 18, effect: { kind: 'purify' } },
       { id: 'explosivo', name: 'Sello Explosivo', description: 'Estalla a tu alrededor: 8 de daño (ignora defensa) a los enemigos a ≤3 casillas con línea de visión.', good: true, weight: 4, price: 14, effect: { kind: 'blast', radius: 3, power: 8 } },

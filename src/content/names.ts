@@ -1,6 +1,6 @@
 import { getArcana, POTION_PREFIX, RANDOM_POTION, RANDOM_SCROLL, SCROLL_PREFIX } from './arcana';
 import { getMod, splitGear } from './enchants';
-import { CURRENCY, KEYS, getEquipment, getItem } from './items';
+import { CURRENCY, KEYS, getEquipment } from './items';
 import { getTechnique } from './techniques';
 import { getThrowable, getWeapon } from './weapons';
 
@@ -36,7 +36,7 @@ export function itemName(id: string, ctx?: NameContext): string {
     if (ctx && !ctx.player.identified.includes(id)) return `${getWeapon(id)?.name ?? getEquipment(id)?.name} (?)`;
     return gearTrueName(id);
   }
-  return getItem(id)?.name ?? getThrowable(id)?.name ?? CURRENCY[id]?.name ?? KEYS[id]?.name ?? id;
+  return getThrowable(id)?.name ?? CURRENCY[id]?.name ?? KEYS[id]?.name ?? id;
 }
 
 /** ¿Se sabe qué es este objeto? (las pociones y pergaminos sin identificar y el equipo sin probar, no.) */

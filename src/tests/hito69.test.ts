@@ -151,7 +151,9 @@ describe('tienda del mercader', () => {
       g.enemies[0].hp = 1;
       g.player.coins = 200;
     });
-    return applyCommand(s, attack({ x: 2, y: 1 })).state;
+    const dead = applyCommand(s, attack({ x: 2, y: 1 })).state;
+    // El primer jefe ofrece elegir una afinidad nueva: hay que elegir antes de seguir.
+    return applyCommand(dead, { type: 'ChooseAffinity', affinity: (dead.affinityOffer as NonNullable<GameState['affinityOffer']>)[0] }).state;
   };
   const near = (s: GameState): GameState => {
     const m = s.npcs.find((n) => n.kind === MERCHANT_KIND);

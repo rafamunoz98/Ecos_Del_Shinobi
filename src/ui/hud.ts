@@ -2,7 +2,7 @@ import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_NAMES } from '../content/describe';
 import { ENEMIES } from '../content/enemies';
 import { NOTES, getRelic } from '../content/story';
-import { KEYS, getEquipment, getItem } from '../content/items';
+import { KEYS, getEquipment } from '../content/items';
 import { getTechnique } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { getMod } from '../content/enchants';
@@ -25,7 +25,6 @@ export interface AimInfo {
 /** Órdenes que se pueden dar con el ratón o el dedo desde el panel. */
 export type UiAction =
   | { type: 'technique'; slot: number }
-  | { type: 'item'; itemId: string }
   | { type: 'throw' }
   | { type: 'cycleThrow' }
   | { type: 'reach' }
@@ -35,11 +34,7 @@ export type UiAction =
   | { type: 'menu' }
   | { type: 'key'; key: string };
 
-export const TECHNIQUE_KEYS = ['1', '2', '3', '4'] as const;
-export const ITEM_SLOTS: readonly { key: string; itemId: string }[] = [
-  { key: '5', itemId: 'tonico_kiro' },
-  { key: '6', itemId: 'unguento_musgo' },
-];
+export const TECHNIQUE_KEYS = ['1', '2', '3', '4', '5', '6'] as const;
 
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -96,7 +91,7 @@ export class Hud {
     const weapon = getWeapon(p.equipment.weapon);
     const armor = getEquipment(p.equipment.armor);
     el('meta').textContent = [
-      `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}`,
+      `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`,
       `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : '—'}`,
       `Vestimenta: ${armor && p.equipment.armor ? `${gearLabel(p.equipment.armor, 0, state)} (+${armor.bonus + (getMod(p.equipment.armor)?.defense ?? 0)})` : '—'}`,
       `Semilla ${state.seed}`,
@@ -144,7 +139,7 @@ export class Hud {
     log.scrollTop = log.scrollHeight;
 
     el('help').textContent =
-      'WASD/flechas: mover · Q E Z C (o teclado numérico): diagonales · 1-4: técnicas · 5-6: tónico y ungüento · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición';
+      'WASD/flechas: mover · Q E Z C (o teclado numérico): diagonales · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición';
     this.drawMinimap(state);
 
     this.renderResult(state);
@@ -253,11 +248,6 @@ export class Hud {
         action: { type: 'technique', slot: i },
       });
     });
-    for (const slot of ITEM_SLOTS) {
-      const item = getItem(slot.itemId);
-      const n = p.inventory[slot.itemId] ?? 0;
-      specs.push({ key: slot.key, icon: slot.itemId, name: item?.name ?? slot.itemId, sub: `×${n}`, disabled: n === 0, action: { type: 'item', itemId: slot.itemId } });
-    }
     const throwables = Object.keys(THROWABLES).filter((id) => (p.inventory[id] ?? 0) > 0);
     const tId = throwables.includes(this.throwSel) ? this.throwSel : throwables[0];
     specs.push({

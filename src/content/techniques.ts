@@ -46,8 +46,8 @@ export interface TechniqueDef {
   heal?: number;
   restoreKiro?: number;
   selfDamage?: number;
-  /** Los enemigos alertados que no te tocan pierden tu rastro (sustitución). */
-  losePursuers?: boolean;
+  /** Deja un tronco señuelo en la casilla que abandonas (sustitución): los enemigos que te persiguen lo atacan a él. */
+  leaveDecoy?: { turns: number };
   /** Invoca aliados (clones de sombra...) a tu lado. */
   summon?: { kind: string; count: number; turns: number };
   /** Turnos que dura cada casilla de barrera. */
@@ -248,9 +248,10 @@ define([
     description: 'El techo se viene abajo sobre un área de radio 2: daño fuerte y aturdimiento.',
   },
   {
-    id: 'fortaleza_de_pizarra', name: 'Fortaleza de Pizarra', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 4,
-    target: { kind: 'barrier', range: 5 }, barrierTurns: 10,
-    description: 'Un muro de tres casillas que aguanta 10 rondas.',
+    id: 'lanzar_roca', name: 'Lanzar Roca', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 3,
+    target: { kind: 'area', range: 6, areaRadius: 0, lineOfSight: true },
+    damage: { power: 8 }, push: 1,
+    description: 'Arrancas una roca del suelo y la lanzas contra un objetivo a la vista (hasta 6 casillas): mucho daño y lo empuja una casilla.',
   },
   {
     id: 'puno_de_granito', name: 'Puño de Granito', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 4,
@@ -321,13 +322,18 @@ define([
   },
   {
     id: 'sustitucion', name: 'Sustitución', affinity: null, minLevel: L, learnable: true, kiroCost: 4,
-    target: { kind: 'blink', range: 4 }, losePursuers: true,
-    description: 'Dejas un tronco en tu lugar y reapareces hasta 4 casillas más allá: los perseguidores pierden tu rastro.',
+    target: { kind: 'blink', range: 4 }, leaveDecoy: { turns: 8 },
+    description: 'Dejas un tronco en tu lugar y reapareces hasta 4 casillas más allá: los enemigos que te persiguen se ensañan con el tronco (8 rondas o 10 de vida).',
   },
 ]);
 
 export function getTechnique(id: string): TechniqueDef | undefined {
   return Object.hasOwn(TECHNIQUES, id) ? TECHNIQUES[id] : undefined;
+}
+
+/** Afinidades que domina un jugador: la de partida y, tras el primer jefe, la segunda. */
+export function affinitiesOf(p: { affinity: Affinity; affinity2: Affinity | null }): Affinity[] {
+  return p.affinity2 ? [p.affinity, p.affinity2] : [p.affinity];
 }
 
 /** Técnicas de una afinidad que se desbloquean por nivel hasta un nivel dado, en orden de definición. */
@@ -337,10 +343,11 @@ export function techniquesFor(affinity: Affinity, level: number): string[] {
     .map((t) => t.id);
 }
 
-/** Técnicas que hay que aprender (manuales, maestros, jefes) para una afinidad, incluidas las comunes. */
-export function learnableFor(affinity: Affinity): string[] {
+/** Técnicas que hay que aprender (manuales, maestros, jefes) para una afinidad (o varias), incluidas las comunes. */
+export function learnableFor(affinity: Affinity | readonly Affinity[]): string[] {
+  const list = typeof affinity === 'string' ? [affinity] : affinity;
   return Object.values(TECHNIQUES)
-    .filter((t) => t.learnable && (t.affinity === affinity || t.affinity === null))
+    .filter((t) => t.learnable && (t.affinity === null || list.includes(t.affinity)))
     .map((t) => t.id);
 }
 

@@ -36,7 +36,15 @@ export interface SkillDef {
   /** Solo disponible desde esta fase del jefe. */
   minPhase?: number;
   /** Estado que deja en el jugador si acierta. */
-  inflict?: { status: 'veneno' | 'ceguera' | 'quemadura'; turns: number };
+  inflict?: { status: 'veneno' | 'ceguera' | 'quemadura' | 'atado'; turns: number };
+  /** Si acierta, te lanza lejos de quien la usa (casillas; chocar con algo duele). */
+  pushPlayer?: number;
+  /** Si acierta, te arrastra hacia quien la usa (casillas; te detienes pegado a él). */
+  pullPlayer?: number;
+  /** Si acierta, te roba este kiro. */
+  drainKiro?: number;
+  /** Quien la usa muere al liberarla (marionetas explosivas). */
+  selfDestruct?: boolean;
   /** No la usa si estás más cerca que esto (disparos, saltos). */
   minDist?: number;
   /** Texto del registro cuando la empieza a preparar o la usa. */
@@ -68,6 +76,8 @@ export interface EnemyDef {
   noLoot?: boolean;
   /** Convocado en combate: no cuenta para despejar el sector. */
   summoned?: boolean;
+  /** No actúa nunca (tablillas de sello): solo está ahí. */
+  passive?: boolean;
   /** Solo 'ranged': alcance de disparo y distancia a la que intenta retroceder. */
   range?: number;
   keepAway?: number;
@@ -80,6 +90,20 @@ export interface EnemyDef {
     relic: string;
     /** Convoca esto al entrar en la fase 3. */
     phaseSummon?: { enemy: string; count: number; text: string };
+    /** Convoca esto al entrar en la fase 3. */
+    /**
+     * Escudo: al notarte (y de nuevo al cambiar de fase) alza `count` objetos (+1 en la fase 3) a su alrededor. Mientras quede
+     * alguno en pie, el jefe no recibe daño ni quemaduras: hay que romperlos.
+     */
+    shield?: { enemy: string; count: number; text: string; brokenText: string };
+    /**
+     * Sustitución: el primer golpe que recibiría (y luego uno cada `cooldown` rondas) lo recibe una marioneta en su lugar; él
+     * reaparece lejos y la marioneta estalla si te quedas cerca. Interrumpe lo que estuviera preparando.
+     */
+    substitute?: { enemy: string; cooldown: number; text: string };
+    /** En la fase 3 se mueve el doble y prepara sus técnicas el doble de deprisa. */
+    /** Fase desde la que se enfurece: una acción extra por ronda, enfriamientos al doble y ataques anunciados 1 ronda más rápidos. */
+    frenzy?: number;
     /** Avanza despacio mientras estás lejos (una de cada dos rondas). */
     slowApproach?: boolean;
     /** Línea de registro al caer. */
@@ -143,35 +167,54 @@ export const ENEMIES: Record<string, EnemyDef> = {
   eco_menor: E({ id: 'eco_menor', name: 'Eco Menor', family: 'echo', maxHp: 6, power: 3, defense: 0, aggroRange: 12, xp: 3, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0, noLoot: true, summoned: true }),
   clon_de_niebla: E({ id: 'clon_de_niebla', name: 'Clon de Niebla', family: 'echo', maxHp: 4, power: 3, defense: 0, aggroRange: 12, xp: 2, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0, noLoot: true, summoned: true }),
 
+  tablilla_sello: E({ id: 'tablilla_sello', name: 'Tablilla de Sello', family: 'echo', maxHp: 9, power: 0, defense: 0, aggroRange: 0, xp: 0, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0, noLoot: true, summoned: true, passive: true }),
+  marioneta_explosiva: E({
+    id: 'marioneta_explosiva', name: 'Marioneta Explosiva', family: 'echo', maxHp: 6, power: 0, defense: 0, aggroRange: 0, xp: 0, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0, noLoot: true, summoned: true,
+    skills: [{ id: 'estallido', name: 'Estallido de la marioneta', shape: { kind: 'burst', radius: 2 }, power: 11, delay: 1, cooldown: 99, selfDestruct: true, flavor: 'se hincha y se prepara a estallar' }],
+  }),
+
   // ---------- Jefes shinobi ----------
   sokan_predicador: E({
-    id: 'sokan_predicador', name: 'Sōkan, Predicador Hueco', family: 'shinobi', maxHp: 44, power: 7, defense: 2, aggroRange: 10, xp: 30, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
+    id: 'sokan_predicador', name: 'Sōkan, Predicador Hueco', family: 'shinobi', maxHp: 64, power: 8, defense: 2, aggroRange: 10, xp: 30, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
     skills: [
-      { id: 'golpe_de_cayado', name: 'Golpe de Cayado', shape: { kind: 'burst', radius: 2 }, power: 7, delay: 2, cooldown: 0 },
-      { id: 'onda_de_campana', name: 'Onda de Campana', shape: { kind: 'cross', length: 4, range: 7 }, power: 5, delay: 2, cooldown: 2, minPhase: 2 },
-      { id: 'sello_hueco', name: 'Sello Hueco', shape: { kind: 'zone', radius: 1, range: 6 }, power: 6, delay: 2, cooldown: 4 },
+      { id: 'golpe_de_cayado', name: 'Golpe de Cayado', shape: { kind: 'burst', radius: 2 }, power: 10, delay: 2, cooldown: 3, pushPlayer: 3 },
+      { id: 'mantra_hueco', name: 'Mantra Hueco', shape: { kind: 'zone', radius: 2, range: 6 }, power: 5, delay: 2, cooldown: 5, drainKiro: 6 },
+      { id: 'onda_de_campana', name: 'Onda de Campana', shape: { kind: 'cross', length: 4, range: 7 }, power: 8, delay: 2, cooldown: 2, minPhase: 2 },
+      { id: 'sello_hueco', name: 'Sello Hueco', shape: { kind: 'zone', radius: 1, range: 6 }, power: 9, delay: 2, cooldown: 2 },
     ],
     boss: {
       dialogues: { intro: 'sokan_intro', phase2: 'sokan_fase2', phase3: 'sokan_fase3', defeat: 'sokan_derrota' },
       relic: 'sello_antiguo',
-      phaseSummon: { enemy: 'eco_menor', count: 2, text: 'Unos ecos brotan del suelo y se lanzan contra ti.' },
+      shield: {
+        enemy: 'tablilla_sello',
+        count: 2,
+        text: 'Sōkan clava el cayado en el suelo: unas tablillas selladas brotan a su alrededor y una cortina de humo lo protege. ¡Rompe las tablillas!',
+        brokenText: 'La última tablilla se hace astillas y la cortina de humo se deshace: ¡Sōkan queda al descubierto!',
+      },
       slowApproach: true,
+      frenzy: 3,
       defeatText: 'El cayado cae al suelo y las campanillas callan. Obtienes el Sello antiguo y la salida se abre.',
     },
   }),
   yugiri_hilo_roto: E({
-    id: 'yugiri_hilo_roto', name: 'Yūgiri, el Hilo Roto', family: 'shinobi', maxHp: 52, power: 8, defense: 2, aggroRange: 12, xp: 45, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
+    id: 'yugiri_hilo_roto', name: 'Yūgiri, el Hilo Roto', family: 'shinobi', maxHp: 130, power: 9, defense: 2, aggroRange: 12, xp: 45, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
     skills: [
-      { id: 'tajo_de_hilo', name: 'Tajo de Hilo', shape: { kind: 'burst', radius: 1 }, power: 7, delay: 1, cooldown: 0 },
+      { id: 'tajo_de_hilo', name: 'Tajo de Hilo', shape: { kind: 'burst', radius: 1 }, power: 12, delay: 1, cooldown: 1 },
+      { id: 'hilo_atrapador', name: 'Hilo Atrapador', shape: { kind: 'beam', length: 7 }, power: 6, delay: 1, cooldown: 4, pullPlayer: 6, flavor: 'lanza un hilo hacia ti' },
       { id: 'paso_fantasma_jefe', name: 'Paso Fantasma', shape: { kind: 'dash', range: 6 }, power: 0, delay: 0, cooldown: 4, minDist: 3, flavor: 'se desvanece entre los hilos y reaparece a tu lado' },
-      { id: 'corte_de_hilo', name: 'Corte de Hilo', shape: { kind: 'beam', length: 6 }, power: 7, delay: 1, cooldown: 2 },
-      { id: 'red_de_hilos', name: 'Red de Hilos', shape: { kind: 'cross', length: 5, range: 7 }, power: 6, delay: 2, cooldown: 4, minPhase: 2 },
-      { id: 'lluvia_de_senbon', name: 'Lluvia de Senbon', shape: { kind: 'zone', radius: 1, range: 6 }, power: 5, delay: 1, cooldown: 3, minPhase: 2, inflict: { status: 'veneno', turns: 4 } },
+      { id: 'corte_de_hilo', name: 'Corte de Hilo', shape: { kind: 'beam', length: 6 }, power: 12, delay: 1, cooldown: 2 },
+      { id: 'red_de_hilos', name: 'Red de Hilos', shape: { kind: 'cross', length: 5, range: 7 }, power: 7, delay: 2, cooldown: 5, minPhase: 2, inflict: { status: 'atado', turns: 2 } },
+      { id: 'lluvia_de_senbon', name: 'Lluvia de Senbon', shape: { kind: 'zone', radius: 1, range: 6 }, power: 7, delay: 1, cooldown: 3, minPhase: 2, inflict: { status: 'veneno', turns: 4 } },
     ],
     boss: {
       dialogues: { intro: 'yugiri_intro', phase2: 'yugiri_fase2', phase3: 'yugiri_fase3', defeat: 'yugiri_derrota' },
       relic: 'carrete_roto',
-      phaseSummon: { enemy: 'clon_de_niebla', count: 2, text: 'Dos copias de niebla se desprenden de los hilos y te rodean.' },
+      substitute: {
+        enemy: 'marioneta_explosiva',
+        cooldown: 8,
+        text: 'Tu golpe solo alcanza a una marioneta: Yūgiri ya no está ahí. ¡La marioneta va a estallar, apártate!',
+      },
+      frenzy: 2,
       defeatText: 'Los hilos se aflojan de golpe. Yūgiri cae y su carrete rueda hasta tus pies: el camino queda libre.',
     },
   }),

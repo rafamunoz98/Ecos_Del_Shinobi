@@ -1,5 +1,5 @@
 import type { WeaponKind } from '../../content/weapons';
-import { echoWisp, hollowMonk } from './bosses';
+import { echoWisp, explosiveDoll, hollowMonk, sealTablet } from './bosses';
 import { drawShinobiEnemy } from './shinobi';
 import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './draw';
 
@@ -331,6 +331,12 @@ export function drawEnemy(ctx: Ctx, kind: string, o: EnemyPose): void {
       break;
     case 'eco_menor':
       echoWisp(ctx, o);
+      break;
+    case 'tablilla_sello':
+      sealTablet(ctx, o);
+      break;
+    case 'marioneta_explosiva':
+      explosiveDoll(ctx, o);
       break;
     case 'tirador_de_junco':
       reedShooter(ctx, o);
@@ -690,12 +696,61 @@ export function drawAlly(ctx: Ctx, kind: string, o: EnemyPose): void {
   circle(ctx, 0, 0.05, 0.5);
   ctx.fill();
   if (kind === 'sapo_de_piedra') stoneToad(ctx, o);
+  else if (kind === 'tronco_senuelo') decoyLog(ctx, o);
   else if (kind === 'cuervo_aliado') {
     ctx.globalAlpha *= 0.9;
     crow(ctx, o);
   } else {
     ctx.globalAlpha *= 0.65;
     drawNinja(ctx, { ...o, dir: o.face === 1 ? 'right' : 'left' });
+  }
+  ctx.restore();
+}
+
+/** Tronco con tu bufanda y una máscara pintada: el señuelo que deja la Sustitución. */
+function decoyLog(ctx: Ctx, { t }: ActorPose): void {
+  shadow(ctx, 0.26, 0.07);
+  ctx.save();
+  // Tronco de pie.
+  roundRectPath(ctx, -0.17, -0.2, 0.34, 0.54, 0.07);
+  ctx.fillStyle = vGrad(ctx, -0.2, 0.34, '#9a7048', '#5e4026');
+  ctx.fill();
+  stroke(ctx, 0.05);
+  ctx.strokeStyle = 'rgba(40,24,10,0.55)';
+  ctx.lineWidth = 0.02;
+  for (const [x, y0, y1] of [[-0.08, -0.12, 0.2], [0.04, -0.15, 0.26], [0.11, -0.05, 0.3]] as const) {
+    ctx.beginPath();
+    ctx.moveTo(x, y0);
+    ctx.quadraticCurveTo(x + 0.02, (y0 + y1) / 2, x - 0.01, y1);
+    ctx.stroke();
+  }
+  // Tapa cortada con anillos.
+  ellipse(ctx, 0, -0.2, 0.17, 0.065);
+  ctx.fillStyle = '#d9b680';
+  ctx.fill();
+  stroke(ctx, 0.04);
+  ctx.strokeStyle = 'rgba(120,80,40,0.6)';
+  ctx.lineWidth = 0.014;
+  for (const r of [0.05, 0.1]) {
+    ellipse(ctx, 0, -0.2, r, r * 0.38);
+    ctx.stroke();
+  }
+  // Bufanda roja y marca de ojo: se parece (de lejos) al jugador.
+  ctx.fillStyle = '#d62839';
+  roundRectPath(ctx, -0.18, 0.0, 0.36, 0.07, 0.03);
+  ctx.fill();
+  stroke(ctx, 0.03);
+  const sway = Math.sin(t * 3) * 0.02;
+  ctx.beginPath();
+  ctx.moveTo(0.1, 0.06);
+  ctx.lineTo(0.2 + sway, 0.2);
+  ctx.lineTo(0.12 + sway, 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = INK;
+  for (const ex of [-0.06, 0.06]) {
+    ellipse(ctx, ex, -0.07, 0.022, 0.035);
+    ctx.fill();
   }
   ctx.restore();
 }

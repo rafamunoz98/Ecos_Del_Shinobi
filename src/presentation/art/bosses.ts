@@ -188,6 +188,126 @@ export function echoWisp(ctx: Ctx, { t, walk, phase }: ChargePose): void {
   ctx.restore();
 }
 
+// ---------- Tablilla de sello (escudo de Sōkan) ----------
+
+/** Tablilla de madera sellada que flota y gira despacio: mientras haya alguna en pie, el jefe es invulnerable. */
+export function sealTablet(ctx: Ctx, { t, walk, phase }: ChargePose): void {
+  shadow(ctx, 0.15, 0.04, 0.22, 0.36);
+  const bob = Math.sin(t * 2.6 + phase * 0.1) * 0.04 - Math.abs(Math.sin(phase)) * 0.02 * walk;
+  ctx.save();
+  ctx.translate(0, bob - 0.06);
+  glow(ctx, 0, 0, 0.4, '255,120,90', 0.28 + Math.sin(t * 4) * 0.06);
+  ctx.rotate(Math.sin(t * 1.8) * 0.08);
+  // Tablilla.
+  roundRectPath(ctx, -0.13, -0.26, 0.26, 0.5, 0.04);
+  ctx.fillStyle = vGrad(ctx, -0.26, 0.24, '#d9b979', '#8f6a3a');
+  ctx.fill();
+  stroke(ctx, 0.045);
+  // Veta y borde.
+  ctx.strokeStyle = 'rgba(90,58,24,0.5)';
+  ctx.lineWidth = 0.014;
+  for (const y of [-0.16, -0.02, 0.12]) {
+    ctx.beginPath();
+    ctx.moveTo(-0.1, y);
+    ctx.quadraticCurveTo(0, y + 0.025, 0.1, y - 0.01);
+    ctx.stroke();
+  }
+  // Sello rojo: un círculo roto con un trazo central.
+  ctx.strokeStyle = '#c4241f';
+  ctx.lineWidth = 0.035;
+  ctx.beginPath();
+  ctx.arc(0, -0.01, 0.075, 0.5, Math.PI * 2 - 0.4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.045, 0.03);
+  ctx.lineTo(0.05, -0.05);
+  ctx.stroke();
+  // Cinta de papel colgando.
+  ctx.fillStyle = '#f2ead3';
+  ctx.beginPath();
+  ctx.moveTo(-0.04, 0.24);
+  ctx.lineTo(0.04, 0.24);
+  ctx.lineTo(0.05 + Math.sin(t * 5) * 0.015, 0.36);
+  ctx.lineTo(-0.03 + Math.sin(t * 5) * 0.015, 0.36);
+  ctx.closePath();
+  ctx.fill();
+  stroke(ctx, 0.02);
+  ctx.restore();
+}
+
+// ---------- Marioneta explosiva (Yūgiri) ----------
+
+/** Muñeco de madera y paja con un fardo de pólvora y una mecha encendida: estalla al cargar. */
+export function explosiveDoll(ctx: Ctx, { t, walk, phase, charging }: ChargePose): void {
+  shadow(ctx, 0.2, 0.06, 0.3, 0.35);
+  const bob = -Math.abs(Math.sin(phase)) * 0.04 * walk + Math.sin(t * 3) * 0.008;
+  const jitter = charging ? Math.sin(t * 60) * 0.015 : 0;
+  ctx.save();
+  ctx.translate(jitter, bob);
+  if (charging) glow(ctx, 0, 0, 0.5, '255,150,60', 0.45 + Math.sin(t * 24) * 0.15);
+  // Piernas de palo.
+  ctx.strokeStyle = '#6b4a2a';
+  ctx.lineWidth = 0.05;
+  ctx.lineCap = 'round';
+  const step = Math.sin(phase) * 0.05 * walk;
+  for (const [x, o] of [[-0.08, 1], [0.08, -1]] as const) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0.16);
+    ctx.lineTo(x + step * o, 0.33);
+    ctx.stroke();
+  }
+  // Cuerpo: fardo de paja atado.
+  ctx.beginPath();
+  ctx.ellipse(0, 0.04, 0.2, 0.2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = vGrad(ctx, -0.16, 0.24, '#e2c477', '#a07c3c');
+  ctx.fill();
+  stroke(ctx, 0.045);
+  ctx.strokeStyle = '#7a5a28';
+  ctx.lineWidth = 0.016;
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 0.05, -0.12);
+    ctx.lineTo(i * 0.06, 0.2);
+    ctx.stroke();
+  }
+  // Cuerda y tag rojo de pólvora.
+  ctx.strokeStyle = '#c4241f';
+  ctx.lineWidth = 0.035;
+  ctx.beginPath();
+  ctx.moveTo(-0.19, 0.04);
+  ctx.lineTo(0.19, 0.04);
+  ctx.stroke();
+  // Cabeza de madera con cara pintada.
+  circle(ctx, 0, -0.2, 0.12);
+  ctx.fillStyle = vGrad(ctx, -0.32, -0.08, '#e9cfa0', '#b48a55');
+  ctx.fill();
+  stroke(ctx, 0.04);
+  ctx.fillStyle = charging ? '#ff5a2a' : INK;
+  for (const ex of [-0.045, 0.045]) {
+    ellipse(ctx, ex, -0.21, 0.018, 0.03);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.02;
+  ctx.beginPath();
+  ctx.moveTo(-0.04, -0.14);
+  ctx.lineTo(0.04, -0.14);
+  ctx.stroke();
+  // Mecha encendida en lo alto.
+  ctx.strokeStyle = '#3a2a1c';
+  ctx.lineWidth = 0.025;
+  ctx.beginPath();
+  ctx.moveTo(0, -0.31);
+  ctx.quadraticCurveTo(0.05, -0.38, 0.1, -0.36);
+  ctx.stroke();
+  const flick = 0.8 + Math.sin(t * 22) * 0.2;
+  glow(ctx, 0.1, -0.37, 0.12 * flick * (charging ? 1.6 : 1), '255,170,70', 0.9);
+  ctx.fillStyle = '#fff2b0';
+  circle(ctx, 0.1, -0.37, 0.025 * flick);
+  ctx.fill();
+  ctx.restore();
+}
+
 // ---------- Personajes fijos ----------
 
 export function drawNpc(ctx: Ctx, kind: string, t: number, used: boolean): void {

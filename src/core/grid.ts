@@ -40,12 +40,13 @@ export const isWalkable = (map: GameMap, p: Vec): boolean => {
 };
 
 /**
- * ¿Se puede pasar (o atacar) de `a` a su vecina `b`? Las cardinales siempre; las diagonales no pueden «cortar esquinas»:
- * ninguna de las dos casillas ortogonales intermedias puede ser pared ni puerta con candado.
+ * ¿Se puede pasar (o atacar) de `a` a su vecina `b`? Las cardinales siempre. Una diagonal vale mientras exista alguna ruta
+ * ortogonal: si hay un muro a tu derecha pero no debajo, puedes ir en diagonal abajo-derecha. Solo se impide cuando AMBAS
+ * casillas intermedias son pared o puerta con candado (no cabría ni una rendija).
  */
 export function stepOk(map: GameMap, a: Vec, b: Vec): boolean {
   if (a.x === b.x || a.y === b.y) return true;
-  return isWalkable(map, { x: b.x, y: a.y }) && isWalkable(map, { x: a.x, y: b.y });
+  return isWalkable(map, { x: b.x, y: a.y }) || isWalkable(map, { x: a.x, y: b.y });
 }
 
 /** ¿Están `a` y `b` pegadas (incluida la diagonal sin esquina cerrada)? */
@@ -82,17 +83,30 @@ export function lineCells(a: Vec, b: Vec): Vec[] {
 /**
  * Línea de visión por Bresenham. Las casillas intermedias opacas (pared, arbusto, puerta cerrada) bloquean;
  * los extremos no cuentan (una pared o un arbusto son visibles si la línea llega hasta ellos).
+ * Un paso en diagonal tampoco puede colarse entre dos casillas opacas que se tocan por la esquina (no hay rendija).
  * `open` son índices de puertas abiertas (hay alguien dentro) y no bloquean.
- * Nota: no es perfectamente simétrica (a→b puede diferir de b→a); es suficiente para el prototipo.
+ * Nota: no es perfectamente simétrica (a→b puede diferir de b→a); para lo que debe ser justo (disparos enemigos) usa `mutualSight`.
  */
 export function hasLineOfSight(map: GameMap, a: Vec, b: Vec, open?: ReadonlySet<number>): boolean {
-  for (const c of lineCells(a, b)) {
-    if (c.x === b.x && c.y === b.y) return true;
-    if (!inBounds(map, c)) return false;
+  const opaque = (c: Vec): boolean => {
+    if (!inBounds(map, c)) return true;
     const kind = terrainAt(map, c);
-    if (blocksSight(kind) && !(kind === 'door' && open?.has(idx(map, c)))) return false;
+    return blocksSight(kind) && !(kind === 'door' && open?.has(idx(map, c)));
+  };
+  let prev = a;
+  for (const c of lineCells(a, b)) {
+    if (!inBounds(map, c)) return false;
+    if (c.x !== prev.x && c.y !== prev.y && opaque({ x: c.x, y: prev.y }) && opaque({ x: prev.x, y: c.y })) return false;
+    if (c.x === b.x && c.y === b.y) return true;
+    if (opaque(c)) return false;
+    prev = c;
   }
   return true;
+}
+
+/** Visión en ambos sentidos: si uno no puede ver al otro, tampoco puede dispararle (nada de tirar a través de los muros). */
+export function mutualSight(map: GameMap, a: Vec, b: Vec, open?: ReadonlySet<number>): boolean {
+  return hasLineOfSight(map, a, b, open) && hasLineOfSight(map, b, a, open);
 }
 
 /** Casillas visibles desde `origin` dentro de un radio (círculo + línea de visión). */

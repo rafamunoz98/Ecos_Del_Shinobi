@@ -225,7 +225,10 @@ export class WorldRenderer {
     this.state = next;
     this.visible = visibleCells(next);
     this.doors = openDoors(next);
-    this.syncDisp(next, prev, now, false);
+    // Empujones y arrastres del jefe: el jugador se desliza (en vez de saltar) cuando se libera el golpe.
+    const slide = new Map<string, number>();
+    if (events.some((e) => e.type === 'PlayerShoved')) slide.set(PLAYER, ENEMY_DELAY);
+    this.syncDisp(next, prev, now, false, slide);
     this.spawnEffects(next, prev, events, now);
     for (const b of next.barriers) {
       const i = b.pos.y * next.map.width + b.pos.x;
@@ -278,7 +281,7 @@ export class WorldRenderer {
     this.fogImg = ctx.createImageData(W_, H_);
   }
 
-  private syncDisp(s: GameState, prev: GameState | null, now: number, snap: boolean): void {
+  private syncDisp(s: GameState, prev: GameState | null, now: number, snap: boolean, slide: ReadonlyMap<string, number> = new Map()): void {
     const apply = (id: string, pos: Vec, delay: number): void => {
       const d = this.disp.get(id);
       if (!d) {
@@ -290,14 +293,15 @@ export class WorldRenderer {
       }
       if (d.tx === pos.x && d.ty === pos.y) return;
       const cur = this.pos(id, now);
-      const jump = Math.abs(pos.x - cur.x) + Math.abs(pos.y - cur.y) > 1.6;
+      const sliding = slide.get(id);
+      const jump = sliding === undefined && Math.abs(pos.x - cur.x) + Math.abs(pos.y - cur.y) > 1.6;
       d.fx = snap || jump ? pos.x : cur.x;
       d.fy = snap || jump ? pos.y : cur.y;
       d.tx = pos.x;
       d.ty = pos.y;
       d.t0 = now;
-      d.delay = jump ? 0 : delay;
-      d.dur = snap || jump ? 0.001 : 0.13;
+      d.delay = jump ? 0 : (sliding ?? delay);
+      d.dur = snap || jump ? 0.001 : sliding !== undefined ? 0.22 : 0.13;
     };
     const setDir = (id: string, from: Vec, to: Vec): void => {
       const d = this.disp.get(id);
@@ -493,7 +497,8 @@ export class WorldRenderer {
         case 'ItemPickedUp': {
           const warm = ev.itemId === 'moneda' || ev.itemId === 'esquirla';
           const color = warm ? '#ffe08a' : isKey(ev.itemId) ? '#ffffff' : '#d8e4ff';
-          const label = ev.count > 1 || warm ? `+${ev.count} ${itemName(ev.itemId)}` : `+ ${itemName(ev.itemId)}`;
+          const shown = itemName(ev.itemId, next); // sin delatar lo que no has identificado
+          const label = ev.count > 1 || warm ? `+${ev.count} ${shown}` : `+ ${shown}`;
           this.text(pPos, label, color, now, 0, 0.28, 1.0);
           if (warm) add(sparkleFx(now, pPos, '#ffd36a', 6));
           else if (isKey(ev.itemId)) add(sparkleFx(now, pPos, '#ffffff', 14));
@@ -550,9 +555,56 @@ export class WorldRenderer {
           this.shake = Math.max(this.shake, 0.22);
           break;
         }
+        case 'ShieldRaised': {
+          const boss = next.enemies.find((e) => e.id === ev.enemyId);
+          if (boss) {
+            add(ringFx(now + delay, boss.pos, '#ff7a5a', 2.4, 0.8));
+            add(sparkleFx(now + delay, boss.pos, '#ffb09a', 14));
+            this.text(boss.pos, '¡Escudo de sellos!', '#ff9a7a', now, delay, 0.32, 1.5);
+          }
+          this.shake = Math.max(this.shake, 0.12);
+          break;
+        }
+        case 'ShieldHit': {
+          const boss = next.enemies.find((e) => e.id === ev.enemyId);
+          if (boss) {
+            add(ringFx(now + delay, boss.pos, '#ffb09a', 1.2, 0.35));
+            this.text(boss.pos, '¡Escudo!', '#ffb09a', now, delay, 0.3, 0.9);
+          }
+          break;
+        }
+        case 'ShieldBroken': {
+          const boss = next.enemies.find((e) => e.id === ev.enemyId);
+          if (boss) {
+            add(ringFx(now + delay, boss.pos, '#9be6ff', 2.6, 0.7));
+            add(sparkleFx(now + delay, boss.pos, '#d8f4ff', 18));
+            this.text(boss.pos, '¡Escudo roto!', '#9be6ff', now, delay, 0.34, 1.5);
+          }
+          this.shake = Math.max(this.shake, 0.14);
+          break;
+        }
+        case 'Substitution':
+          add(puffFx(now + delay, ev.from, '#d9c7a0', 12, 0.5));
+          add(puffFx(now + delay + 0.05, ev.to, '#c9d0e0', 10, 0.45));
+          add(trailFx(now + delay, ev.from, ev.to));
+          this.text(ev.to, '¡Kawarimi!', '#ffe0a0', now, delay, 0.32, 1.2);
+          enemyPhase = true;
+          break;
+        case 'PlayerShoved':
+          add(trailFx(now + ENEMY_DELAY, ev.from, ev.to));
+          add(puffFx(now + ENEMY_DELAY, ev.from, '#c9d0e0', 6, 0.3));
+          this.shake = Math.max(this.shake, 0.1);
+          break;
+        case 'AffinityLearned':
+          add(ringFx(now, pPos, affinityColor(ev.affinity), 2.2, 0.9));
+          add(sparkleFx(now, pPos, affinityColor(ev.affinity), 18));
+          break;
         case 'EnemySkill': {
           const dash = ev.skillId.includes('paso_fantasma');
-          if (dash) {
+          if (ev.skillId.includes('hilo')) {
+            add(trailFx(now + delay, ev.from, ev.to));
+            add(puffFx(now + delay + 0.08, ev.to, '#c9d0e0', 5, 0.25));
+          } else if (dash) {
             add(trailFx(now + delay, ev.from, ev.to));
             add(puffFx(now + delay, ev.from, '#c9d0e0', 8, 0.4));
             add(puffFx(now + delay + 0.1, ev.to, '#c9d0e0', 8, 0.4));
@@ -822,12 +874,16 @@ export class WorldRenderer {
       const stunned = e.statuses.some((st) => st.id === 'aturdido');
       const charging = s.telegraphs.some((t) => t.ownerId === e.id);
       const style = SHINOBI_STYLES[e.kind];
+      const shieldDef = getEnemy(e.kind)?.boss?.shield;
+      const tablets = shieldDef ? s.enemies.filter((o) => o.kind === shieldDef.enemy && o.hp > 0) : [];
       ents.push({
         y: ep.y,
-        draw: () =>
+        draw: () => {
           this.drawActor(ctx, ep.x + lg.x + 0.5, ep.y + lg.y + 0.5, flashOf(d), (c) => {
             drawEnemy(c, e.kind, { t: stunned ? now * 0.3 : now, walk: ep.moving ? 1 : 0, phase: now * 14, face, charging, bossPhase: e.phase });
-          }),
+          });
+          if (tablets.length > 0) this.drawShield(ctx, ep.x + lg.x + 0.5, ep.y + lg.y + 0.5, tablets, now);
+        },
       });
       // Arrojadizas clavadas: pequeñas, en el cuerpo, hasta 5 a la vista.
       const stuckList = Object.entries(e.stuck ?? {}).flatMap(([id, n]) => Array.from({ length: Math.min(n, 3) }, () => id)).slice(0, 5);
@@ -1052,6 +1108,32 @@ export class WorldRenderer {
     sc.fillRect(-1, -1, 2, 2);
     sc.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.scratch, cx - 1, cy - 1, 2, 2);
+  }
+
+  /** Burbuja de sellos alrededor del jefe y hilos rojos hacia las tablillas que la sostienen (coordenadas de mundo, 1 = casilla). */
+  private drawShield(ctx: Ctx, cx: number, cy: number, tablets: GameState['enemies'], now: number): void {
+    ctx.save();
+    const pulse = 0.5 + Math.sin(now * 4) * 0.5;
+    ctx.lineWidth = 0.04;
+    ctx.setLineDash([0.12, 0.1]);
+    ctx.lineDashOffset = -now * 0.4;
+    ctx.strokeStyle = 'rgba(255,122,90,0.6)';
+    for (const t of tablets) {
+      const tp = this.pos(t.id, now);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(tp.x + 0.5, tp.y + 0.45);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle = radial(ctx, cx, cy, 0.15, 0.7, 'rgba(255,140,110,0.02)', `rgba(255,120,90,${0.16 + pulse * 0.1})`);
+    ctx.strokeStyle = `rgba(255,140,110,${0.55 + pulse * 0.3})`;
+    ctx.lineWidth = 0.05;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 0.62 + pulse * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawEnemyHud(ctx: Ctx, s: GameState, e: GameState['enemies'][number], x: number, y: number, now: number): void {

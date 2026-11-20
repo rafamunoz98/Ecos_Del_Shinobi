@@ -4,9 +4,7 @@ export const MERCHANT_NAME = 'Mercader de la Casa del Hilo Gris';
 
 /** Precios fijos de lo corriente; los de pociones y pergaminos salen de su definición. */
 export const SHOP_PRICES = {
-  unguento_musgo: 10,
-  tonico_kiro: 8,
-  manual: 34,
+  manual: 40,
   /** Equipo: base + por punto de bonificación (+10 si viene encantado). */
   weaponBase: 18,
   armorBase: 16,

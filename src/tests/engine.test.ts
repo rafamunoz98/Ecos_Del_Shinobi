@@ -42,17 +42,25 @@ describe('movimiento', () => {
     expect(applyCommand(s, move(0.5, 0.5)).reason).toBe('bad_direction');
   });
 
-  it('no se puede cortar una esquina: una pared en medio impide el paso en diagonal', () => {
+  it('una diagonal vale si hay alguna ruta: con un muro a un lado pero hueco al otro, se pasa', () => {
     const s = makeGame(['#####', '#@#.#', '#...#', '#####']);
-    // En (1,1) hacia (2,2): la casilla (2,1) es pared.
-    expect(applyCommand(s, move(1, 1)).reason).toBe('corner');
-    expect(applyCommand(s, move(0, 1)).ok).toBe(true);
+    // En (1,1) hacia (2,2): la casilla (2,1) es pared pero (1,2) está libre.
+    const r = applyCommand(s, move(1, 1));
+    expect(r.ok).toBe(true);
+    expect(r.state.player.pos).toEqual({ x: 2, y: 2 });
   });
 
-  it('también se ataca en diagonal, salvo que haya una esquina cerrada', () => {
+  it('solo se impide la diagonal si las dos casillas intermedias son pared', () => {
+    const s = makeGame(['#####', '#@#.#', '##..#', '#####']);
+    expect(applyCommand(s, move(1, 1)).reason).toBe('corner');
+  });
+
+  it('también se ataca en diagonal, salvo que haya una esquina cerrada por los dos lados', () => {
     const open = makeGame(['####', '#@.#', '#.E#', '####']);
     expect(applyCommand(open, attack({ x: 2, y: 2 })).ok).toBe(true);
-    const corner = makeGame(['####', '#@##', '#.E#', '####']);
+    const half = makeGame(['####', '#@##', '#.E#', '####']);
+    expect(applyCommand(half, attack({ x: 2, y: 2 })).ok).toBe(true);
+    const corner = makeGame(['####', '#@##', '##E#', '####']);
     expect(applyCommand(corner, attack({ x: 2, y: 2 })).reason).toBe('not_adjacent');
   });
 
@@ -202,22 +210,26 @@ describe('kiro y técnicas', () => {
 });
 
 describe('objetos, cofres y salida', () => {
-  it('el ungüento cura sin pasarse del máximo y se agota', () => {
+  it('la poción de sanación cura sin pasarse del máximo y se agota', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
       g.player.hp = 10;
+      g.player.inventory['pocion:sanacion'] = 1;
     });
-    const r = applyCommand(s, { type: 'UseItem', itemId: 'unguento_musgo' });
-    expect(r.state.player.hp).toBe(18);
-    expect(r.state.player.inventory.unguento_musgo).toBeUndefined();
-    expect(applyCommand(r.state, { type: 'UseItem', itemId: 'unguento_musgo' }).reason).toBe('no_item');
+    const r = applyCommand(s, { type: 'UseItem', itemId: 'pocion:sanacion' });
+    expect(r.state.player.hp).toBe(20);
+    expect(r.state.player.inventory['pocion:sanacion']).toBeUndefined();
+    expect(applyCommand(r.state, { type: 'UseItem', itemId: 'pocion:sanacion' }).reason).toBe('no_item');
   });
 
-  it('el tónico recupera kiro', () => {
+  it('la poción de kiro mayor recupera kiro y los tónicos y ungüentos ya no existen', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
       g.player.kiro = 1;
+      g.player.inventory['pocion:kiro_mayor'] = 1;
       g.player.inventory.tonico_kiro = 1;
     });
-    expect(applyCommand(s, { type: 'UseItem', itemId: 'tonico_kiro' }).state.player.kiro).toBe(6);
+    expect(applyCommand(s, { type: 'UseItem', itemId: 'pocion:kiro_mayor' }).state.player.kiro).toBe(10);
+    expect(applyCommand(s, { type: 'UseItem', itemId: 'tonico_kiro' }).reason).toBe('unknown_item');
+    expect(applyCommand(s, { type: 'UseItem', itemId: 'unguento_musgo' }).reason).toBe('unknown_item');
   });
 
   it('el cofre da un objeto o equipo y no se abre dos veces', () => {

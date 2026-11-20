@@ -6,12 +6,13 @@ import { DIRS8, equals, inBounds, manhattan, terrainAt } from '../core/grid';
 import { createGame } from '../core/newGame';
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { Command, GameEvent, GameState, Vec } from '../core/types';
+import { AffinityBox } from '../ui/affinityBox';
 import { ChoiceBox } from '../ui/choice';
 import { ForgeBox } from '../ui/forge';
 import { ShopBox } from '../ui/shop';
 import { MERCHANT_KIND } from '../content/shop';
 import { DialogueBox } from '../ui/dialogue';
-import { Hud, ITEM_SLOTS, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
+import { Hud, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
 import { Menu } from '../ui/menu';
 import { type Overlay, WorldRenderer, affinityColor } from './art/renderer';
 
@@ -56,7 +57,6 @@ const KEY_DIRS: Record<string, Vec> = {
 };
 
 const TECHNIQUE_SLOT_KEYS = TECHNIQUE_KEYS.map((k) => k.toLowerCase());
-const ITEM_KEYS: Record<string, string> = Object.fromEntries(ITEM_SLOTS.map((s) => [s.key, s.itemId]));
 
 /** Modo de apuntado: una técnica, un lanzamiento o un ataque de alcance con látigo/lanza. */
 type Aim =
@@ -93,6 +93,7 @@ export class GameScene extends Phaser.Scene {
   private readonly choice = new ChoiceBox();
   private readonly forge = new ForgeBox();
   private readonly shop = new ShopBox();
+  private readonly affinityBox = new AffinityBox();
   private introShown = false;
   private aim: Aim | null = null;
   private facing: Vec = E;
@@ -143,6 +144,7 @@ export class GameScene extends Phaser.Scene {
     this.forge.onUpgrade = (npcId, weaponId, pay) => void this.dispatch({ type: 'Upgrade', npcId, weaponId, pay });
     this.forge.onPurify = (npcId, itemId) => void this.dispatch({ type: 'Purify', npcId, itemId });
     this.shop.onBuy = (npcId, offerId) => void this.dispatch({ type: 'Buy', npcId, offerId });
+    this.affinityBox.onChoose = (affinity) => void this.dispatch({ type: 'ChooseAffinity', affinity });
     this.rebuildTexture();
     this.startRun(this.initialSeed);
   }
@@ -166,6 +168,8 @@ export class GameScene extends Phaser.Scene {
   /** Un fotograma: dibuja el mundo en el lienzo y lo sube a la textura. */
   private tick(): void {
     if (!this.ctx || !this.tex || !this.state) return;
+    // La elección de afinidad espera a que acabe el diálogo del jefe.
+    if (!this.dialogue.isOpen || !this.state.affinityOffer) this.affinityBox.sync(this.state);
     this.world.render(this.ctx, now(), this.overlay());
     this.tex.refresh();
     const panned = this.world.isPanned;
@@ -185,6 +189,7 @@ export class GameScene extends Phaser.Scene {
     this.choice.close();
     this.forge.close();
     this.shop.close();
+    this.affinityBox.close();
     this.world.resetPan();
     this.dialogue.clear();
     this.refreshHud();
@@ -198,7 +203,7 @@ export class GameScene extends Phaser.Scene {
 
   private onKey(e: KeyboardEvent): void {
     let key = e.key.toLowerCase();
-    // El teclado numérico va aparte para que 1-4 sigan siendo las técnicas.
+    // El teclado numérico va aparte para que 1-6 sigan siendo las técnicas.
     if (e.code.startsWith('Numpad') && /^[0-9]$/.test(e.code.slice(6))) key = `np${e.code.slice(6)}`;
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'tab', 'home', 'end', 'pageup', 'pagedown'].includes(key)) e.preventDefault();
     this.handleKey(key);
@@ -207,6 +212,7 @@ export class GameScene extends Phaser.Scene {
   /** Una tecla (física o de la cruceta táctil) ya en minúsculas. */
   private handleKey(key: string): void {
     if (this.dialogue.onKey(key)) return;
+    if (this.affinityBox.onKey(key)) return;
     if (this.choice.onKey(key)) return;
     if (this.forge.onKey(key)) return;
     if (this.shop.onKey(key)) return;
@@ -253,15 +259,13 @@ export class GameScene extends Phaser.Scene {
       this.cycleWeapon();
     } else if (slot >= 0) {
       this.castSlot(slot);
-    } else if (ITEM_KEYS[key]) {
-      this.dispatch({ type: 'UseItem', itemId: ITEM_KEYS[key] });
     }
   }
 
   /** Órdenes dadas con el ratón o el dedo desde el panel: equivalen a su tecla. */
   private perform(a: UiAction): void {
     if (a.type === 'key') return this.handleKey(a.key);
-    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.choice.isOpen || this.forge.isOpen || this.shop.isOpen) return;
+    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.affinityBox.isOpen || this.choice.isOpen || this.forge.isOpen || this.shop.isOpen) return;
     if (this.aim) {
       this.aim = null;
       this.refreshHud();
@@ -269,9 +273,6 @@ export class GameScene extends Phaser.Scene {
     switch (a.type) {
       case 'technique':
         return this.castSlot(a.slot);
-      case 'item':
-        void this.dispatch({ type: 'UseItem', itemId: a.itemId });
-        return;
       case 'throw':
         return this.startThrow();
       case 'cycleThrow':

@@ -85,9 +85,10 @@ describe('Sōkan, Predicador Hueco (jefe shinobi)', () => {
   const big = ['#############', '#@..........#', '#...........#', '#........B..#', '#############'];
   const near = ['#####', '#@>.#', '#B..#', '#####'];
 
-  it('está en el catálogo como jefe con 44 de vida', () => {
+  it('está en el catálogo como jefe duro (64 de vida) con escudo de tablillas', () => {
     expect(ENEMIES.sokan_predicador.behavior).toBe('boss');
-    expect(ENEMIES.sokan_predicador.maxHp).toBe(44);
+    expect(ENEMIES.sokan_predicador.maxHp).toBe(64);
+    expect(ENEMIES.sokan_predicador.boss?.shield?.enemy).toBe('tablilla_sello');
   });
 
   it('a corta distancia marca un golpe cercano (Golpe de Cayado) que no incluye su casilla', () => {
@@ -129,23 +130,24 @@ describe('Sōkan, Predicador Hueco (jefe shinobi)', () => {
     expect(again.events.some((e) => e.type === 'Dialogue' && e.id === 'sokan_intro')).toBe(false);
   });
 
-  it('cambia de fase al perder vida: 2 por debajo de 2/3 y 3 por debajo de 1/3 (convoca dos ecos)', () => {
+  it('cambia de fase al perder vida: 2 por debajo de 2/3 y 3 por debajo de 1/3 (alza de nuevo su escudo)', () => {
     const s = makeGame(near, (g) => {
-      g.enemies[0].hp = 28;
+      g.enemies[0].hp = 42;
     });
     const r = applyCommand(s, attack({ x: 1, y: 2 }));
     expect(r.state.enemies[0].phase).toBe(2);
     expect(r.events).toContainEqual({ type: 'BossPhase', enemyId: 'enemy-b0', phase: 2 });
     expect(r.events).toContainEqual({ type: 'Dialogue', id: 'sokan_fase2' });
 
-    const s3 = makeGame(near, (g) => {
-      g.enemies[0].hp = 14;
+    const s3 = makeGame(big, (g) => {
+      g.enemies[0].hp = 22;
       g.enemies[0].phase = 2;
+      g.player.pos = { x: 8, y: 3 };
     });
-    const r3 = applyCommand(s3, attack({ x: 1, y: 2 }));
+    const r3 = applyCommand(s3, attack({ x: 9, y: 3 }));
     expect(r3.state.enemies[0].phase).toBe(3);
-    expect(r3.state.enemies.filter((e) => e.kind === 'eco_menor')).toHaveLength(2);
-    expect(r3.events.filter((e) => e.type === 'EnemySummoned')).toHaveLength(2);
+    expect(r3.events.some((e) => e.type === 'ShieldRaised')).toBe(true);
+    expect(r3.state.enemies.filter((e) => e.kind === 'tablilla_sello').length).toBeGreaterThanOrEqual(2);
   });
 
   it('es inmune al aturdimiento y al empuje', () => {
@@ -163,7 +165,11 @@ describe('Sōkan, Predicador Hueco (jefe shinobi)', () => {
     expect(applyCommand(s, interact({ x: 2, y: 1 })).reason).toBe('exit_sealed');
 
     const dying = makeGame(near, (g) => (g.enemies[0].hp = 1));
-    const r = applyCommand(dying, attack({ x: 1, y: 2 }));
+    const killed = applyCommand(dying, attack({ x: 1, y: 2 }));
+    // Recompensa del primer jefe: hay que elegir una afinidad antes de seguir.
+    expect(killed.state.affinityOffer).toHaveLength(2);
+    expect(applyCommand(killed.state, interact({ x: 2, y: 1 })).reason).toBe('affinity_pending');
+    const r = { ...applyCommand(killed.state, { type: 'ChooseAffinity', affinity: (killed.state.affinityOffer as string[])[0] as 'marea' }), events: killed.events };
     expect(bossAlive(r.state)).toBe(false);
     expect(r.state.player.relics).toContain('sello_antiguo');
     expect(r.state.stats.bossDefeated).toBe(true);

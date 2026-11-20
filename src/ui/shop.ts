@@ -1,7 +1,6 @@
-import { SHOP_PRICES } from '../content/shop';
 import { itemName, iconIdFor } from '../content/names';
 import { getArcana } from '../content/arcana';
-import { getEquipment, getItem } from '../content/items';
+import { getEquipment } from '../content/items';
 import { getTechnique } from '../content/techniques';
 import { getWeapon } from '../content/weapons';
 import { getMod } from '../content/enchants';
@@ -31,7 +30,7 @@ export function offerDescription(itemId: string): string {
   if (w) return `${w.description}${getMod(itemId) ? ` ${getMod(itemId)?.description}` : ''}`;
   const e = getEquipment(itemId);
   if (e) return `+${e.bonus} de defensa. ${getMod(itemId)?.description ?? ''}`.trim();
-  return getItem(itemId)?.description ?? '';
+  return '';
 }
 
 /** Mercader que aparece tras cada jefe: vende objetos ya identificados y sin maldición. */
@@ -135,7 +134,7 @@ export class ShopBox {
       row.append(pay);
       list.append(row);
     });
-    panel.append(list, h('div', 'menu-foot', `1-9: comprar ese artículo · Esc o X: cerrar · Un tónico cuesta ${SHOP_PRICES.tonico_kiro}, un ungüento ${SHOP_PRICES.unguento_musgo}`));
+    panel.append(list, h('div', 'menu-foot', '1-9: comprar ese artículo · Esc o X: cerrar · Lo que vende el mercader llega ya identificado y sin maldiciones'));
     this.root.replaceChildren(panel);
     this.root.hidden = false;
   }

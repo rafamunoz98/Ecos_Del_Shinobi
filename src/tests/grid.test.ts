@@ -20,7 +20,7 @@ describe('búsqueda de camino', () => {
   it('encuentra un camino más corto, sin incluir el origen', () => {
     const { map } = parseRoom(['#####', '#@..#', '#.#.#', '#...#', '#####']);
     const path = findPath(map, { x: 1, y: 1 }, { x: 3, y: 3 }, () => false);
-    expect(path).toHaveLength(4); // las diagonales no cortan esquinas: el hueco central es pared
+    expect(path).toHaveLength(3); // la diagonal junto a una esquina vale mientras haya hueco por un lado
     expect(path?.[path.length - 1]).toEqual({ x: 3, y: 3 });
   });
 

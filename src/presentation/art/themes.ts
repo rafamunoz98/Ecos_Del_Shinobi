@@ -87,24 +87,24 @@ export const THEMES: readonly Theme[] = [
   },
 ];
 
-/** Raíces Hundidas: la segunda zona, bajo la cripta (verdes profundos, raíces y esporas). */
+/** Raíces Hundidas: la segunda zona, bajo la cripta (tierra parda, raíces y hongos luminosos: nada que ver con el bosque verde). */
 const ROOTS: Theme = {
   name: 'Raíces Hundidas',
-  floorA: '#5a6b5c',
-  floorB: '#4b5d57',
-  grout: '#1f2d2a',
-  faceLight: '#5d5648',
-  faceDark: '#3a3329',
-  mortar: '#1d1913',
-  roof: '#2a3b2f',
-  roofDark: '#121c17',
-  lip: '#8aa38c',
-  accent: '#5fd0b0',
-  accent2: '#b48cff',
-  fog: '#030807',
-  glow: '#bff3d6',
+  floorA: '#8a6c4d',
+  floorB: '#9b7b58',
+  grout: '#3a2818',
+  faceLight: '#6f4f38',
+  faceDark: '#46301f',
+  mortar: '#24160d',
+  roof: '#3b2819',
+  roofDark: '#1c110a',
+  lip: '#c49a6a',
+  accent: '#4fe0c0',
+  accent2: '#c08cff',
+  fog: '#080403',
+  glow: '#ffcf9a',
   ambient: 'luciernagas',
-  ambientColor: '#8ef0d0',
+  ambientColor: '#6ff0d4',
   deco: 'hierba',
 };
 

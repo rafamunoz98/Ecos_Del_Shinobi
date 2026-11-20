@@ -99,7 +99,7 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
         expect(['hoja_afilada', 'lanza_de_bambu', 'cota_de_laminas', 'coraza_de_pizarra']).not.toContain(d.itemId);
       }
     }
-    for (const id of ['moneda', 'esquirla', 'tonico_kiro', 'unguento_musgo', 'shuriken', 'senbon']) expect(kinds.has(id), id).toBe(true);
+    for (const id of ['moneda', 'esquirla', 'pocion_azar', 'shuriken', 'senbon']) expect(kinds.has(id), id).toBe(true);
   });
 
   it('las mesas de forja solo aparecen en los sectores configurados y son alcanzables', () => {

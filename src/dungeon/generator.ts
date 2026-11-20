@@ -1,7 +1,7 @@
 import { BALANCE } from '../content/balance';
 import { DIRS, fromIdx, idx, inBounds, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
-import { BOSS_BY_FLOOR, BOSS_ID, ENEMIES } from '../content/enemies';
+import { BOSS_BY_FLOOR, BOSS_FLOORS, BOSS_ID, ENEMIES } from '../content/enemies';
 import { GROUND_LOOT, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
 import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
 import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
@@ -50,6 +50,20 @@ export interface LevelParams {
 }
 
 const MAX_ATTEMPTS = 50;
+
+/**
+ * Cada fase (los sectores previos a un jefe) tiene asegurada una poción de sanación en el suelo, en un sector sin jefe de esa fase
+ * que se sortea con la semilla (misma semilla = mismo sector).
+ */
+export function healFloorOfPhase(seed: number, floor: number): number {
+  const bossFloor = BOSS_FLOORS.find((b) => b >= floor);
+  const start = Math.max(0, ...BOSS_FLOORS.filter((b) => b < floor)) + 1;
+  const end = bossFloor ?? Math.max(floor, start);
+  const candidates: number[] = [];
+  for (let f = start; f < end; f++) candidates.push(f);
+  if (candidates.length === 0) candidates.push(start);
+  return candidates[mixSeed(seed, start, 4242) % candidates.length];
+}
 
 const center = (r: Room): Vec => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) });
 
@@ -104,7 +118,7 @@ function carveCorridor(tiles: TerrainKind[], width: number, a: Vec, b: Vec, hori
   }
 }
 
-function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean): GeneratedLevel | null {
+function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean, guaranteeHeal: boolean): GeneratedLevel | null {
   const tiles: TerrainKind[] = new Array<TerrainKind>(width * height).fill('wall');
   const rooms: Room[] = [];
 
@@ -418,6 +432,44 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
   if (vault) placeKey('llave_hierro', 'guarded');
   if (lacquerChest) placeKey('llave_laca', 'far');
 
+  // 9. Poción de sanación asegurada de la fase (sobre suelo despejado, nunca entre arbustos ni en la arena del jefe).
+  if (guaranteeHeal) {
+    const roomsForHeal = rooms.filter((r) => r !== bossRoom);
+    for (let t = 0; t < 200; t++) {
+      const c = randomCell(rng.pick(roomsForHeal));
+      const i = idx(map, c);
+      if (used.has(i) || tiles[i] !== 'floor') continue;
+      used.add(i);
+      drops.push({ pos: c, itemId: 'pocion:sanacion', count: 1 });
+      break;
+    }
+  }
+
+  // 10. Arbustos también en los pasillos rectos (esconden a quien pasa y tapan la vista). Siempre al final: no alteran lo anterior.
+  const vaultCells = new Set<number>((vault?.cells ?? []).map((c) => idx(map, c)));
+  const straight = (c: Vec): boolean => {
+    const sides = wallAt({ x: c.x - 1, y: c.y }) && wallAt({ x: c.x + 1, y: c.y });
+    const ends = wallAt({ x: c.x, y: c.y - 1 }) && wallAt({ x: c.x, y: c.y + 1 });
+    return sides !== ends;
+  };
+  const corridor: Vec[] = [];
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const c = { x, y };
+      const i = idx(map, c);
+      if (tiles[i] !== 'floor' || used.has(i) || vaultCells.has(i) || inRoom(c) || manhattan(c, playerStart) <= 3 || !straight(c)) continue;
+      if (DIRS.some((d) => ['door', 'locked', 'exit'].includes(tiles[idx(map, { x: c.x + d.x, y: c.y + d.y })]))) continue;
+      corridor.push(c);
+    }
+  }
+  let thickets = 0;
+  for (const c of rng.shuffle(corridor)) {
+    if (thickets >= BALANCE.level.corridorBushes) break;
+    if (!rng.chance(0.5)) continue;
+    tiles[idx(map, c)] = 'bush';
+    thickets++;
+  }
+
   return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, rooms, bossRoom };
 }
 
@@ -471,7 +523,8 @@ export function generateLevel(params: LevelParams): GeneratedLevel {
   const width = params.width ?? BALANCE.level.width;
   const height = params.height ?? BALANCE.level.height;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false);
+    const heal = healFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
+    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal);
     if (level) return level;
   }
   throw new Error(`No se pudo generar el sector ${params.floor} con la semilla ${params.seed}.`);

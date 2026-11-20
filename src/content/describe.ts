@@ -68,7 +68,7 @@ export function describeEffects(def: TechniqueDef): string[] {
   if (def.restoreKiro) out.push(`Recuperas ${def.restoreKiro} de kiro`);
   if (def.selfDamage) out.push(`Pagas ${def.selfDamage} de vida`);
   if (def.summon) out.push(`Invoca ${def.summon.count} aliado (${def.summon.turns} rondas)`);
-  if (def.losePursuers) out.push('Los perseguidores pierden tu rastro');
+  if (def.leaveDecoy) out.push(`Deja un tronco señuelo (${def.leaveDecoy.turns} rondas)`);
   if (def.barrierTurns) out.push(`Barrera ${def.barrierTurns} rondas`);
   if (out.length === 0) out.push('Utilidad');
   return out;

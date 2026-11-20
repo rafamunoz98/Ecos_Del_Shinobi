@@ -12,7 +12,9 @@ Las secciones marcadas **[Implementado]** ya existen en el prototipo (`src/conte
 Para el primer prototipo implementar solo Hoja Errante.
 
 ## 2. Afinidades
-Cada afinidad tiene **ocho técnicas propias**: cinco se desbloquean por nivel (1 a 5; se sube un nivel por sector despejado) y tres hay que **aprender** (manuales o maestros). Además hay dos técnicas **comunes** que cualquiera puede aprender. Solo se pueden llevar **4 técnicas equipadas** (teclas 1–4); el resto queda en el **grimorio** y se cambia por una equipada desde el menú (Tab → Técnicas), gastando un turno. Una técnica aprendida sin ranura libre abre el menú para elegir cuál sustituir.
+Cada afinidad tiene **ocho técnicas propias**: cinco se desbloquean por nivel (1 a 5; se sube un nivel por sector despejado) y tres hay que **aprender** (manuales o maestros). Además hay dos técnicas **comunes** que cualquiera puede aprender. Se pueden llevar hasta **6 técnicas equipadas** (teclas 1–6); no hay que sustituir ninguna hasta llenar las seis. El resto queda en el **grimorio** y se cambia por una equipada desde el menú (Tab → Técnicas), gastando un turno. Una técnica aprendida con las seis ranuras llenas abre el menú para elegir cuál sustituir.
+
+**Segunda afinidad (recompensa del primer jefe).** Al derrotar a Sōkan se ofrecen **dos afinidades al azar** (distintas de la tuya) con su descripción y su técnica inicial. Eliges una: aprendes su técnica más básica (nivel 1), reconoces su poción y pergamino y, **con cada nivel**, desbloqueas la siguiente técnica de esa afinidad. Las técnicas de aprendizaje (manuales, maestros) de ambas afinidades quedan disponibles.
 
 | Afinidad | Identidad táctica | Iniciación (nivel 1) |
 |---|---|---|
@@ -71,7 +73,7 @@ Fórmula de daño: `max(1, poder de la técnica + bonificación de nivel − def
 | Golpe Sísmico | Nivel 3 | 4 | Ráfaga de radio 1 a tu alrededor. | Daño 5, Aturdido 1 turno |
 | Lanza de Roca | Nivel 4 | 4 | Línea recta de 4 casillas; se detiene en obstáculos. | Daño 7, Atado 2 turnos |
 | Derrumbe | Nivel 5 | 6 | Área de radio 2 sobre una casilla visible (alcance 5). | Daño 7, Aturdido 1 turno |
-| Fortaleza de Pizarra | Se aprende (manual, maestro o jefe) | 4 | Tres casillas en perpendicular (alcance 5). | Barrera 10 rondas |
+| Lanzar Roca | Se aprende (manual, maestro o jefe) | 3 | Una casilla visible (alcance 6). | Daño 8, Empuja 1 casillas |
 | Puño de Granito | Se aprende (manual, maestro o jefe) | 4 | Ráfaga de radio 1 a tu alrededor (incluye diagonales). | Daño 9, Empuja 1 casillas |
 | Temblor Profundo | Se aprende (manual, maestro o jefe) | 5 | Ráfaga de radio 3 a tu alrededor. | Daño 3, Ralentizado 3 turnos |
 
@@ -91,9 +93,9 @@ Fórmula de daño: `max(1, poder de la técnica + bonificación de nivel − def
 | Técnica | Obtención | Kiro | Forma | Efecto |
 |---|---|---|---|---|
 | Clon de Sombra | Se aprende (manual, maestro o jefe) | 4 | Se aplica sobre ti. | Invoca 1 aliado (10 rondas) |
-| Sustitución | Se aprende (manual, maestro o jefe) | 4 | Te desplazas al instante a una casilla libre visible (alcance 4). | Los perseguidores pierden tu rastro |
+| Sustitución | Se aprende (manual, maestro o jefe) | 4 | Te desplazas al instante a una casilla libre visible (alcance 4). | Deja un tronco señuelo (8 rondas, 10 de vida) |
 
-Contrajuego previsto: las técnicas de línea exigen alineación; las de área quedan bloqueadas por la línea de visión; la barrera sirve también como trampa para el propio jugador en pasillos. Los manuales aparecen en cofres lacados, cámaras selladas y en la tienda; la Maestra Sayoko y el Maestro Tobari enseñan una técnica que no se consigue por nivel.
+Contrajuego previsto: las técnicas de línea exigen alineación; las de área quedan bloqueadas por la línea de visión; la barrera sirve también como trampa para el propio jugador en pasillos. Los **manuales son raros**: ya no salen por el suelo ni los suelta el jefe; solo en cofres lacados, cámaras selladas (poco frecuentes, desde el sector 2) y en la tienda (40 monedas); la Maestra Sayoko y el Maestro Tobari enseñan una técnica que no se consigue por nivel.
 
 ### 2.2 Estados **[Implementado]**
 | Estado | Efecto | A quién |
@@ -102,7 +104,7 @@ Contrajuego previsto: las técnicas de línea exigen alineación; las de área q
 | Veneno | 1 de daño por ronda (ignora defensa) | Ambos |
 | Aturdido | Pierde su próxima acción | Enemigos |
 | Ralentizado | Solo actúa una de cada dos rondas | Enemigos |
-| Atado | No puede moverse (aún ataca a quien tenga al lado) | Enemigos |
+| Atado | No puede moverse (aún ataca a quien tenga al lado) | Ambos (la Red de Yūgiri te ata) |
 | Vulnerable | −2 de defensa | Enemigos |
 | Protegido | +2 de defensa | Jugador |
 | Potenciado | +2 de poder | Jugador |
@@ -144,15 +146,26 @@ Hay tres familias: **monstruos** (criaturas del Pulso), **shinobi** (ninjas de l
 | Maestro del Trueno | shinobi | 15 | 5 | 1 | 5 | Relámpago en Cruz (aviso 2) |
 | Eco Menor | echo (invocado) | 6 | 3 | 0 | — | — |
 | Clon de Niebla | echo (invocado) | 4 | 3 | 0 | — | — |
-| Sōkan, Predicador Hueco | shinobi (jefe) | 44 | 7 | 2 | — | Golpe de Cayado (aviso 2); Onda de Campana (aviso 2) [fase 2+]; Sello Hueco (aviso 2) |
-| Yūgiri, el Hilo Roto | shinobi (jefe) | 52 | 8 | 2 | — | Tajo de Hilo (aviso 1); Paso Fantasma; Corte de Hilo (aviso 1); Red de Hilos (aviso 2) [fase 2+]; Lluvia de Senbon (aviso 1) [fase 2+] |
+| Sōkan, Predicador Hueco | shinobi (jefe) | 64 | 8 | 2 | — | Golpe de Cayado (aviso 2); Mantra Hueco (aviso 2); Onda de Campana (aviso 2) [fase 2+]; Sello Hueco (aviso 2) |
+| Tablilla de Sello | echo (invocado) | 9 | 0 | 0 | — | — (pasiva: sostiene el escudo de Sōkan) |
+| Marioneta Explosiva | echo (invocado) | 6 | 0 | 0 | — | Estallido de la marioneta (aviso 1) |
+| Yūgiri, el Hilo Roto | shinobi (jefe) | 130 | 9 | 2 | — | Tajo de Hilo (aviso 1); Hilo Atrapador (aviso 1); Paso Fantasma; Corte de Hilo (aviso 1); Red de Hilos (aviso 2) [fase 2+]; Lluvia de Senbon (aviso 1) [fase 2+] |
 
 Las habilidades marcadas con «aviso N» dibujan sus casillas en el suelo y se liberan N rondas después (se esquivan saliendo de la zona). El resto (kunai, senbon, saltos) es inmediato. Los ecos invocados no cuentan para despejar el sector. Los enemigos aturdidos no actúan esa ronda.
 
 ## 5. Jefes shinobi **[Implementado]**
 Hay un jefe cada tres sectores; la sala de salida es su arena (sin arbustos) y la salida queda sellada mientras viva. Ambos son shinobi con diálogo al verte, al cambiar de fase y al caer, inmunes a aturdimiento, empuje y ataduras, y sueltan una reliquia, 15 monedas y 3 esquirlas. **Al caer un jefe aparece un mercader** y la estética de la zona cambia (ver `05_direccion_artistica_audio.md`).
-- **Sōkan, Predicador Hueco** (sector 3; 44 vida, poder 7, def. 2): Golpe de Cayado (rombo de radio 2 a su alrededor) si estás cerca; desde la fase 2, Onda de Campana (cruz sobre ti); Sello Hueco y refuerzos de Ecos Menores en la fase 3. Reliquia: **Sello antiguo**.
-- **Yūgiri, el Hilo Roto** (sector 6; 52 vida, poder 8, def. 2): Tajo de Hilo, Paso Fantasma (salto a tu lado), Corte de Hilo; desde la fase 2, Red de Hilos y Lluvia de Senbon; invoca Clones de Niebla. Reliquia: **Carrete del Hilo Roto**. Al caer, la expedición se completa cruzando la salida.
+- **Sōkan, Predicador Hueco** (sector 3; 64 vida, poder 8, def. 2) — *el jefe del escudo*:
+  - **Escudo de tablillas:** al verte alza 2 tablillas selladas por la arena (3 al entrar en la fase 3) unidas a él por hilos rojos. Mientras quede alguna, **no recibe daño** (ni quemaduras ni veneno): hay que romperlas (9 de vida cada una, pasivas). Al caer la última, el escudo se rompe y queda expuesto.
+  - **Golpe de Cayado** (radio 2, aviso 2): **te empuja 3 casillas** (chocar contra un obstáculo hace daño extra).
+  - **Mantra Hueco** (zona de radio 2, aviso 2): daño y **te roba 6 de kiro**.
+  - Desde la fase 2: **Onda de Campana** (cruz sobre ti). **Sello Hueco** (zona de radio 1). En la fase 3 se **enfurece**: una acción extra por ronda, enfriamientos al doble y avisos 1 ronda más rápidos.
+  - Reliquia: **Sello antiguo**. Su derrota ofrece la **segunda afinidad**.
+- **Yūgiri, el Hilo Roto** (sector 6; 130 vida, poder 9, def. 2) — *el jefe del hilo*:
+  - **Kawarimi:** cuando lo golpeas (cada 8 rondas como mucho) se **sustituye** por una **Marioneta Explosiva** que recibe tu golpe y aparece en otro punto; la marioneta estalla en radio 2 (11 de poder) tras 1 ronda si no la destruyes o te apartas.
+  - **Hilo Atrapador** (rayo de 7, aviso 1): **te arrastra** hasta quedar pegado a él. **Corte de Hilo** (rayo de 6) y **Tajo de Hilo** (radio 1). **Paso Fantasma**: salto a tu lado.
+  - Desde la fase 2: **Red de Hilos** (cruz, te **ata** 2 rondas: no puedes moverte) y **Lluvia de Senbon** (zona con veneno), y se **enfurece** (acción extra, enfriamientos al doble, avisos más rápidos).
+  - Reliquia: **Carrete del Hilo Roto**. Al caer, la expedición se completa cruzando la salida.
 - No hay un monstruo-campana: el Campanero fue sustituido por Sōkan, líder del Círculo de la Campana Hueca.
 
 ## 5.1 Eventos y maestros **[Implementado]**
@@ -163,19 +176,18 @@ Hay un jefe cada tres sectores; la sala de salida es su arena (sin arbustos) y l
 - **Notas de lore** (14 pergaminos opcionales, 1–2 por sector): cuentan la historia de la cripta, del Círculo de la Campana Hueca y de la Casa del Hilo Gris. Se leen en la pestaña Notas del menú.
 
 ## 5.4 Botín, llaves, forja y tienda **[Implementado]**
-Objetos: **moneda**, **esquirla** (material de forja), **llave de hierro** (abre la puerta con candado) y **llave de laca** (abre el cofre lacado). Las llaves se ven brillando en el suelo (nunca entre arbustos), se marcan en el minimapa al explorarlas y, al entrar en el sector, el registro avisa de dónde están. Las mesas de forja (sectores 2, 3 y 5) mejoran armas y **purifican piezas malditas** (10 monedas). Tras cada jefe aparece el **Mercader de la Casa del Hilo Gris**, que vende —ya identificado y sin maldición— ungüentos, tónicos, una poción, un pergamino, una pieza de equipo y un manual de técnica. Las monedas son escasas a propósito: enemigos 35 % (1–2), jefes 15, y la forja y la tienda son sus únicos destinos. Ver `02_sistemas_y_reglas.md` §11.
+Objetos: **moneda**, **esquirla** (material de forja), **llave de hierro** (abre la puerta con candado) y **llave de laca** (abre el cofre lacado). Las llaves se ven brillando en el suelo (nunca entre arbustos), se marcan en el minimapa al explorarlas y, al entrar en el sector, el registro avisa de dónde están. Las mesas de forja (sectores 2, 3 y 5) mejoran armas y **purifican piezas malditas** (10 monedas). Tras cada jefe aparece el **Mercader de la Casa del Hilo Gris**, que vende —ya identificado y sin maldición— una Poción de Sanación, una de Kiro Mayor, otra poción al azar, un pergamino, una pieza de equipo y un manual de técnica (40 monedas). Las monedas son escasas a propósito: enemigos 35 % (1–2), jefes 15, y la forja y la tienda son sus únicos destinos. Ver `02_sistemas_y_reglas.md` §11.
 
 ## 5.5 Sigilo, arbustos y puertas **[Implementado]**
 Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan la visión; esconderse tiene un precio (ves menos); los enemigos solo actúan al verte; atacar a quien no te ha visto hace ×2.
 
 ## 6. Objetos y equipo **[Implementado]**
 ### 6.1 Consumibles
-- Tónico de Kiro: recupera 5 de kiro (tecla 5).
-- Ungüento de Musgo: recupera 8 de vida (tecla 6; se empieza con uno).
-- Pociones y pergaminos de ninjutsu (§6.3), manuales de técnica (se estudian desde Tab → Objetos).
+- Ya no hay tónicos ni ungüentos: la vida y el kiro se recuperan con la **Poción de Sanación** (15 de vida, limpia quemadura y veneno), la **Poción de Kiro Mayor** (12 de kiro) y la **Poción de Savia** (regeneración). Hay **una Poción de Sanación asegurada en el suelo por fase** (los sectores previos a un jefe).
+- Pociones y pergaminos de ninjutsu (§6.3); se recogen sin revelar lo que son. Manuales de técnica (se estudian desde Tab → Objetos). Se empieza solo con 5 shuriken.
 
 ### 6.2 Equipo
-Equipo con **dos ranuras** (arma y vestimenta). Se llevan varias armas y varias vestimentas, pero se usa una de cada. **Nada se equipa solo**: lo encontrado viene **sin identificar** («Hoja afilada (?)») y puede ser corriente, estar **encantado** (20–28 % de probabilidad) o **maldito** (20 %). Equiparlo lo identifica. Lo maldito queda pegado al cuerpo (no se puede cambiar esa ranura) hasta purificarlo con un Sello de Purificación o en la forja. Lo vendido por el mercader siempre viene identificado y limpio.
+Equipo con **dos ranuras** (arma y vestimenta). Se llevan varias armas y varias vestimentas, pero se usa una de cada. **Nada se equipa solo**: lo encontrado viene **sin identificar** («Hoja afilada (?)») y puede ser corriente, estar **encantado** (20–28 % de probabilidad) o **maldito** (20 %). Una pieza normal o encantada se identifica tras **20 rondas puestas**; una **maldita se revela al instante** al equiparla. Lo maldito queda pegado al cuerpo (no se puede cambiar esa ranura) hasta purificarlo con un Sello de Purificación o en la forja. Lo vendido por el mercader siempre viene identificado y limpio.
 
 **Armas cuerpo a cuerpo** (B cambia a la siguiente; gasta un turno):
 | Arma | Tipo | Poder | Alcance | Aparece desde | Nota |
@@ -239,7 +251,7 @@ Inspirado en Pixel Dungeon, con motivos de ninjutsu (invocaciones, clones, sello
 | Pergamino de Invocación: Sapo | bueno | Sellas con sangre y aparece un sapo de piedra que combate a tu lado 15 rondas. | 16 |
 | Pergamino de Invocación: Cuervos | bueno | Dos cuervos veloces te acompañan 12 rondas. | 16 |
 | Pergamino de Clones | bueno | Dos clones de sombra luchan a tu lado 8 rondas. | 14 |
-| Pergamino de Sustitución | bueno | Dejas un tronco y reapareces en otro punto explorado del sector; los perseguidores pierden tu rastro. | 12 |
+| Pergamino de Sustitución | bueno | Dejas un tronco señuelo (8 rondas) y reapareces en otro punto explorado del sector; los perseguidores se ensañan con el tronco y pierden tu rastro. | 12 |
 | Pergamino de Cartografía | bueno | Un mapa dibujado por el viento: revela todo el sector. | 12 |
 | Sello de Purificación | bueno | Rompe las maldiciones del arma y la vestimenta que llevas puestas. | 18 |
 | Sello Explosivo | bueno | Estalla a tu alrededor: 8 de daño (ignora defensa) a los enemigos a ≤3 casillas con línea de visión. | 14 |
@@ -255,13 +267,13 @@ Botín de cofres: tabla ponderada por sector. Ningún objeto raro es obligatorio
 
 ## 7. Progresión durante la expedición **[Implementado]**
 - **Subida de nivel controlada:** como mucho **un nivel por sector**, y solo si se derrota a *todos* los enemigos de ese sector (los invocados no cuentan). El HUD muestra «enemigos x/y» y «sector despejado». Los enemigos dan XP y monedas pero ya no suben el nivel por sí solos.
-- Cada nivel: +4 de vida máxima (y de vida actual), +1 de kiro máximo (y actual), +1 de poder en los niveles pares, y se desbloquea la técnica de nivel de tu afinidad (niveles 2 a 5).
+- Cada nivel: +4 de vida máxima (y de vida actual), +1 de kiro máximo (y actual), +1 de poder en los niveles pares, y se desbloquea la técnica de nivel de tu afinidad (niveles 2 a 5) y, tras el primer jefe, la siguiente de tu segunda afinidad.
 - **Regeneración natural:** 1 de vida cada 10 rondas y **1 de kiro cada 3 rondas** (esperar recupera 2).
 - La estética del sector cambia al derrotar a cada jefe.
 
 ## 8. Estructura de una expedición y mapas **[Implementado]**
-- Una expedición tiene **6 sectores** en tres zonas: sectores 1–3 (Bosque del Umbral; jefe **Sōkan** en el 3), sectores 4–6 (Raíces Hundidas; jefe **Yūgiri** en el 6). Al caer Sōkan cambia la estética a las Raíces Hundidas; al caer Yūgiri, al Santuario de Ceniza. Cruzar la escalera lleva al siguiente sector conservando el personaje; en el último, gana.
-- Cada sector es un mapa grande (64×44 casillas, estilo Pixel Dungeon): hasta 12 salas rectangulares unidas por pasillos de una casilla, más algunos bucles, con grupos de arbustos en las salas y puertas en la boca de algunos pasillos. La entrada está en una sala al azar y la escalera en la sala más lejana por camino.
+- Una expedición tiene **6 sectores** en tres zonas: sectores 1–3 (Bosque del Umbral; jefe **Sōkan** en el 3), sectores 4–6 (Raíces Hundidas; jefe **Yūgiri** en el 6). Al caer Sōkan cambia la estética a las Raíces Hundidas (tierra parda con hongos luminosos); al caer Yūgiri, al Santuario de Ceniza. Cruzar la escalera lleva al siguiente sector conservando el personaje; en el último, gana.
+- Cada sector es un mapa grande (64×44 casillas, estilo Pixel Dungeon): hasta 12 salas rectangulares unidas por pasillos de una casilla, más algunos bucles, con grupos de arbustos en las salas, hasta 7 arbustos sueltos en los pasillos y puertas en la boca de algunos pasillos. La entrada está en una sala al azar y la escalera en la sala más lejana por camino.
 - Enemigos repartidos por salas (de 4 a 9 por sector, siempre al menos a 6 casillas de la entrada). De 6 a 9 objetos por el suelo, hasta 2 cofres de madera, una cámara sellada con puerta con candado (75 %) y un cofre lacado (60 %), colocados de modo que nunca corten un camino.
 - El tamaño de casilla en pantalla no es fijo: la cámara hace zoom y sigue al jugador; **mantén pulsado y arrastra para mirar lo ya explorado del sector**, y cualquier acción recentra la vista.
 - Niebla de guerra: solo se ve lo ya recorrido, y los enemigos solo si están a la vista (radio 7 con línea de visión; los arbustos y puertas cerradas la cortan).

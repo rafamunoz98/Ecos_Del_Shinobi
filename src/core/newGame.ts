@@ -11,7 +11,7 @@ import { shuffleAppearances, STARTING_KNOWN } from '../content/arcana';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -61,15 +61,18 @@ export function createGame(opts: NewGameOptions): GameState {
       level: 1,
       xp: 0,
       affinity,
+      affinity2: null,
+      tier2: 0,
       techniques: techniquesFor(affinity, 1),
       grimoire: [],
       weapons: ['tanto_gastado'],
       armors: [],
       identified: ['tanto_gastado'],
+      wear: {},
       known: [...STARTING_KNOWN[affinity]],
       notes: [],
       relics: [],
-      inventory: { unguento_musgo: 1, shuriken: 5 },
+      inventory: { shuriken: 5 },
       coins: 0,
       shards: 0,
       keys: [],
@@ -90,6 +93,7 @@ export function createGame(opts: NewGameOptions): GameState {
     floorKilled: 0,
     floorCleared: false,
     bossesDefeated: 0,
+    affinityOffer: null,
     appearance: {},
     seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),

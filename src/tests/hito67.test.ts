@@ -60,7 +60,7 @@ describe('técnicas nuevas: movimiento y curación', () => {
 describe('grimorio y sustitución de técnicas', () => {
   const room = ['#####', '#@..#', '#####'];
   const full = (g: GameState) => {
-    g.player.techniques = ['brasa_circular', 'aliento_ardiente', 'lengua_de_fuego', 'lluvia_de_chispas'];
+    g.player.techniques = ['brasa_circular', 'aliento_ardiente', 'lengua_de_fuego', 'lluvia_de_chispas', 'pulso_del_crater', 'furia_ardiente'];
     g.player.grimoire = ['pira_del_condenado'];
   };
 
@@ -96,7 +96,7 @@ describe('grimorio y sustitución de técnicas', () => {
 describe('manuales de técnica', () => {
   it('un manual recogido se convierte en un manual concreto y se aprende al usarlo', () => {
     const s = makeGame(['#####', '#@..#', '#####'], (g) => {
-      g.player.techniques = ['brasa_circular', 'aliento_ardiente', 'lengua_de_fuego', 'lluvia_de_chispas'];
+      g.player.techniques = ['brasa_circular', 'aliento_ardiente', 'lengua_de_fuego', 'lluvia_de_chispas', 'pulso_del_crater', 'furia_ardiente'];
       g.player.inventory[MANUAL_PREFIX + 'pira_del_condenado'] = 1;
     });
     expect(itemName(MANUAL_PREFIX + 'pira_del_condenado')).toMatch(/Pira del Condenado/);

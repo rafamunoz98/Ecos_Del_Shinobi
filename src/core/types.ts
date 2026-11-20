@@ -51,6 +51,10 @@ export interface Player {
   level: number;
   xp: number;
   affinity: Affinity;
+  /** Segunda afinidad: se aprende como recompensa del primer jefe (null hasta entonces). */
+  affinity2: Affinity | null;
+  /** Nivel de maestría de la segunda afinidad: empieza en 1 (su técnica más básica) y sube con cada nivel del jugador. */
+  tier2: number;
   /** Técnicas equipadas (hasta BALANCE.techniqueSlots). */
   techniques: string[];
   /** Técnicas conocidas que no están equipadas (cambiar una por otra gasta un turno). */
@@ -61,6 +65,8 @@ export interface Player {
   armors: string[];
   /** Ids de equipo ya identificados (se equiparon alguna vez, o los reveló un pergamino). Los demás se ven como «(?)». */
   identified: string[];
+  /** Rondas que llevas puesta cada pieza de equipo sin identificar (al llegar a BALANCE.identifyTurns se descubre). */
+  wear: Record<string, number>;
   /** Pociones y pergaminos cuyo efecto conoces: «pocion:sanacion», «pergamino:mapa». */
   known: string[];
   /** Notas de lore encontradas (ids de content/story). */
@@ -129,6 +135,8 @@ export interface Telegraph {
   turns: number;
   /** Estado que deja en el jugador si lo alcanza. */
   inflict?: { status: StatusId; turns: number };
+  /** Efectos extra de la habilidad: empujar o atraer al jugador, robarle kiro, o que su dueño muera al liberarla. */
+  fx?: { push?: number; pull?: number; drainKiro?: number; selfDestruct?: boolean };
 }
 
 /** Personaje no jugador o evento fijo en el mapa (maestra, altar...). Bloquea el paso como un cofre. */
@@ -226,6 +234,8 @@ export interface GameState {
   floorCleared: boolean;
   /** Jefes derrotados: decide la estética de la zona (cambia al caer cada jefe). */
   bossesDefeated: number;
+  /** Dos afinidades entre las que hay que elegir una nueva (recompensa del primer jefe). Mientras haya oferta, solo se puede elegir. */
+  affinityOffer: Affinity[] | null;
   /** Diálogos que ya se mostraron y no deben repetirse solos (introducción del jefe, etc.). */
   seenDialogues: string[];
   /** Apariencia de cada poción y pergamino en esta partida: «pocion:sanacion» → «Poción ámbar». */
@@ -252,6 +262,8 @@ export type Command =
   /** Equipa una técnica del grimorio; si no hay ranura libre sustituye a `replace`. Gasta un turno. */
   | { type: 'EquipTechnique'; techniqueId: string; replace?: string }
   | { type: 'Interact'; target: Vec }
+  /** Elige una de las dos afinidades que ofrece el primer jefe. No gasta turno. */
+  | { type: 'ChooseAffinity'; affinity: Affinity }
   /** Elige una opción de un maestro o altar (ver content/story). */
   | { type: 'Choose'; npcId: string; optionId: string }
   /** Mejora un arma en una mesa de forja adyacente, pagando con monedas o con esquirlas. */
@@ -287,6 +299,9 @@ export type InvalidReason =
   | 'nothing_to_interact'
   | 'already_opened'
   | 'exit_sealed'
+  | 'tied'
+  | 'affinity_pending'
+  | 'not_offered'
   | 'locked_door'
   | 'locked_chest'
   | 'not_at_forge'
@@ -338,6 +353,16 @@ export type GameEvent =
   | { type: 'TelegraphReleased'; ownerId: string; cells: Vec[]; hit: boolean }
   | { type: 'TelegraphCancelled'; ownerId: string }
   | { type: 'BossPhase'; enemyId: string; phase: number }
+  /** El jefe alza (o rompe) su escudo de tablillas; un golpe contra él lo hace vibrar. */
+  | { type: 'ShieldRaised'; enemyId: string }
+  | { type: 'ShieldHit'; enemyId: string }
+  | { type: 'ShieldBroken'; enemyId: string }
+  /** El jefe se sustituye por una marioneta y reaparece lejos. */
+  | { type: 'Substitution'; enemyId: string; from: Vec; to: Vec }
+  /** Un ataque enemigo te desplaza (empuje o hilo que te atrae). */
+  | { type: 'PlayerShoved'; from: Vec; to: Vec }
+  | { type: 'AffinityOffered'; options: Affinity[] }
+  | { type: 'AffinityLearned'; affinity: Affinity }
   | { type: 'EnemySummoned'; enemyId: string; pos: Vec }
   | { type: 'EnemySkill'; enemyId: string; skillId: string; from: Vec; to: Vec }
   | { type: 'MerchantAppeared'; npcId: string; pos: Vec }

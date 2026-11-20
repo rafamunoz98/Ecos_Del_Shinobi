@@ -33,8 +33,10 @@ export const BALANCE = {
   /** Experiencia necesaria para subir del nivel N: xpBase * N. */
   xpBase: 8,
   levelUp: { hp: 4, kiro: 1, powerEvery: 2 },
-  /** Técnicas que se pueden llevar equipadas a la vez (el resto queda en el grimorio). */
-  techniqueSlots: 4,
+  /** Técnicas que se pueden llevar equipadas a la vez (el resto queda en el grimorio). Hasta llenarlas no hay que sustituir ninguna. */
+  techniqueSlots: 6,
+  /** Rondas con una pieza de equipo puesta hasta descubrir qué esconde (las malditas se revelan al instante). */
+  identifyTurns: 20,
   /** Mapas grandes al estilo Pixel Dungeon; el tamaño de casilla en pantalla es independiente. */
   level: {
     width: 64,
@@ -48,6 +50,8 @@ export const BALANCE = {
     maxChests: 2,
     /** Grupos de arbustos por sector (+2 desde el sector 2). */
     bushClusters: 7,
+    /** Arbustos sueltos en los pasillos rectos de cada sector. */
+    corridorBushes: 7,
     maxDoors: 8,
     /** Objetos sueltos por el suelo (monedas, esquirlas, consumibles, arrojadizas). */
     groundItems: { min: 6, max: 9 },
