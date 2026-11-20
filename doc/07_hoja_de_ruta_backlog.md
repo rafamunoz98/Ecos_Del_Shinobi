@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (19-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice) y el **Hito 6.5** (botín, llaves y forja). Siguiente: Hito 7 (progresión permanente).
+**Estado (20-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice), el **Hito 6.5** (botín, llaves y forja) y el **Hito 6.6** (ampliación: 6 sectores, jefes shinobi, objetos sin identificar, tienda y nuevos controles). Siguiente: Hito 7 (progresión permanente).
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*
@@ -67,7 +67,7 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 - [x] Una afinidad por expedición, sorteada entre cinco (cada una con dos técnicas).
 - [x] Seis enemigos: Acechador, Cuervo, Larva, Tirador, **Monje Hueco** (ataque anunciado) y Eco Menor (solo lo invoca el jefe).
 - [x] Diez técnicas y consumibles combinados.
-- [x] Guardián de sector: **Campanero Sepultado**, tres fases con ataques anunciados (`telegraphs`), inmune a aturdimiento y empuje; la salida del último sector queda sellada mientras viva.
+- [x] Guardián de sector: **Campanero Sepultado** (sustituido en el Hito 6.6 por el jefe shinobi Sōkan), tres fases con ataques anunciados (`telegraphs`), inmune a aturdimiento y empuje; la salida del último sector queda sellada mientras viva.
 - [x] Un evento (**Altar del Eco Roto**, sector 1) y un maestro (**Maestra Sayoko**, sector 2), con decisiones que cuestan algo.
 - [x] Diálogos con jefe y PNJ de mazmorra, y notas de lore opcionales (pergaminos que se recogen al pisarlos, pestaña Notas del menú).
 - [x] Resumen de expedición: causa de la derrota o victoria, estadísticas, reliquia, botón «Nueva expedición».
@@ -84,6 +84,23 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 - [x] Mesa de forja (sectores 2 y 3): mejoras de armas hasta +3.
 - [x] Revisión de Pixel Dungeon (ver `02_sistemas_y_reglas.md` §11.3).
 **Aceptación:** explorar compensa; las armas tienen una progresión dentro de la expedición. *(176 pruebas automáticas.)*
+
+## Hito 6.6 — Ampliación tras probar el 6.5 **[Completado]**
+- [x] Movimiento en 8 direcciones (Q E Z C, teclado numérico y cruceta táctil con diagonales).
+- [x] Cambiar de arrojadiza (V) sin gastar turno.
+- [x] Arrastrar el mapa para ver lo ya explorado.
+- [x] El kiro se recupera con el tiempo (1 cada 3 rondas; esperar da 2).
+- [x] 40 técnicas de afinidad (5 por nivel + 3 que se aprenden por afinidad) y 2 comunes; 4 ranuras, grimorio y sustitución a elección.
+- [x] Menos monedas y menos armas/arrojadizas; **tienda tras cada jefe** (mercader).
+- [x] Llaves: más visibles, con pista al entrar y marcas en el minimapa.
+- [x] Persecución sin límite práctico: los enemigos te siguen incluso a través de puertas.
+- [x] 10 shinobi con habilidades propias y monstruos nuevos; **jefes shinobi** Sōkan (sector 3) y Yūgiri (sector 6) en lugar del monstruo-campana.
+- [x] Equipo sin identificar con encantamientos y maldiciones (purificación en forja o con pergamino).
+- [x] 11 pociones y 12 pergaminos sin identificar al estilo Pixel Dungeon con motivos de ninja; una de cada clase conocida según la afinidad.
+- [x] Subida de nivel controlada: un nivel por sector, solo al despejarlo entero.
+- [x] 3 sectores más (6 en total) y jefe final; estética de zona estable hasta caer el jefe y distinta después.
+**Aceptación:** una expedición completa son seis sectores con dos jefes shinobi, tienda y objetos por descubrir. *(237 pruebas automáticas; comprobado en Chromium de escritorio y móvil.)*
+**Pendiente de decidir con el equipo:** equilibrio fino de dificultad (ver «Pendientes conocidos») y qué técnicas deben enseñar los jefes.
 
 ## Hito 7 — Progresión
 - [ ] Árbol de técnicas.
@@ -108,7 +125,9 @@ Solo después de validar la web: integrar Capacitor, adaptar safe areas, pausa/r
 Multijugador, PvP, ranking online, tienda con dinero real, cuentas, mundo abierto completo y decenas de clanes. Primero validar el bucle central.
 
 ## Pendientes conocidos del prototipo
-- Equilibrio: simulaciones con un bot sencillo muestran que el sector 2 (primer encuentro con Tirador y Larva) es el pico de dificultad; revisar con jugadores reales.
+- Equilibrio: un bot ingenuo que carga contra todo muere casi siempre en el sector 1 o 2 (los enemigos ahora te persiguen desde lejos); el sector 1 se limitó a 5 enemigos. Falta probarlo con jugadores reales: todo está en `src/content/balance.ts` y `enemies.ts`.
+- Economía: monedas escasas a propósito; vigilar que la tienda (tras Sōkan y Yūgiri) ofrezca decisiones reales y no sea inalcanzable.
+- Grimorio: con 5 técnicas por nivel y 4 ranuras, a nivel 5 una queda fuera; valorar ranura extra desbloqueable en el Hito 7.
 - Un tirador que retrocede puede alargar la persecución si el jugador no tiene kiro; valorar si debe dejar de huir al quedarse sin espacio o tras N retrocesos.
 - Controles táctiles: hay cruceta y barra de acciones pulsables; falta pulirlos con pruebas en dispositivos reales (Hito 8).
 - Arte: ya es propio y procedural (ver `05_direccion_artistica_audio.md`). Faltan más fotogramas de animación, altar, sprites de jefe y audio.

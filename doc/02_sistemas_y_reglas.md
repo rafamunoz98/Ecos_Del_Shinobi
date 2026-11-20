@@ -16,11 +16,14 @@ Orden de una ronda:
 Las animaciones no deciden resultados de combate. El estado del juego es la fuente de verdad.
 
 ## 2. Acciones
-- `Move(dx,dy)`: movimiento ortogonal de una casilla.
-- `Wait`: pasar turno y recuperar una cantidad pequeña de kiro, si se aprueba en balance.
+- `Move(dx,dy)`: movimiento de una casilla en **8 direcciones** (también diagonales; no se puede cortar la esquina de una pared).
+- `Wait`: pasar turno y recuperar 2 de kiro. Además el kiro se recupera solo (1 cada 3 rondas) y la vida, 1 cada 10.
 - `BasicAttack(target)`: ataque con arma o combate cuerpo a cuerpo.
 - `UseTechnique(techniqueId,target)`: técnica con coste, alcance, área y enfriamiento opcional.
-- `UseItem(itemId,target?)`: consumible.
+- `UseItem(itemId)`: consumible, poción, pergamino o manual de técnica.
+- `EquipWeapon`, `EquipArmor`, `EquipTechnique(techniqueId, replace?)`: cambiar de arma, de vestimenta o una técnica del grimorio por una equipada (gastan un turno).
+- `Throw(itemId,target)`: lanzar una arrojadiza (V cambia la elegida sin gastar turno).
+- `Purify`, `Upgrade`, `Buy`: purificar o mejorar en una mesa de forja y comprar al mercader.
 - `Interact(target)`: cofre, altar, puerta, maestro o salida.
 - `Extract`: abandonar el sector por un punto habilitado.
 
@@ -77,16 +80,19 @@ Cada transformación define duración, coste, efecto, limitaciones, señales vis
 - Tirador: mantiene distancia y busca línea de visión.
 - Guardián: protege una zona o invoca defensa.
 - Canalizador (Monje Hueco) **[Implementado]**: si te ve a ≤ 5 casillas, marca un rombo de radio 1 centrado en ti; el área estalla cuando el monje ha actuado dos veces más. Aturdirlo o matarlo cancela la marca.
-- Jefe (Campanero Sepultado) **[Implementado]**: fases según su vida (>2/3, >1/3, resto). Ver §9.1.
+- Shinobi **[Implementado]**: ocho tipos con habilidades propias (kunai, tajo giratorio, salto, pulso, cruz, senbon envenenadas, clones, relámpago en cruz). Ver `08_biblia_de_contenido.md` §4.
+- Jefes shinobi (Sōkan y Yūgiri) **[Implementado]**: fases según su vida (>2/3, >1/3, resto). Ver §9.1.
+- **Persecución [Implementado]:** al notarte, un enemigo queda alerta 12 rondas y te sigue desde hasta 40 casillas de camino; si te pierde, rastrea tu posición real hasta 18 casillas. Las puertas no los detienen: así siempre pueden alcanzarte para el cuerpo a cuerpo.
 
 Desempates deterministas para reproducir errores.
 
 ### 9.1 Ataques anunciados (telegraphs) y jefe **[Implementado]**
 - Un ataque anunciado es una marca en el mapa (`state.telegraphs`) con casillas, potencia y cuenta atrás. Empieza en 2; cada acción de su dueño la reduce y al llegar a 0 se libera y daña al jugador si está en alguna casilla marcada (la defensa cuenta). Se dibuja rayada con el número de rondas.
 - Aturdir al dueño (salvo al jefe) o matarlo cancela la marca. El procesado de marcas ocurre antes de decidir si el enemigo te ve, así que una marca ya lanzada siempre se resuelve.
-- **Campanero Sepultado** (40 vida, poder 7, def. 2): *Campanada* (rombo de radio 2 a su alrededor, sin su casilla) si estás a ≤ 2; desde la fase 2, *Onda de la Campana* (cruz de longitud 4 por tu posición) si estás lejos y te ve; si no, avanza solo en rondas pares. Fase 3: invoca dos Ecos Menores. Es inmune a aturdimiento y empuje.
-- Mientras el jefe viva, la salida del último sector está sellada (`exit_sealed`). Al caer, da la reliquia **Sello Antiguo** y se cancelan sus ecos.
-- Equilibrio medido con simulaciones (jugador de IA sin esquivar): con vestimenta y arma mejoradas se gana siempre desde nivel 1; sin equipo, ~5 % al nivel 1, ~55 % al 2, 80 % al 3 y 100 % al 4. Los patrones están pensados para esquivar o castigar a distancia.
+- Cada jefe y cada shinobi usa **habilidades** (`SkillDef`): ráfaga alrededor de sí, zona sobre ti, cruz, rayo en línea (8 direcciones), disparo inmediato, salto, invocación. Tienen enfriamiento y, desde cierta fase, nuevas opciones. Las anunciadas dibujan sus casillas y se liberan tras su aviso.
+- **Sōkan, Predicador Hueco** (sector 3; 44 vida, poder 7, def. 2) y **Yūgiri, el Hilo Roto** (sector 6; 52 vida, poder 8, def. 2). Inmunes a aturdimiento, empuje y ataduras. Detalle en `08_biblia_de_contenido.md` §5.
+- Mientras un jefe viva, la salida de su sector está sellada (`exit_sealed`). Al caer: reliquia, 15 monedas, 3 esquirlas, se cancelan sus ecos, **cambia la estética de la zona** y **aparece un mercader** cerca. El juego se gana al cruzar la salida del sector 6 tras derrotar a Yūgiri.
+- Los patrones están pensados para esquivar saliendo de las zonas marcadas o castigar a distancia.
 
 ### 9.2 PNJ y decisiones **[Implementado]**
 - Los PNJ (`state.npcs`) ocupan casilla y bloquean el paso. `Interact` junto a uno es una acción gratuita: muestra el diálogo, no gasta turno. `Choose {npcId, optionId}` paga el coste de la opción, aplica sus ganancias y marca al PNJ como usado (una vez por PNJ).
@@ -100,7 +106,7 @@ Estados candidatos: quemadura, marca, ralentización, aturdimiento, barrera, san
 ### 10.1 Visión y sigilo **[Implementado]**
 - **Arbustos:** tapan la visión (la tuya y la de los enemigos). Quien está dentro solo es visto desde una casilla de distancia, pero ve menos (radio 3 en lugar de 7).
 - **Puertas:** cerradas tapan la visión; se abren mientras alguien está dentro de ellas. Las colocan los generadores en la boca de los pasillos.
-- **Percepción:** un enemigo que no te ve no actúa. Te nota si hay línea de visión y distancia ≤ su alcance de percepción (y no estás en un arbusto, salvo adyacente). Al notarte queda *alerta* 8 rondas: persigue hacia donde te vio por última vez; si te pierde, acaba rindiéndose.
+- **Percepción:** un enemigo que no te ve no actúa. Te nota si hay línea de visión y distancia ≤ su alcance de percepción (y no estás en un arbusto, salvo adyacente). Al notarte queda *alerta* 12 rondas: persigue hacia donde te vio por última vez y, si te pierde, rastrea tu posición real un buen trecho; acaba rindiéndose.
 - **Golpe furtivo:** atacar (cuerpo a cuerpo o lanzando) a un enemigo que no sabe de ti hace ×2 de daño. Un enemigo herido sabe siempre dónde estás.
 
 ## 11. Inventario y botín
@@ -108,30 +114,40 @@ Ranuras iniciales: arma, vestimenta, talismán y sello (en el prototipo: arma y 
 
 ### 11.1 Objetos del suelo, cofres, llaves y monedas **[Implementado]**
 Inspirado en Pixel Dungeon: lo normal es encontrar objetos *por el suelo*; los cofres son un extra con cosas mejores.
-- **Suelo:** de 8 a 12 objetos por sector (monedas, esquirlas, tónicos, ungüentos y arrojadizas; el kunai arrojadizo desde el sector 2). Se recogen al pisarlos.
-- **Cofre de madera** (hasta 3 por sector): equipo y reservas grandes (armas, vestimentas, lotes de arrojadizas). No necesita llave.
-- **Puerta con candado:** cierra una *cámara sellada* (85 % de los sectores) con 3 tesoros: una pieza de equipo y reservas. Se abre con la **llave de hierro**, que está en una sala con enemigos. Se abre caminando contra ella o con E.
-- **Cofre lacado** (80 % de los sectores): solo se abre con la **llave de laca**, escondida a menudo (60 %) en un arbusto. Contiene equipo de gama alta.
-- **Las llaves se deshacen al bajar de sector**: se usan en el mismo piso donde se encuentran.
-- **Monedas y esquirlas:** las monedas salen del suelo, de cámaras y de enemigos (70 % de probabilidad, 1–3 más 1 por sector; el Eco Menor no suelta nada). Las esquirlas son el material de forja.
+- **Suelo:** de 6 a 9 objetos por sector (monedas, esquirlas, tónicos, ungüentos, pociones, pergaminos y arrojadizas). Se recogen al pisarlos. Las armas y arrojadizas son escasas.
+- **Cofre de madera** (hasta 2 por sector): equipo y reservas grandes. No necesita llave.
+- **Puerta con candado:** cierra una *cámara sellada* (75 % de los sectores) con 3 tesoros. Se abre con la **llave de hierro**, que está en una sala con enemigos y brilla en el suelo. Se abre caminando contra ella o con X.
+- **Cofre lacado** (60 % de los sectores): solo se abre con la **llave de laca**, en la sala más alejada de la entrada. Contiene equipo de gama alta y manuales de técnica.
+- **Las llaves se deshacen al bajar de sector.** Al entrar, el registro dice dónde están las llaves de lo que haya cerrado; se marcan en el minimapa.
+- **Monedas y esquirlas:** las monedas salen del suelo, de cámaras y de enemigos (35 %, 1–2; los ecos no sueltan nada) y de los jefes (15). Son pocas a propósito: se gastan en la forja y en la **tienda del mercader que aparece tras cada jefe**.
 
 ### 11.2 Mesas de forja **[Implementado]**
-Hay una mesa de forja solo en los sectores 2 y 3. Hablar con ella (E o caminar contra ella) es gratis y abre el menú de mejoras. Cada arma cuerpo a cuerpo se mejora hasta **+3**; cada nivel da +1 de poder. El coste por nivel es de **12 / 20 / 30 monedas** o de **2 / 3 / 4 esquirlas**; mejorar gasta un turno. Se paga con monedas primero (o se elige la divisa en el menú).
+Hay mesa de forja en los sectores 2, 3 y 5. Hablar con ella (X o caminar contra ella) es gratis y abre el menú. Cada arma cuerpo a cuerpo se mejora hasta **+3**; cada nivel da +1 de poder. El coste por nivel es de **12 / 20 / 30 monedas** o de **2 / 3 / 4 esquirlas**; mejorar gasta un turno. También **purifica** piezas malditas ya identificadas por **10 monedas**.
 
-### 11.3 Comparativa con Pixel Dungeon
+### 11.3 Equipo sin identificar, encantamientos y maldiciones **[Implementado]**
+Las armas y vestimentas encontradas se ven como «Nombre (?)». Pueden ser corrientes, encantadas (efecto positivo) o malditas (efecto negativo y **pegadas al cuerpo** hasta purificarlas). Equipar una pieza la identifica. No se puede cambiar una ranura mientras lo puesto esté maldito; se rompe con un Sello de Purificación o en la forja. Tabla en `08_biblia_de_contenido.md` §6.2.
+
+### 11.4 Pociones y pergaminos sin identificar **[Implementado]**
+11 pociones y 12 pergaminos con apariencias al azar por partida; se identifican al usarlos. Cada afinidad reconoce de entrada una poción y un pergamino. Muchos son invocaciones (sapo, cuervos, clones de sombra) y sellos al estilo ninja. Tabla en `08_biblia_de_contenido.md` §6.3.
+
+### 11.5 Subida de nivel controlada **[Implementado]**
+Solo se sube un nivel al **despejar un sector**: derrotar a todos sus enemigos no invocados (`floorKilled === floorEnemies`). Un sector da como mucho un nivel; el nivel 6 se alcanza tras despejar el quinto sector. Cada nivel desbloquea la técnica de nivel de la afinidad (niveles 2–5).
+
+### 11.6 Comparativa con Pixel Dungeon
 | Idea de Pixel Dungeon | Estado en Ecos del Shinobi |
 |---|---|
 | Objetos por el suelo, cofres como extra | **Adoptada** |
-| Llaves y cámaras selladas, cofres con llave | **Adoptada** (llave de hierro y llave de laca; se pierden al bajar) |
-| Oro y herrero que mejora armas | **Adoptada** (monedas y esquirlas; mesa de forja en sectores 2–3) |
-| Monedas que sueltan los enemigos | **Adoptada** |
+| Llaves y cámaras selladas, cofres con llave | **Adoptada** (llave de hierro y de laca; se pierden al bajar; con pista al entrar) |
+| Oro y herrero que mejora armas | **Adoptada** (monedas y esquirlas; forja en sectores 2, 3 y 5) |
+| Monedas que sueltan los enemigos | **Adoptada** (más escasas) |
+| Pociones y pergaminos sin identificar | **Adoptada** (con motivos ninja y una poción y un pergamino conocidos por afinidad) |
+| Equipo sin identificar, maldito o encantado | **Adoptada** |
+| Tiendas | **Adoptada** (mercader tras cada jefe) |
 | Hambre y comida | Propuesta (aumenta presión pero cansa en partidas cortas) |
 | Trampas y acción de buscar | Propuesta |
-| Pociones y pergaminos sin identificar | Propuesta (encaja con los ungüentos y pergaminos) |
 | Cofres trampa (mímicos) | Propuesta |
-| Tiendas | Propuesta |
 | Monstruos errantes que castigan quedarse | Propuesta |
-| Sensación del piso (aviso al entrar) | Propuesta |
+| Sensación del piso (aviso al entrar) | Parcial (aviso de llaves) |
 | Alquimia / combinar objetos | Propuesta |
 
 ## 12. Guardado

@@ -42,6 +42,8 @@ export const BALANCE = {
     targetRooms: 12,
     minEnemies: 4,
     maxEnemies: 9,
+    /** Tope de enemigos por sector (el primero es más suave: hay que despejarlo entero para subir de nivel). */
+    maxEnemiesByFloor: [5, 7, 8, 9, 9, 9],
     /** Cofres de madera por sector (el cofre lacado de la llave de laca va aparte). */
     maxChests: 2,
     /** Grupos de arbustos por sector (+2 desde el sector 2). */

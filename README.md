@@ -57,18 +57,21 @@ npm run build
 | Tecla | Acción |
 |---|---|
 | Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo (con el arma equipada) |
-| Espacio | Esperar (recupera 1 de kiro) |
-| E | Interactuar: hablar con un PNJ (no gasta turno) y elegir, abrir cofre, bajar la escalera |
-| Z / X / C | Técnica de la ranura 1 / 2 / 3. Las que se apuntan abren el modo de apuntado: flechas, Enter confirma, Esc cancela. En las de línea, las flechas eligen la dirección |
-| 1 / 2 | Tónico de Kiro / Ungüento de Musgo |
-| F | Ataque de alcance (látigo y lanza): flechas para la dirección, Enter confirma |
-| G | Lanzar un arma arrojadiza: flechas mueven el cursor, Tab cambia de arrojadiza, Enter lanza |
-| Q | Cambiar a la siguiente arma de la mochila (gasta un turno) |
-| Tab / I | Menú: Estado, Técnicas, Objetos, Armas, Notas y Mapa (también con el botón «Menú») |
+| Q / E / Z / C (o teclado numérico 7 9 1 3, Inicio/RePág/Fin/AvPág) | Mover o atacar en **diagonal** (↖ ↗ ↙ ↘) |
+| Espacio | Esperar (recupera 2 de kiro; el kiro también se recupera solo con el tiempo) |
+| X / Enter | Interactuar: hablar con un PNJ o mercader (no gasta turno), abrir cofre, bajar la escalera (también basta caminar contra el objeto) |
+| 1 / 2 / 3 / 4 | Técnica de la ranura 1–4. Las que se apuntan abren el modo de apuntado: flechas o QEZC, Enter confirma, Esc cancela |
+| 5 / 6 | Tónico de Kiro / Ungüento de Musgo |
+| F | Ataque de alcance (látigo y lanza) |
+| G | Lanzar la arma arrojadiza elegida: flechas mueven el cursor, Enter lanza |
+| V | Cambiar de arma arrojadiza (también mientras apuntas; no gasta turno) |
+| B | Cambiar a la siguiente arma de la mochila (gasta un turno) |
+| Tab / I | Menú: Estado, Técnicas (grimorio), Objetos, Equipo, Notas y Mapa |
+| Ratón: mantener y arrastrar | Mirar otras zonas ya exploradas del sector (cualquier acción recentra) |
 | Rueda del ratón, + / − | Zoom |
 | R | Nueva expedición |
 
-En pantallas táctiles aparece una cruceta (mover, esperar/confirmar, cancelar, interactuar) y todos los botones de la barra de acciones son pulsables.
+En pantallas táctiles aparece una cruceta de 8 direcciones (las esquinas son diagonales), un botón «Usar» y otro de cancelar; arrastrar con un dedo mueve la vista, y todos los botones de la barra de acciones son pulsables.
 
 ### Estado frente a la hoja de ruta
 
@@ -81,15 +84,17 @@ En pantallas táctiles aparece una cruceta (mover, esperar/confirmar, cancelar, 
 - **Hito 5.5** Sigilo (arbustos y puertas que tapan la visión, alerta, golpe furtivo), armas cuerpo a cuerpo (hoja, látigo, lanza) y arrojadizas (se gastan o se recogen), menú de personaje y motor gráfico propio (arte vectorial por sector, luz y efectos).
 - **Hito 6** Vertical slice: ataques anunciados (telegraphs), Monje Hueco, jefe Campanero Sepultado en tres fases, un evento (Altar del Eco Roto) y un maestro (Maestra Sayoko) con decisiones, diálogos, notas de lore y resumen de expedición con estadísticas.
 - **Hito 6.5** Botín (objetos por el suelo, cofres, monedas y esquirlas), puertas con candado y llaves, cofre lacado, armas arrojadizas que se clavan y mesas de forja para mejorar armas.
+- **Hito 6.6** Ampliación: 6 sectores en dos zonas con **jefes shinobi** (Sōkan y Yūgiri), 10 shinobi con habilidades, movimiento diagonal, kiro que se recupera con el tiempo, 40 técnicas por afinidad con grimorio, equipo sin identificar (encantado o maldito), 11 pociones y 12 pergaminos sin identificar, mercader tras cada jefe, enemigos que persiguen a través de puertas, nivel controlado (uno por sector despejado) y estética que cambia al caer cada jefe.
 - Siguiente: Hito 7 (progresión permanente: árbol de técnicas, desbloqueos, linaje, refugio).
 
 ### Contenido
 
-- **Afinidades:** Ascua, Marea, Vendaval, Piedra y Rayo. Se sortea una al empezar cada expedición con la semilla; cada una tiene una técnica de iniciación y una avanzada que se aprende al nivel 3. Detalle en `doc/08_biblia_de_contenido.md`.
-- **Enemigos:** Acechador de Hollín, Cuervo de Sal, Larva de Piedra, Tirador de Junco y Monje Hueco (marca un área que estalla dos rondas después). **Jefe:** el Campanero Sepultado, en la sala de salida del último sector.
-- **Armas:** tanto, kunai, hojas, látigo de cadena y lanza de bambú; shuriken, kunai arrojadizo y senbon (arrojadizas).
-- **Sigilo:** los arbustos y las puertas cerradas tapan la visión; escóndete, sorprende (×2 de daño) o rodea.
-- **Mapas:** el tamaño de casilla en pantalla (`TILE` en `src/presentation/GameScene.ts`) es solo de presentación; la cámara sigue al jugador y hace zoom, y las reglas no dependen de él. El tamaño del mapa se configura en `src/content/balance.ts`.
+- **Afinidades:** Ascua, Marea, Vendaval, Piedra y Rayo. Se sortea una al empezar; cada una tiene 5 técnicas que se desbloquean por nivel y 3 que se aprenden (manuales o maestros), más 2 comunes. Se llevan 4 equipadas y el resto queda en el grimorio. Detalle en `doc/08_biblia_de_contenido.md`.
+- **Enemigos:** monstruos (Acechador de Hollín, Cuervo de Sal, Larva de Piedra, Lobo de Raíz, Espora Flotante) y shinobi con habilidades (Aprendiz Renegado, Tirador de Junco, Espadachín de Laca, Rastreador del Hilo Gris, Monje Hueco, Acólito de la Campana, Adepto de la Brasa, Envenenador de Raíz, Sellador Invocador, Maestro del Trueno). **Jefes:** Sōkan, Predicador Hueco (sector 3) y Yūgiri, el Hilo Roto (sector 6).
+- **Objetos:** armas y vestimentas **sin identificar** que pueden estar encantadas o malditas; pociones y pergaminos de ninjutsu que se identifican al usarlos (cada afinidad reconoce una de cada clase); manuales de técnica; mercader tras cada jefe; mesas de forja que mejoran armas y purifican lo maldito.
+- **Nivel:** solo se sube uno por sector, y únicamente al derrotar a todos sus enemigos.
+- **Sigilo:** los arbustos y las puertas cerradas tapan la visión; escóndete, sorprende (×2 de daño) o rodea. Pero cuidado: un enemigo que te ha notado te sigue desde lejos.
+- **Mapas:** el tamaño de casilla en pantalla es solo de presentación; la cámara sigue al jugador, hace zoom y se puede arrastrar. El tamaño del mapa se configura en `src/content/balance.ts`.
 
 ### Estructura
 
@@ -104,7 +109,7 @@ src/tests/         pruebas (Vitest)
 
 ### Decisiones aplicadas del documento de decisiones
 
-- Movimiento solo ortogonal.
+- Movimiento en 8 direcciones (se añadió tras probar el Hito 6.5).
 - Extracción voluntaria no disponible (`Extract` se rechaza con mensaje).
 - Mapa con niebla: solo se ve lo visitado; los enemigos solo se dibujan dentro del rango de visión.
 - Combate en el mismo mapa, sin pantallas aparte.

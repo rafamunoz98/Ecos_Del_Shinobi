@@ -249,7 +249,7 @@ export class Menu {
     const top = h('div', 'ctop');
     top.append(icon(def.affinity ?? 'ascua', 52));
     const t = h('div', 'rt');
-    const origin = def.learnable ? 'se aprende (manual, maestro o jefe)' : `se desbloquea en el nivel ${def.minLevel}`;
+    const origin = def.learnable ? 'se aprende (manual o maestro)' : `se desbloquea en el nivel ${def.minLevel}`;
     t.append(h('b', undefined, def.name), h('span', undefined, `${def.kiroCost} de kiro${locked ? ` · ${origin}` : ''}`));
     top.append(t);
     c.append(top, h('p', undefined, def.description), h('div', 'shape', describeShape(def)));
@@ -335,7 +335,7 @@ export class Menu {
     const toLearn = Object.values(TECHNIQUES).filter((t) => t.learnable && (t.affinity === p.affinity || t.affinity === null) && !known.has(t.id));
     if (toLearn.length > 0) {
       out.push(h('h4', undefined, 'Por aprender'));
-      out.push(h('div', 'muted', 'Se consiguen en manuales (cofres lacados y cámaras selladas, o a la venta), enseñadas por maestros o ganadas a los jefes.'));
+      out.push(h('div', 'muted', 'Se consiguen en manuales (cofres lacados y cámaras selladas, o a la venta), enseñadas por maestros como Sayoko.'));
       const g = h('div', 'cards');
       for (const def of toLearn) g.append(this.card(def, { kiro: p.kiro, level: p.level, locked: true }));
       out.push(g);

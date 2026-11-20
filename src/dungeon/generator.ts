@@ -189,6 +189,7 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
 
   // 4. Enemigos: lejos de la entrada, repartidos por salas.
   const enemies: Enemy[] = [];
+  const enemyCap = Math.min(BALANCE.level.maxEnemies, BALANCE.level.maxEnemiesByFloor[floor - 1] ?? BALANCE.level.maxEnemies);
   const tryPlaceEnemy = (room: Room): boolean => {
     for (let t = 0; t < 20; t++) {
       const c = randomCell(room);
@@ -201,13 +202,13 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     return false;
   };
   for (const ri of order) {
-    if (enemies.length >= BALANCE.level.maxEnemies) break;
+    if (enemies.length >= enemyCap) break;
     const room = rooms[ri];
     const roomMax = Math.min(3, 1 + Math.floor((room.w * room.h) / 24));
     const n = rng.int(0, roomMax);
-    for (let k = 0; k < n && enemies.length < BALANCE.level.maxEnemies; k++) tryPlaceEnemy(room);
+    for (let k = 0; k < n && enemies.length < enemyCap; k++) tryPlaceEnemy(room);
   }
-  for (let guard = 0; enemies.length < BALANCE.level.minEnemies && guard < 60; guard++) {
+  for (let guard = 0; enemies.length < Math.min(enemyCap, BALANCE.level.minEnemies) && guard < 60; guard++) {
     tryPlaceEnemy(rooms[rng.pick(spawnRooms)]);
   }
 

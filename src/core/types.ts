@@ -65,7 +65,7 @@ export interface Player {
   known: string[];
   /** Notas de lore encontradas (ids de content/story). */
   notes: string[];
-  /** Reliquias ganadas en la expedición (p. ej. el carrete roto de Sōkan). */
+  /** Reliquias ganadas en la expedición (p. ej. el sello antiguo de Sōkan). */
   relics: string[];
   /** Consumibles y arrojadizas: id → cantidad. */
   inventory: Record<string, number>;

@@ -28,7 +28,7 @@ export interface TechniqueDef {
   affinity: Affinity | null;
   /** Nivel del jugador al que se desbloquea solo (1-5). Las aprendibles llevan 99: se encuentran en manuales o las enseña un maestro. */
   minLevel: number;
-  /** Se aprende con un manual, un maestro o un jefe (no por nivel). */
+  /** Se aprende con un manual o un maestro (no por nivel). */
   learnable?: boolean;
   kiroCost: number;
   target: TechniqueTarget;
