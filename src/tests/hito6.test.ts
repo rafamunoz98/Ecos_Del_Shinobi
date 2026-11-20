@@ -49,7 +49,7 @@ describe('Monje Hueco: ataque anunciado', () => {
   });
 
   it('aturdirlo interrumpe el ataque', () => {
-    let s = applyCommand(makeGame(room), wait()).state;
+    const s = applyCommand(makeGame(room), wait()).state;
     s.enemies[0].statuses.push({ id: 'aturdido', turns: 1 });
     const r = applyCommand(s, wait());
     expect(r.state.telegraphs).toHaveLength(0);
@@ -57,7 +57,7 @@ describe('Monje Hueco: ataque anunciado', () => {
   });
 
   it('derrotarlo cancela el ataque', () => {
-    let s = applyCommand(makeGame(['#######', '#@M...#', '#######']), wait()).state;
+    const s = applyCommand(makeGame(['#######', '#@M...#', '#######']), wait()).state;
     expect(s.telegraphs).toHaveLength(1);
     s.enemies[0].hp = 1;
     const r = applyCommand(s, attack({ x: 2, y: 1 }));
