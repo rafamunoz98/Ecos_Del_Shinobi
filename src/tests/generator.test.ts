@@ -35,7 +35,7 @@ describe('generador de mapas grandes', () => {
         const dist = distancesFrom(map, lv.playerStart);
         // Tampoco cuentan las alcobas tras zarzas, muro agrietado o pared secreta: no se alcanzan a pie.
         const sealed = new Set([...(lv.secret?.cells ?? []), ...(lv.challenge && lv.challenge !== 'isla' ? (lv.challengeNook?.cells ?? []) : [])].map(at));
-        const floorTiles = map.tiles.filter((t, i) => isWalkable(map, { x: i % map.width, y: Math.floor(i / map.width) }) && !sealed.has(i)).length - (lv.vault?.cells.length ?? 0);
+        const floorTiles = map.tiles.filter((_t, i) => isWalkable(map, { x: i % map.width, y: Math.floor(i / map.width) }) && !sealed.has(i)).length - (lv.vault?.cells.length ?? 0);
         expect(dist.filter((d) => d >= 0).length, ctx).toBe(floorTiles);
 
         // Una sola salida, alcanzable y lejos de la entrada.
