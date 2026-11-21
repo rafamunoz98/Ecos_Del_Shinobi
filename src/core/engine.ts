@@ -1,4 +1,4 @@
-import { floorHints } from './hints';
+import { floorHints, terrainHints } from './hints';
 import { zoneName } from '../content/zones';
 import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, isBossFloor, type EnemyDef, type SkillDef } from '../content/enemies';
@@ -13,10 +13,11 @@ import { baseGearId, getMod, isCursedGear, makeGearId, modsFor, purified, type G
 import { getNpc, getNote, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
 import { FISTS, FISTS_ID, getThrowable, getWeapon, weaponLabel, type WeaponDef } from '../content/weapons';
-import { FORGE_KIND, generateLevel } from '../dungeon/generator';
+import { FORGE_KIND, generateLevel, type GeneratedLevel } from '../dungeon/generator';
 import { createBoss, createEnemy } from '../dungeon/spawn';
 import { calcDamage, canWield, effectiveDefense, effectivePower, weaponLevel } from './combat';
-import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, mutualSight, stepOk, terrainAt } from './grid';
+import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, idx, inBounds, isStandable, isWalkable, lineCells, manhattan, mutualSight, stepOk, terrainAt } from './grid';
+import { FLAMMABLE, addHazard, connectedWater, crackedNear, hashRoll, hazardAt, removeHazard } from './terrain';
 import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
@@ -107,7 +108,7 @@ export const MANUAL_PREFIX = 'manual:';
 /** Casilla transitable y vacía: sin pared, enemigo, cofre, barrera ni jugador. */
 function cellFree(s: GameState, p: Vec): boolean {
   return (
-    inBounds(s.map, p) && isWalkable(s.map, p) && !enemyAt(s, p) && !allyAt(s, p) && !chestAt(s, p) && !npcAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
+    inBounds(s.map, p) && isStandable(s.map, p) && !enemyAt(s, p) && !allyAt(s, p) && !chestAt(s, p) && !npcAt(s, p) && !barrierAt(s, p) && !equals(s.player.pos, p)
   );
 }
 
@@ -179,7 +180,7 @@ function dashPlan(s: GameState, length: number, target: Vec): { cells: Vec[]; de
       break;
     }
     cells.push(c);
-    dest = c;
+    if (isStandable(s.map, c)) dest = c; // volar sobre un precipicio sí; aterrizar en él, no
     prev = c;
   }
   return { cells, dest, victim };
@@ -437,6 +438,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       return null;
     }
     case 'Wait':
+    case 'Search':
       return null;
     case 'BasicAttack':
       return attackPlan(state, cmd.target).reason;
@@ -528,6 +530,8 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
 interface Ctx {
   state: GameState;
   events: GameEvent[];
+  /** Acabas de caer a otro sector: sus enemigos no actúan en esta ronda (nadie te ha visto aterrizar). */
+  fell?: boolean;
 }
 
 function say(ctx: Ctx, text: string): void {
@@ -877,11 +881,6 @@ function throwPotion(ctx: Ctx, id: string, target: Vec): void {
   identifyArcana(ctx, id);
 }
 
-/** Prende una zona (de momento solo daña a quien está dentro; el fuego sobre el terreno llega con los peligros del suelo). */
-function igniteArea(_ctx: Ctx, _cells: Vec[]): void {
-  /* se amplía en el bloque de terreno */
-}
-
 function revealMap(ctx: Ctx): void {
   ctx.state.explored.fill(true);
   say(ctx, 'El mapa del sector se despliega ante tus ojos.');
@@ -945,7 +944,8 @@ function readScroll(ctx: Ctx, fx: ScrollEffect): void {
         damageEnemy(ctx, e, fx.power, 'sello_explosivo');
         say(ctx, `La explosión alcanza a ${enemyName(e)} (${fx.power} de daño).`);
       }
-      if (hit.length === 0) say(ctx, 'El sello estalla sin tocar a nadie.');
+      const broken = shatterWalls(ctx, cells);
+      if (hit.length === 0 && broken === 0) say(ctx, 'El sello estalla sin tocar a nadie.');
       ctx.events.push({ type: 'TechniqueCast', techniqueId: 'sello_explosivo', target: p.pos, cells });
       return;
     }
@@ -1234,6 +1234,16 @@ function pushEnemy(ctx: Ctx, enemy: Enemy, steps: number): void {
   const dir = pushDir(s.player.pos, enemy.pos);
   for (let i = 0; i < steps; i++) {
     const next = { x: enemy.pos.x + dir.x, y: enemy.pos.y + dir.y };
+    if (inBounds(s.map, next) && terrainAt(s.map, next) === 'chasm' && !enemyAt(s, next) && !equals(next, s.player.pos)) {
+      // Empujado al vacío: cae al sector de abajo y no vuelve (su botín se pierde con él).
+      const from = enemy.pos;
+      enemy.pos = next;
+      enemy.hp = 0;
+      enemy.stuck = {};
+      ctx.events.push({ type: 'EnemyMoved', enemyId: enemy.id, from, to: next });
+      say(ctx, `${enemyName(enemy)} cae por el precipicio.`);
+      return;
+    }
     if (!cellFree(s, next)) {
       damageEnemy(ctx, enemy, BALANCE.slamDamage, 'impacto');
       say(ctx, `${enemyName(enemy)} se estrella (${BALANCE.slamDamage} de daño).`);
@@ -1318,6 +1328,7 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
     if (def.push && enemy.hp > 0 && !isBoss(enemy)) pushEnemy(ctx, enemy, def.push);
     if (def.pull && enemy.hp > 0 && !isBoss(enemy)) pullEnemy(ctx, enemy, def.pull);
   }
+  reactTerrain(ctx, def, cells, target);
 }
 
 /** Arrastra a un enemigo `steps` casillas hacia el jugador (se detiene ante obstáculos y ante el propio jugador). */
@@ -1460,6 +1471,7 @@ function openChest(ctx: Ctx, chest: Chest): void {
 }
 
 function placeDrop(s: GameState, pos: Vec, itemId: string, count = 1): void {
+  if (terrainAt(s.map, pos) === 'chasm') return; // lo que cae al vacío se pierde
   const existing = s.drops.find((d) => d.itemId === itemId && equals(d.pos, pos));
   if (existing) existing.count += count;
   else s.drops.push({ pos: { ...pos }, itemId, count });
@@ -1546,15 +1558,225 @@ function pickUp(ctx: Ctx): void {
   const here = s.drops.filter((d) => equals(d.pos, s.player.pos));
   if (here.length === 0) return;
   s.drops = s.drops.filter((d) => !equals(d.pos, s.player.pos));
-  for (const d of here) collect(ctx, d.itemId, d.count, 'Recoges');
+  for (const d of here) {
+    if (d.known && isArcana(d.itemId) && !s.player.known.includes(d.itemId)) s.player.known.push(d.itemId);
+    collect(ctx, d.itemId, d.count, 'Recoges', d.known);
+  }
 }
 
-function descend(ctx: Ctx): void {
+
+// ---------- Terreno dinámico: precipicios, fuego, agua, rayo, muros ----------
+
+const isLevitating = (p: Player): boolean => p.statuses.some((st) => st.id === 'levitando');
+
+/** Sitio donde caes: una casilla de suelo del sector de abajo, lejos (≥6) de cualquier enemigo. */
+function landingSpot(ctx: Ctx, level: GeneratedLevel): Vec {
+  const pool: Vec[] = [];
+  for (let y = 0; y < level.map.height; y++) {
+    for (let x = 0; x < level.map.width; x++) {
+      const c = { x, y };
+      if (level.map.tiles[y * level.map.width + x] !== 'floor') continue;
+      if (level.enemies.some((e) => manhattan(e.pos, c) < 6)) continue;
+      if (level.chests.some((ch) => equals(ch.pos, c)) || level.npcs.some((n) => equals(n.pos, c))) continue;
+      pool.push(c);
+    }
+  }
+  if (pool.length === 0) return level.playerStart;
+  return pool[Math.floor(rand(ctx) * pool.length)];
+}
+
+/** Caes por un precipicio al sector de abajo: te cuesta la mitad de tu vida máxima (nunca la última) y aterrizas en un sitio al azar. */
+function fallDown(ctx: Ctx): void {
   const s = ctx.state;
-  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: isBossFloor(s.floor + 1) || s.floor + 1 >= s.maxFloor });
+  const p = s.player;
+  if (s.floor >= s.maxFloor) return;
+  const damage = Math.max(0, Math.min(Math.ceil(p.maxHp * BALANCE.fallDamageFraction), p.hp - 1));
+  p.hp -= damage;
+  s.stats.damageTaken += damage;
+  ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount: damage, source: 'caida' });
+  ctx.events.push({ type: 'PlayerFell', damage });
+  say(ctx, `¡Caes por el precipicio! El golpe te cuesta ${damage} de vida.`);
+  descend(ctx, true);
+  ctx.fell = true;
+}
+
+/** Prende una casilla: el terreno que arde se consume (queda suelo) y deja llamas; el suelo desnudo arde un instante; el agua apaga. */
+function igniteCell(ctx: Ctx, pos: Vec): void {
+  const s = ctx.state;
+  if (!inBounds(s.map, pos)) return;
+  const fuel = FLAMMABLE.has(terrainAt(s.map, pos)); // un zarzal es sólido y aun así arde
+  if (!fuel && (!isWalkable(s.map, pos) || terrainAt(s.map, pos) === 'chasm')) return;
+  if (hazardAt(s, pos, 'water')) {
+    removeHazard(s, pos, 'water');
+    return;
+  }
+  if (fuel) {
+    s.map.tiles[idx(s.map, pos)] = 'floor';
+    ctx.events.push({ type: 'TerrainChanged', cells: [{ ...pos }], to: 'floor' });
+    addHazard(s, pos, 'fire', BALANCE.hazard.fireOnFuel);
+  } else {
+    addHazard(s, pos, 'fire', BALANCE.hazard.fireOnFloor);
+  }
+  ctx.events.push({ type: 'HazardsChanged' });
+}
+
+/** Prende toda una zona (poción lanzada). */
+function igniteArea(ctx: Ctx, cells: Vec[]): void {
+  for (const c of cells) igniteCell(ctx, c);
+}
+
+/** Moja una zona: los charcos duran un rato, apagan el fuego y conducen el rayo. */
+function soakArea(ctx: Ctx, cells: Vec[]): void {
+  let any = false;
+  for (const c of cells) {
+    if (terrainAt(ctx.state.map, c) === 'chasm') continue;
+    addHazard(ctx.state, c, 'water', BALANCE.hazard.water);
+    any = true;
+  }
+  if (any) ctx.events.push({ type: 'HazardsChanged' });
+}
+
+/** Una descarga sobre un charco recorre TODO el charco conectado: hiere (y aturde) a quien esté dentro, tú incluido si no levitas. */
+function electrifyWater(ctx: Ctx, cells: readonly Vec[]): void {
+  const s = ctx.state;
+  const body = new Map<number, Vec>();
+  for (const c of cells) for (const w of connectedWater(s, c)) body.set(idx(s.map, w), w);
+  if (body.size === 0) return;
+  const wet = [...body.values()];
+  for (const w of wet) {
+    removeHazard(s, w, 'shock');
+    s.hazards.push({ pos: { ...w }, kind: 'shock', turns: 2 }); // dura una ronda de más: así la presentación llega a ver el fogonazo
+  }
+  ctx.events.push({ type: 'HazardsChanged' });
+  say(ctx, '¡La descarga corre por el agua!');
+  for (const e of s.enemies) {
+    if (e.hp <= 0 || !wet.some((w) => equals(w, e.pos))) continue;
+    damageEnemy(ctx, e, BALANCE.shock.enemy, 'descarga');
+    say(ctx, `${enemyName(e)} se convulsiona en el agua (${BALANCE.shock.enemy} de daño).`);
+    if (e.hp > 0 && !isBoss(e)) {
+      applyStatus(e, 'aturdido', BALANCE.shock.stunTurns);
+      ctx.events.push({ type: 'StatusApplied', targetId: e.id, status: 'aturdido', turns: BALANCE.shock.stunTurns });
+    }
+  }
+  if (wet.some((w) => equals(w, s.player.pos)) && !isLevitating(s.player)) {
+    damagePlayer(ctx, BALANCE.shock.player, 'descarga');
+    say(ctx, `La corriente también te alcanza (${BALANCE.shock.player} de daño): ¡no pelees con rayos metido en el agua!`);
+  }
+}
+
+/** Derriba los muros agrietados pegados a la zona. Devuelve cuántos cayeron. */
+function shatterWalls(ctx: Ctx, cells: readonly Vec[]): number {
+  const s = ctx.state;
+  const walls = crackedNear(s, cells);
+  if (walls.length === 0) return 0;
+  for (const w of walls) s.map.tiles[idx(s.map, w)] = 'floor';
+  ctx.events.push({ type: 'TerrainChanged', cells: walls, to: 'floor' });
+  say(ctx, walls.length === 1 ? 'Un muro agrietado se derrumba en una nube de polvo.' : `${walls.length} muros agrietados se derrumban en una nube de polvo.`);
+  return walls.length;
+}
+
+/** Efectos de una técnica sobre el terreno según su afinidad (el fuego prende lo que arde, el agua moja, el rayo recorre el agua...). */
+function reactTerrain(ctx: Ctx, def: TechniqueDef, cells: readonly Vec[], target?: Vec): void {
+  const s = ctx.state;
+  const away = cells.filter((c) => !equals(c, s.player.pos));
+  const families: readonly Affinity[] = def.fusion ?? (def.affinity ? [def.affinity] : []);
+  if (def.breaksWalls) shatterWalls(ctx, [...cells, s.player.pos, ...(target ? [target] : [])]);
+  if (families.includes('marea') && def.damage) soakArea(ctx, away);
+  if (families.includes('ascua')) {
+    for (const c of away) if (FLAMMABLE.has(terrainAt(s.map, c)) || hazardAt(s, c, 'fire')) igniteCell(ctx, c);
+  }
+  if (families.includes('vendaval')) {
+    // El viento aviva las llamas: el fuego de la zona salta a las casillas de al lado.
+    const burning = cells.filter((c) => hazardAt(s, c, 'fire'));
+    for (const c of burning) for (const d of DIRS) igniteCell(ctx, { x: c.x + d.x, y: c.y + d.y });
+  }
+  if (families.includes('rayo')) electrifyWater(ctx, cells);
+}
+
+/** Fin de ronda: quien esté en las llamas arde, el fuego salta al terreno que arde y todo peligro se acorta. */
+function tickHazards(ctx: Ctx): void {
+  const s = ctx.state;
+  if (s.hazards.length === 0) return;
+  const current = [...s.hazards];
+  for (const h of current) {
+    if (h.kind !== 'fire') continue;
+    const e = enemyAt(s, h.pos);
+    if (e && e.hp > 0) {
+      applyStatus(e, 'quemadura', BALANCE.hazard.burnTurns);
+      ctx.events.push({ type: 'StatusApplied', targetId: e.id, status: 'quemadura', turns: BALANCE.hazard.burnTurns });
+      alertEnemy(ctx, e);
+    }
+    if (equals(s.player.pos, h.pos) && !isLevitating(s.player)) {
+      if (!s.player.statuses.some((st) => st.id === 'quemadura')) say(ctx, '¡Las llamas te prenden!');
+      applyStatus(s.player, 'quemadura', BALANCE.hazard.burnTurns);
+      ctx.events.push({ type: 'StatusApplied', targetId: 'player', status: 'quemadura', turns: BALANCE.hazard.burnTurns });
+    }
+    for (const d of DIRS) {
+      const n = { x: h.pos.x + d.x, y: h.pos.y + d.y };
+      if (inBounds(s.map, n) && FLAMMABLE.has(terrainAt(s.map, n)) && !hazardAt(s, n, 'water')) igniteCell(ctx, n);
+    }
+  }
+  for (const h of current) h.turns -= 1;
+  const before = s.hazards.length;
+  s.hazards = s.hazards.filter((h) => h.turns > 0);
+  if (s.hazards.length !== before) ctx.events.push({ type: 'HazardsChanged' });
+}
+
+/** Descubre paredes secretas cerca: siempre a ≤2, a 3 con probabilidad; devuelve cuántas. (Tiradas por hash: no gastan el generador.) */
+function searchAround(ctx: Ctx): number {
+  const s = ctx.state;
+  const p = s.player;
+  let found = 0;
+  for (let y = p.pos.y - BALANCE.search.far; y <= p.pos.y + BALANCE.search.far; y++) {
+    for (let x = p.pos.x - BALANCE.search.far; x <= p.pos.x + BALANCE.search.far; x++) {
+      const c = { x, y };
+      if (!inBounds(s.map, c) || terrainAt(s.map, c) !== 'secret') continue;
+      const d = chebyshev(p.pos, c);
+      const sure = d <= BALANCE.search.sure;
+      if (!sure && hashRoll(s.seed, s.turn, idx(s.map, c), s.floor) >= BALANCE.search.farChance) continue;
+      revealSecret(ctx, c);
+      found += 1;
+    }
+  }
+  return found;
+}
+
+function revealSecret(ctx: Ctx, c: Vec): void {
+  const s = ctx.state;
+  s.map.tiles[idx(s.map, c)] = 'door';
+  ctx.events.push({ type: 'SecretFound', pos: { ...c } });
+  ctx.events.push({ type: 'TerrainChanged', cells: [{ ...c }], to: 'door' });
+  say(ctx, '¡Una puerta oculta! Había una cámara secreta tras la pared.');
+}
+
+/** Al caminar junto a una pared secreta puedes dar con ella (20 %); y a ≤3 casillas, el instinto te avisa una vez. */
+function passiveDiscovery(ctx: Ctx): void {
+  const s = ctx.state;
+  const p = s.player;
+  for (let y = p.pos.y - BALANCE.search.hintRange; y <= p.pos.y + BALANCE.search.hintRange; y++) {
+    for (let x = p.pos.x - BALANCE.search.hintRange; x <= p.pos.x + BALANCE.search.hintRange; x++) {
+      const c = { x, y };
+      if (!inBounds(s.map, c) || terrainAt(s.map, c) !== 'secret') continue;
+      const i = idx(s.map, c);
+      if (chebyshev(p.pos, c) <= 1 && hashRoll(s.seed, s.turn, i, s.floor + 100) < BALANCE.search.passiveChance) {
+        revealSecret(ctx, c);
+      } else if (!s.hintedSecrets.includes(i)) {
+        s.hintedSecrets.push(i);
+        say(ctx, 'Algo no encaja en estas paredes... (usa Buscar)');
+      }
+    }
+  }
+}
+
+function descend(ctx: Ctx, fall = false): void {
+  const s = ctx.state;
+  const bossFloor = isBossFloor(s.floor + 1) || s.floor + 1 >= s.maxFloor;
+  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: bossFloor });
   s.floor += 1;
   s.map = level.map;
-  s.player.pos = level.playerStart;
+  s.player.pos = fall && !bossFloor ? landingSpot(ctx, level) : level.playerStart;
+  s.hazards = [];
+  s.hintedSecrets = [];
   s.enemies = level.enemies;
   s.allies = [];
   s.chests = level.chests;
@@ -1572,9 +1794,9 @@ function descend(ctx: Ctx): void {
     say(ctx, 'Las llaves que no usaste se deshacen en polvo al cruzar.');
   }
   ctx.events.push({ type: 'FloorChanged', floor: s.floor });
-  say(ctx, `Desciendes al sector ${s.floor}.`);
+  say(ctx, fall ? `Aterrizas en el sector ${s.floor}.` : `Desciendes al sector ${s.floor}.`);
   if (s.bossesDefeated > 0 && isBossFloor(s.floor - 1)) say(ctx, `El aire cambia: has entrado en ${zoneName(s.bossesDefeated)}.`);
-  for (const h of floorHints(s)) say(ctx, h);
+  for (const h of [...floorHints(s), ...terrainHints(s)]) say(ctx, h);
 }
 
 function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
@@ -1591,6 +1813,15 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
         ctx.events.push({ type: 'AllyMoved', allyId: friend.id, from: p.pos, to: from });
       }
       ctx.events.push({ type: 'PlayerMoved', from, to: p.pos });
+      if (terrainAt(s.map, p.pos) === 'chasm' && !isLevitating(p)) fallDown(ctx);
+      return;
+    }
+    case 'Search': {
+      const gained = Math.min(BALANCE.waitKiro, p.maxKiro - p.kiro);
+      p.kiro += gained;
+      ctx.events.push({ type: 'PlayerWaited', kiroRecovered: gained });
+      const found = searchAround(ctx);
+      if (found === 0) say(ctx, 'Tanteas las paredes cercanas: no encuentras nada.');
       return;
     }
     case 'Wait': {
@@ -1825,7 +2056,8 @@ type StepResult = 'moved' | 'attacked' | 'none';
 function enemyCanEnter(s: GameState, self: Enemy, p: Vec): boolean {
   return (
     inBounds(s.map, p) &&
-    isWalkable(s.map, p) &&
+    isStandable(s.map, p) &&
+    !hazardAt(s, p, 'fire') &&
     !s.enemies.some((o) => o !== self && equals(o.pos, p)) &&
     !allyAt(s, p) &&
     !chestAt(s, p) &&
@@ -2373,6 +2605,12 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       s.stats.defeatedBy = 'quemadura';
       defeatPlayer(ctx);
     }
+    // Si la levitación se acaba sobre el vacío, caes.
+    if (s.status === 'playing' && terrainAt(s.map, s.player.pos) === 'chasm' && !isLevitating(s.player)) {
+      say(ctx, 'La levitación se disipa...');
+      fallDown(ctx);
+    }
+    if (s.status === 'playing' && cmd.type !== 'Search') passiveDiscovery(ctx);
     // Regeneración natural lenta (la ronda que acaba es la número turn + 1).
     if (s.status === 'playing' && (s.turn + 1) % BALANCE.hpRegenEvery === 0 && s.player.hp < s.player.maxHp) {
       s.player.hp += 1;
@@ -2392,7 +2630,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     }
   }
 
-  if (s.status === 'playing') {
+  if (s.status === 'playing' && !ctx.fell) {
     // paso 7: enemigos vivos, en orden determinista (orden de la lista)
     s.enemies.forEach((enemy, index) => {
       if (s.status !== 'playing' || enemy.hp <= 0) return;
@@ -2404,6 +2642,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     // paso 8: estados de enemigos y duración de barreras
     for (const enemy of s.enemies) tickStatuses(ctx, enemy, enemy.id);
     s.barriers = s.barriers.map((b) => ({ ...b, turns: b.turns - 1 })).filter((b) => b.turns > 0);
+    tickHazards(ctx);
     reapAllies(ctx, true);
     reapDead(ctx);
   }

@@ -1,7 +1,7 @@
 import { canSeeEntity, visibleCells } from '../core/sight';
 import type { GameState } from '../core/types';
 
-const COLORS: Record<string, string> = { wall: '#2a2a42', floor: '#6a6e88', exit: '#b48bff', bush: '#4f9a4a', door: '#b07a44', locked: '#d9a441' };
+const COLORS: Record<string, string> = { wall: '#2a2a42', floor: '#6a6e88', exit: '#b48bff', bush: '#4f9a4a', door: '#b07a44', locked: '#d9a441', chasm: '#0a0716', thorns: '#9a7a3e', cracked: '#4b4b68', secret: '#2a2a42' };
 
 /** Mapa de lo explorado: arbustos, puertas, cofres, escalera y enemigos a la vista. Ajusta la escala al lienzo. */
 export function drawMinimap(canvas: HTMLCanvasElement, state: GameState): void {
@@ -32,9 +32,9 @@ export function drawMinimap(canvas: HTMLCanvasElement, state: GameState): void {
     ctx.fillRect(ox + c.pos.x * scale, oy + c.pos.y * scale, scale, scale);
   }
   for (const d of state.drops) {
-    if (d.itemId !== 'llave_hierro' && d.itemId !== 'llave_laca') continue;
+    if (d.itemId !== 'llave_hierro' && d.itemId !== 'llave_laca' && !d.known) continue;
     if (!state.explored[d.pos.y * map.width + d.pos.x]) continue;
-    ctx.fillStyle = d.itemId === 'llave_laca' ? '#ff9ad0' : '#ffffff';
+    ctx.fillStyle = d.itemId === 'llave_laca' ? '#ff9ad0' : d.known ? '#7dffb0' : '#ffffff';
     ctx.fillRect(ox + d.pos.x * scale - 1, oy + d.pos.y * scale - 1, scale + 2, scale + 2);
   }
   const vis = visibleCells(state);

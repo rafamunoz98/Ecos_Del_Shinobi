@@ -690,3 +690,131 @@ export function barrierTile(th: Theme): HTMLCanvasElement {
     }
   });
 }
+
+/**
+ * Precipicio: un pozo negro con el borde de roca iluminado donde toca suelo. `mask` indica (bits N/E/S/W) qué vecinas NO son vacío:
+ * en esos lados se dibuja el labio del abismo.
+ */
+export function chasmTile(th: Theme, mask: number): HTMLCanvasElement {
+  return cached(`${th.name}|chasm|${mask}`, (ctx) => {
+    ctx.fillStyle = vGrad(ctx, 0, T, '#05040b', '#0d0a1c');
+    ctx.fillRect(0, 0, T, T);
+    const r = makeRand(mask * 53 + 7);
+    // Profundidad: bandas turbias que se pierden en la oscuridad.
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = `rgba(60,50,110,${0.05 + r() * 0.06})`;
+      ellipse(ctx, 20 + r() * 56, 20 + r() * 56, 14 + r() * 18, 6 + r() * 8, r() * 3);
+      ctx.fill();
+    }
+    // Labio: franja de roca clara hacia el lado con suelo, y su sombra hacia dentro.
+    const lip = (x: number, y: number, w: number, h: number, gx: number, gy: number): void => {
+      ctx.fillStyle = th.faceDark;
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = rgba(th.lip, 0.55);
+      ctx.fillRect(x + (gx === 0 ? 0 : 0), y, w, Math.max(2, h * 0.28));
+      const g = ctx.createLinearGradient(gx ? x + (gx > 0 ? 0 : w) : 0, gy ? y + (gy > 0 ? 0 : h) : 0, gx ? x + (gx > 0 ? w * 1.8 : -w * 0.8) : 0, gy ? y + (gy > 0 ? h * 1.8 : -h * 0.8) : 0);
+      g.addColorStop(0, 'rgba(0,0,0,0.45)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+    };
+    if (mask & N) lip(0, 0, T, 14, 0, 1);
+    if (mask & S) {
+      ctx.fillStyle = th.faceDark;
+      ctx.fillRect(0, T - 8, T, 8);
+      ctx.fillStyle = rgba(th.lip, 0.4);
+      ctx.fillRect(0, T - 8, T, 2);
+    }
+    if (mask & W) lip(0, 0, 10, T, 1, 0);
+    if (mask & E) lip(T - 10, 0, 10, T, -1, 0);
+    ctx.strokeStyle = 'rgba(90,80,150,0.35)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      const x = 16 + r() * 64;
+      const y = 22 + r() * 52;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 8 + r() * 12, y + 4 + r() * 8);
+      ctx.stroke();
+    }
+  });
+}
+
+/** Zarzal reseco (se dibuja sobre un suelo): maraña de ramas pardas y pinchos. Sin tapar la vista. */
+export function thornsTile(variant: number): HTMLCanvasElement {
+  return cached(`thorns|${variant}`, (ctx) => {
+    const r = makeRand(variant * 811 + 3);
+    ctx.fillStyle = 'rgba(8,6,4,0.4)';
+    ellipse(ctx, 48, 80, 38, 10);
+    ctx.fill();
+    const branches = 11;
+    for (let i = 0; i < branches; i++) {
+      const x0 = 14 + r() * 68;
+      const y0 = 82 + r() * 4;
+      let x = x0;
+      let y = y0;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      const segs = 3 + Math.floor(r() * 3);
+      const pts: [number, number][] = [];
+      for (let k = 0; k < segs; k++) {
+        x += (r() - 0.5) * 26;
+        y -= 10 + r() * 14;
+        ctx.lineTo(x, y);
+        pts.push([x, y]);
+      }
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 6.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.strokeStyle = mix('#7a5a34', '#4a3420', r() * 0.8);
+      ctx.lineWidth = 3.6;
+      ctx.stroke();
+      // Pinchos.
+      for (const [px, py] of pts) {
+        ctx.fillStyle = '#c9a874';
+        ctx.beginPath();
+        ctx.moveTo(px - 3, py);
+        ctx.lineTo(px + (r() < 0.5 ? -9 : 9), py - 7 - r() * 5);
+        ctx.lineTo(px + 3, py + 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
+    }
+  });
+}
+
+/** Grietas sobre un muro: marca los muros que una explosión derriba. */
+export function crackOverlay(variant: number): HTMLCanvasElement {
+  return cached(`crack|${variant}`, (ctx) => {
+    const r = makeRand(variant * 97 + 21);
+    const crack = (x: number, y: number, depth: number, ang: number): void => {
+      if (depth <= 0) return;
+      const len = 10 + r() * 14;
+      const nx = x + Math.cos(ang) * len;
+      const ny = y + Math.sin(ang) * len;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(nx, ny);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.5 + depth * 1.3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(240,200,140,0.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      crack(nx, ny, depth - 1, ang + (r() - 0.5) * 1.1);
+      if (r() < 0.55) crack(nx, ny, depth - 2, ang + (r() < 0.5 ? -1 : 1) * (0.5 + r() * 0.6));
+    };
+    crack(48, 14, 4, Math.PI / 2 + (r() - 0.5) * 0.5);
+    crack(48, 14, 3, Math.PI / 2 + 0.9);
+    crack(30, 52, 3, 0.2);
+    // Polvo en el pie del muro.
+    ctx.fillStyle = 'rgba(200,180,140,0.25)';
+    ellipse(ctx, 48, 86, 30, 5);
+    ctx.fill();
+  });
+}

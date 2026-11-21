@@ -31,9 +31,11 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
         const ctx = `semilla ${seed} sector ${floor}`;
         const dist = distancesFrom(map, lv.playerStart);
         const vaultCells = new Set((lv.vault?.cells ?? []).map((c) => at(map, c)));
+        // Cámaras ocultas y alcobas de minidesafío (tras zarzas o muro agrietado) tampoco se alcanzan a pie: no son «suelo suelto».
+        const nookCells = new Set([...(lv.secret?.cells ?? []), ...(lv.challenge && lv.challenge !== 'isla' ? (lv.challengeNook?.cells ?? []) : [])].map((c) => at(map, c)));
 
         // Objetos sueltos: suficientes, sin solapar con nada y sobre suelo o arbusto.
-        const outside = lv.drops.filter((d) => !vaultCells.has(at(map, d.pos)));
+        const outside = lv.drops.filter((d) => !vaultCells.has(at(map, d.pos)) && !nookCells.has(at(map, d.pos)));
         expect(outside.length, ctx).toBeGreaterThanOrEqual(BALANCE.level.groundItems.min);
         const seen = new Set<number>();
         const solid = new Set<number>([...lv.chests, ...lv.npcs, ...lv.scrolls, ...lv.enemies].map((e) => at(map, e.pos)));
@@ -81,7 +83,8 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
           lacquers++;
           expect(dist[at(map, laceKeys[0].pos)], ctx).toBeGreaterThanOrEqual(0);
         }
-        expect(lv.chests.filter((c) => !c.locked).length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests);
+        const ownCells = new Set([...(lv.secret?.cells ?? []), ...(lv.challengeNook?.cells ?? [])].map((c) => at(map, c)));
+        expect(lv.chests.filter((c) => !c.locked && !ownCells.has(at(map, c.pos))).length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests);
       }
     }
     expect(vaults).toBeGreaterThan(SEEDS * 3 * 0.6);
@@ -93,8 +96,9 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
     for (let seed = 1; seed <= 60; seed++) {
       const lv = generateLevel({ seed, floor: 2 });
       const vaultCells = new Set((lv.vault?.cells ?? []).map((c) => at(lv.map, c)));
+      const hidden = new Set([...(lv.secret?.cells ?? []), ...(lv.challengeNook?.cells ?? [])].map((c) => at(lv.map, c)));
       for (const d of lv.drops) {
-        if (vaultCells.has(at(lv.map, d.pos))) continue;
+        if (vaultCells.has(at(lv.map, d.pos)) || hidden.has(at(lv.map, d.pos))) continue;
         kinds.add(d.itemId);
         expect(['hoja_afilada', 'lanza_de_bambu', 'cota_de_laminas', 'coraza_de_pizarra']).not.toContain(d.itemId);
       }

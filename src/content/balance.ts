@@ -3,6 +3,16 @@ export const BALANCE = {
   player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1, strength: 3 },
   /** Alcance de las pociones lanzadas (distancia Manhattan) y radio de su efecto. */
   potionThrow: { range: 5, radius: 1 },
+  /** Caer por un precipicio: fracción de la vida máxima que cuesta (nunca mata: deja al menos 1 de vida). */
+  fallDamageFraction: 0.5,
+  /** Peligros del suelo: duración (rondas) del fuego sobre terreno que arde, sobre suelo desnudo y de un charco; y la descarga eléctrica. */
+  hazard: { fireOnFuel: 3, fireOnFloor: 2, water: 10, burnTurns: 3 },
+  shock: { enemy: 6, player: 3, stunTurns: 2 },
+  /** Buscar: alcance seguro y alcance con probabilidad; probabilidad de dar con una puerta secreta pegada al caminar. */
+  search: { sure: 2, far: 3, farChance: 0.5, passiveChance: 0.2, hintRange: 3, turns: 5 },
+  /** Probabilidad por sector de cámara oculta, de parche de precipicio y de minidesafío (los sectores de jefe no tienen). */
+  secretRoomChance: 0.65,
+  chasmChance: 0.7,
   /** Kiro que se recupera al esperar (el documento lo deja "si se aprueba en balance"). */
   waitKiro: 2,
   /** El kiro vuelve solo: 1 cada N rondas (la vida, más despacio). */

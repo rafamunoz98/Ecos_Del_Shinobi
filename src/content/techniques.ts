@@ -32,6 +32,8 @@ export interface TechniqueDef {
   learnable?: boolean;
   /** Fusión de dos afinidades: solo la aprende (y usa) quien domina las dos. */
   fusion?: readonly [Affinity, Affinity];
+  /** Derriba los muros agrietados pegados a la zona que alcanza. */
+  breaksWalls?: boolean;
   kiroCost: number;
   target: TechniqueTarget;
   /** Daño = max(1, power + bonus de nivel - defensa); con ignoreDefense no resta defensa. */
@@ -102,7 +104,7 @@ define([
     description: 'Una lluvia de chispas cubre un área de radio 2: ideal contra grupos.',
   },
   {
-    id: 'pulso_del_crater', name: 'Pulso del Cráter', affinity: 'ascua', minLevel: 5, kiroCost: 6,
+    id: 'pulso_del_crater', breaksWalls: true, name: 'Pulso del Cráter', affinity: 'ascua', minLevel: 5, kiroCost: 6,
     target: { kind: 'burst', radius: 2 },
     damage: { power: 9 }, inflict: { status: 'quemadura', turns: 3 },
     description: 'Una explosión de brasas a tu alrededor (radio 2): mucho daño y quemadura larga.',
@@ -119,7 +121,7 @@ define([
     description: 'Tu kiro arde en las manos: +2 de poder durante 5 rondas.',
   },
   {
-    id: 'aliento_del_dragon', name: 'Aliento del Dragón de Ceniza', affinity: 'ascua', minLevel: L, learnable: true, kiroCost: 8,
+    id: 'aliento_del_dragon', breaksWalls: true, name: 'Aliento del Dragón de Ceniza', affinity: 'ascua', minLevel: L, learnable: true, kiroCost: 8,
     target: { kind: 'burst', radius: 3 },
     damage: { power: 7 }, inflict: { status: 'quemadura', turns: 3 },
     description: 'Tu técnica más devastadora: un halo de fuego de radio 3 que prende a todo lo que te rodea.',
@@ -232,7 +234,7 @@ define([
     description: 'Tu piel se endurece como la roca: +2 de defensa durante 7 rondas.',
   },
   {
-    id: 'golpe_sismico', name: 'Golpe Sísmico', affinity: 'piedra', minLevel: 3, kiroCost: 4,
+    id: 'golpe_sismico', breaksWalls: true, name: 'Golpe Sísmico', affinity: 'piedra', minLevel: 3, kiroCost: 4,
     target: { kind: 'burst', radius: 1 },
     damage: { power: 5 }, inflict: { status: 'aturdido', turns: 1 },
     description: 'Pisas con fuerza: los adyacentes reciben daño y pierden su próxima acción.',
@@ -244,7 +246,7 @@ define([
     description: 'Una lanza de roca brota del suelo en línea: daña y clava a los alcanzados al suelo 2 rondas.',
   },
   {
-    id: 'derrumbe', name: 'Derrumbe', affinity: 'piedra', minLevel: 5, kiroCost: 6,
+    id: 'derrumbe', breaksWalls: true, name: 'Derrumbe', affinity: 'piedra', minLevel: 5, kiroCost: 6,
     target: { kind: 'area', range: 5, areaRadius: 2, lineOfSight: true },
     damage: { power: 7 }, inflict: { status: 'aturdido', turns: 1 },
     description: 'El techo se viene abajo sobre un área de radio 2: daño fuerte y aturdimiento.',
@@ -256,13 +258,13 @@ define([
     description: 'Arrancas una roca del suelo y la lanzas contra un objetivo a la vista (hasta 6 casillas): mucho daño y lo empuja una casilla.',
   },
   {
-    id: 'puno_de_granito', name: 'Puño de Granito', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 4,
+    id: 'puno_de_granito', breaksWalls: true, name: 'Puño de Granito', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 4,
     target: { kind: 'burst', radius: 1, shape: 'square' },
     damage: { power: 9 }, push: 1,
     description: 'Un puñetazo de roca que golpea a los ocho vecinos con mucha fuerza y los aparta una casilla.',
   },
   {
-    id: 'temblor_profundo', name: 'Temblor Profundo', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 5,
+    id: 'temblor_profundo', breaksWalls: true, name: 'Temblor Profundo', affinity: 'piedra', minLevel: L, learnable: true, kiroCost: 5,
     target: { kind: 'burst', radius: 3 },
     damage: { power: 3 }, inflict: { status: 'ralentizado', turns: 3 },
     description: 'El suelo tiembla en radio 3: daña a todos y los ralentiza.',

@@ -1,8 +1,8 @@
 import { BALANCE } from '../content/balance';
-import { DIRS, fromIdx, idx, inBounds, isWalkable, manhattan } from '../core/grid';
+import { DIRS, fromIdx, idx, inBounds, isStandable, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
 import { BOSS_BY_FLOOR, BOSS_FLOORS, BOSS_ID, ENEMIES } from '../content/enemies';
-import { GROUND_LOOT, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
+import { GROUND_LOOT, MANUAL_ITEM, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
 import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
 import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy, pickEnemyDef } from './spawn';
@@ -21,6 +21,16 @@ export interface Vault {
   cells: Vec[];
 }
 
+/** Minidesafío de un sector: una recompensa tras un obstáculo que se resuelve con un objeto asegurado en el propio sector. */
+export type Challenge = 'zarzal' | 'grieta' | 'isla';
+
+/** Objeto asegurado (y ya identificado) que resuelve cada minidesafío. */
+export const CHALLENGE_ITEM: Record<Challenge, string> = {
+  zarzal: 'pocion:ignea',
+  grieta: 'pergamino:explosivo',
+  isla: 'pocion:levitacion',
+};
+
 /** Identificador de la mesa de forja entre los PNJ. */
 export const FORGE_KIND = 'mesa_forja';
 
@@ -35,6 +45,12 @@ export interface GeneratedLevel {
   /** Objetos sueltos (monedas, consumibles, llaves, el tesoro de la cámara sellada...). */
   drops: Drop[];
   vault: Vault | null;
+  /** Minidesafío del sector (null en los sectores de jefe) y su recompensa. */
+  challenge: Challenge | null;
+  challengeNook: Vault | null;
+  /** Cámara oculta (puerta 'secret') y qué esconde. */
+  secret: Vault | null;
+  secretKind: string | null;
   rooms: Room[];
   /** Sala del jefe (la de la salida) en el último sector. */
   bossRoom: Room | null;
@@ -84,10 +100,11 @@ const touches = (a: Room, b: Room): boolean =>
   a.x - 1 < b.x + b.w && a.x + a.w + 1 > b.x && a.y - 1 < b.y + b.h && a.y + a.h + 1 > b.y;
 
 /** Distancia de camino (BFS ortogonal) desde `from`; -1 = inalcanzable. `blocked` son índices intransitables. */
-export function distancesFrom(map: GameMap, from: Vec, blocked?: ReadonlySet<number>): Int32Array {
+export function distancesFrom(map: GameMap, from: Vec, blocked?: ReadonlySet<number>, standOnly = false): Int32Array {
   const dist = new Int32Array(map.width * map.height).fill(-1);
   const start = idx(map, from);
-  if (!inBounds(map, from) || !isWalkable(map, from) || blocked?.has(start)) return dist;
+  const ok = standOnly ? isStandable : isWalkable;
+  if (!inBounds(map, from) || !ok(map, from) || blocked?.has(start)) return dist;
   dist[start] = 0;
   const queue = [start];
   for (let head = 0; head < queue.length; head++) {
@@ -95,7 +112,7 @@ export function distancesFrom(map: GameMap, from: Vec, blocked?: ReadonlySet<num
     const c = fromIdx(map, cur);
     for (const d of DIRS) {
       const n = { x: c.x + d.x, y: c.y + d.y };
-      if (!inBounds(map, n) || !isWalkable(map, n)) continue;
+      if (!inBounds(map, n) || !ok(map, n)) continue;
       const ni = idx(map, n);
       if (dist[ni] !== -1 || blocked?.has(ni)) continue;
       dist[ni] = dist[cur] + 1;
@@ -496,7 +513,147 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     }
   }
 
-  return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, rooms, bossRoom };
+  // 12. Desafío del sector, precipicios y cámara oculta (todo con el generador extra: los mapas conocidos no cambian).
+  const extras = addExtras({ extra, map, rooms, bossRoom, used, playerStart, exit, floor, chests, drops, enemies, chasmOk: !withBoss && !guaranteeStrength });
+
+  return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, ...extras, rooms, bossRoom };
+}
+
+interface ExtrasInput {
+  extra: Rng;
+  map: GameMap;
+  rooms: Room[];
+  bossRoom: Room | null;
+  used: Set<number>;
+  playerStart: Vec;
+  exit: Vec;
+  floor: number;
+  chests: Chest[];
+  drops: Drop[];
+  enemies: Enemy[];
+  chasmOk: boolean;
+}
+
+interface ExtrasOutput {
+  challenge: Challenge | null;
+  challengeNook: Vault | null;
+  secret: Vault | null;
+  secretKind: string | null;
+}
+
+/** Pociones y pergaminos de una cámara oculta que NO perjudican (las malas no se esconden: se encuentran por ahí). */
+const SECRET_POTIONS = ['pocion:sanacion', 'pocion:kiro_mayor', 'pocion:regeneracion', 'pocion:piel_roca', 'pocion:sombra'] as const;
+const SECRET_SCROLLS = ['pergamino:cartografia', 'pergamino:clones', 'pergamino:explosivo', 'pergamino:invocacion_cuervos'] as const;
+
+function addExtras(a: ExtrasInput): ExtrasOutput {
+  const { extra, map, rooms, bossRoom, used, playerStart, exit, floor, chests, drops, enemies } = a;
+  const out: ExtrasOutput = { challenge: null, challengeNook: null, secret: null, secretKind: null };
+  if (bossRoom) return out; // la arena del jefe no lleva desafíos ni escondites
+  const free = (c: Vec): boolean => inBounds(map, c) && map.tiles[idx(map, c)] === 'floor' && !used.has(idx(map, c));
+  const roomsOpen = rooms.filter((r) => r !== bossRoom);
+  const spot = (): Vec | null => {
+    for (let t = 0; t < 300; t++) {
+      const r = roomsOpen[extra.int(0, roomsOpen.length - 1)];
+      const c = { x: extra.int(r.x, r.x + r.w - 1), y: extra.int(r.y, r.y + r.h - 1) };
+      if (free(c) && manhattan(c, playerStart) >= 3) return c;
+    }
+    return null;
+  };
+  const lootDrop = (e: LootEntry, pos: Vec): Drop => ({ pos, itemId: e.id, count: e.kind === 'coins' ? coinAmount(e.amount ?? 4, floor) : (e.amount ?? 1) });
+  const chestAt = (pos: Vec): void => {
+    chests.push({ id: `chest-${chests.length}`, pos, opened: false });
+  };
+
+  // Precipicios sueltos: parches de 2-3 casillas en las salas, sin cortar el camino a ninguna casilla ni a la salida.
+  if (a.chasmOk && extra.chance(BALANCE.chasmChance)) {
+    const patches = extra.chance(0.5) ? 2 : 1;
+    for (let k = 0; k < patches; k++) {
+      for (let t = 0; t < 40; t++) {
+        const r = roomsOpen[extra.int(0, roomsOpen.length - 1)];
+        const w = extra.int(2, 3);
+        const h = extra.int(2, 3);
+        if (r.w < w + 2 || r.h < h + 2) continue;
+        const x0 = extra.int(r.x + 1, r.x + r.w - w - 1);
+        const y0 = extra.int(r.y + 1, r.y + r.h - h - 1);
+        const cells: Vec[] = [];
+        for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) cells.push({ x, y });
+        if (cells.some((c) => !free(c) || manhattan(c, playerStart) < 4 || manhattan(c, exit) < 3)) continue;
+        for (const c of cells) map.tiles[idx(map, c)] = 'chasm';
+        const reach = distancesFrom(map, playerStart, undefined, true);
+        const standable = map.tiles.filter((_, i) => isStandable(map, fromIdx(map, i))).length;
+        if (reach.filter((d) => d >= 0).length === standable) {
+          for (const c of cells) used.add(idx(map, c));
+          break;
+        }
+        for (const c of cells) map.tiles[idx(map, c)] = 'floor';
+      }
+    }
+  }
+
+  // Minidesafío: recompensa tras un obstáculo + el objeto asegurado que lo resuelve, en otro rincón accesible.
+  const kinds: Challenge[] = a.chasmOk ? ['zarzal', 'grieta', 'isla'] : ['zarzal', 'grieta'];
+  for (const kind of extra.shuffle(kinds)) {
+    const nook = kind === 'isla' ? carveNook(extra, map, rooms, bossRoom, used, { depth: 6, door: 'floor' }) : carveNook(extra, map, rooms, bossRoom, used, { depth: 3, door: kind === 'zarzal' ? 'thorns' : 'cracked' });
+    if (!nook) continue;
+    const item = spot();
+    if (!item) {
+      for (const c of nook.cells) map.tiles[idx(map, c)] = 'wall';
+      map.tiles[idx(map, nook.door)] = 'wall';
+      continue;
+    }
+    used.add(idx(map, item));
+    drops.push({ pos: item, itemId: CHALLENGE_ITEM[kind], count: 1, known: true });
+    const treasure = kind === 'isla' ? nook.cells.slice(9) : nook.cells;
+    if (kind === 'isla') for (const c of nook.cells.slice(0, 9)) map.tiles[idx(map, c)] = 'chasm';
+    chestAt(treasure[4]);
+    drops.push(lootDrop(extra.weighted(lootTableFor(floor, VAULT_EXTRAS)), treasure[1]));
+    for (const c of nook.cells) used.add(idx(map, c));
+    out.challenge = kind;
+    out.challengeNook = nook;
+    break;
+  }
+
+  // Cámara oculta: tras una pared que solo se descubre buscando. Casi siempre guarda algo bueno.
+  if (extra.chance(BALANCE.secretRoomChance)) {
+    const nook = carveNook(extra, map, rooms, bossRoom, used, { depth: 3, door: 'secret' });
+    if (nook) {
+      const cells = nook.cells;
+      let roll = extra.int(0, 99);
+      // Las emboscadas (dos guardianes que ya vivían en el sector, ahora al acecho en la cámara) solo desde el sector 2.
+      if (roll >= 92 && (floor < 2 || enemies.length < 5)) roll = 80;
+      let kind = 'cofre';
+      if (roll < 35) {
+        kind = 'cofre';
+        chestAt(cells[4]);
+        drops.push({ pos: cells[1], itemId: 'moneda', count: coinAmount(8, floor) });
+      } else if (roll < 60) {
+        kind = 'alijo';
+        const picks = extra.shuffle([...SECRET_POTIONS]).slice(0, 3);
+        picks.forEach((id, i) => drops.push({ pos: cells[[1, 4, 7][i]], itemId: id, count: 1 }));
+      } else if (roll < 75) {
+        kind = 'santuario';
+        drops.push({ pos: cells[4], itemId: 'pocion:sanacion', count: 1 }, { pos: cells[3], itemId: 'pocion:kiro_mayor', count: 1 }, { pos: cells[5], itemId: 'moneda', count: coinAmount(4, floor) });
+      } else if (roll < 85) {
+        kind = 'tesoro';
+        drops.push(lootDrop(extra.weighted(lootTableFor(floor, VAULT_GEAR)), cells[4]));
+        drops.push(lootDrop(extra.weighted(lootTableFor(floor, VAULT_EXTRAS)), cells[1]));
+      } else if (roll < 92) {
+        kind = 'biblioteca';
+        drops.push({ pos: cells[4], itemId: floor >= 2 ? MANUAL_ITEM : 'esquirla', count: floor >= 2 ? 1 : 3 }, { pos: cells[1], itemId: extra.pick(SECRET_SCROLLS), count: 1 });
+      } else {
+        kind = 'emboscada';
+        chestAt(cells[4]);
+        drops.push(lootDrop(extra.weighted(lootTableFor(floor, VAULT_GEAR)), cells[7]));
+        [cells[0], cells[2]].forEach((c, k) => {
+          enemies[enemies.length - 1 - k].pos = c;
+        });
+      }
+      for (const c of cells) used.add(idx(map, c));
+      out.secret = nook;
+      out.secretKind = kind;
+    }
+  }
+  return out;
 }
 
 /**
@@ -504,6 +661,14 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
  * debe ser toda pared para no abrir otro acceso. La casilla de la sala junto a la puerta debe estar libre.
  */
 function carveVault(rng: Rng, map: GameMap, rooms: Room[], bossRoom: Room | null, used: ReadonlySet<number>): Vault | null {
+  return carveNook(rng, map, rooms, bossRoom, used, { depth: 3, door: 'locked' });
+}
+
+/**
+ * Lo mismo con profundidad y tipo de puerta a elegir (`depth` filas de 3 casillas tras la puerta; la puerta puede ser 'floor' = hueco abierto).
+ * Las casillas interiores se devuelven fila a fila (de la puerta hacia el fondo, de izquierda a derecha).
+ */
+function carveNook(rng: Rng, map: GameMap, rooms: Room[], bossRoom: Room | null, used: ReadonlySet<number>, spec: { depth: number; door: TerrainKind }): Vault | null {
   interface Cand {
     door: Vec;
     dir: Vec;
@@ -526,16 +691,16 @@ function carveVault(rng: Rng, map: GameMap, rooms: Room[], bossRoom: Room | null
     if (used.has(idx(map, approach))) continue;
     let ok = true;
     const cells: Vec[] = [];
-    for (let b = 0; b <= 4 && ok; b++) {
+    for (let b = 0; b <= spec.depth + 1 && ok; b++) {
       for (let a = -2; a <= 2 && ok; a++) {
         const c = { x: door.x + dir.x * b + perp.x * a, y: door.y + dir.y * b + perp.y * a };
         if (!inBounds(map, c) || map.tiles[idx(map, c)] !== 'wall') ok = false;
-        else if (b >= 1 && b <= 3 && Math.abs(a) <= 1) cells.push(c);
+        else if (b >= 1 && b <= spec.depth && Math.abs(a) <= 1) cells.push(c);
       }
     }
     if (!ok) continue;
     for (const c of cells) map.tiles[idx(map, c)] = 'floor';
-    map.tiles[idx(map, door)] = 'locked';
+    map.tiles[idx(map, door)] = spec.door;
     return { door, cells };
   }
   return null;

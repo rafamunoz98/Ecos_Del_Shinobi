@@ -19,7 +19,8 @@ function occupied(s: GameState, p: Vec, visible: ReadonlySet<number>): boolean {
     s.chests.some((c) => equals(c.pos, p)) ||
     s.npcs.some((n) => equals(n.pos, p)) ||
     s.allies.some((a) => equals(a.pos, p) && getAllyDef(a.kind)?.decoy === true) ||
-    s.barriers.some((b) => equals(b.pos, p))
+    s.barriers.some((b) => equals(b.pos, p)) ||
+    s.hazards.some((h) => h.kind === 'fire' && equals(h.pos, p))
   );
 }
 

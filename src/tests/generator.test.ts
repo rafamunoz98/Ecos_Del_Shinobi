@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../content/balance';
 import { ENEMIES } from '../content/enemies';
-import { manhattan } from '../core/grid';
+import { isWalkable, manhattan } from '../core/grid';
 import { createGame } from '../core/newGame';
 import { distancesFrom, generateLevel } from '../dungeon/generator';
 
@@ -33,7 +33,9 @@ describe('generador de mapas grandes', () => {
 
         // Todo el suelo es un único componente conexo desde la entrada (la cámara sellada y su candado quedan aparte).
         const dist = distancesFrom(map, lv.playerStart);
-        const floorTiles = map.tiles.filter((t) => t !== 'wall' && t !== 'locked').length - (lv.vault?.cells.length ?? 0);
+        // Tampoco cuentan las alcobas tras zarzas, muro agrietado o pared secreta: no se alcanzan a pie.
+        const sealed = new Set([...(lv.secret?.cells ?? []), ...(lv.challenge && lv.challenge !== 'isla' ? (lv.challengeNook?.cells ?? []) : [])].map(at));
+        const floorTiles = map.tiles.filter((t, i) => isWalkable(map, { x: i % map.width, y: Math.floor(i / map.width) }) && !sealed.has(i)).length - (lv.vault?.cells.length ?? 0);
         expect(dist.filter((d) => d >= 0).length, ctx).toBe(floorTiles);
 
         // Una sola salida, alcanzable y lejos de la entrada.
@@ -57,14 +59,14 @@ describe('generador de mapas grandes', () => {
         }
 
         // Los cofres no cortan el camino: con todos como obstáculos, el resto sigue conectado.
-        const chestSet = new Set(lv.chests.map((c) => at(c.pos)));
+        const chestSet = new Set(lv.chests.map((c) => at(c.pos)).filter((i) => !sealed.has(i)));
         const withChests = distancesFrom(map, lv.playerStart, chestSet);
         expect(withChests.filter((d) => d >= 0).length, ctx).toBe(floorTiles - chestSet.size);
 
         expect(lv.enemies.length, ctx).toBeGreaterThanOrEqual(BALANCE.level.minEnemies);
         expect(lv.enemies.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxEnemies);
         expect(lv.chests.length, ctx).toBeGreaterThanOrEqual(1);
-        expect(lv.chests.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests + 1); // + el cofre lacado
+        expect(lv.chests.length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests + 3); // + el cofre lacado, el del minidesafío y el de la cámara oculta
       }
     }
   });

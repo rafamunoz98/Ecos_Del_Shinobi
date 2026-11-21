@@ -50,6 +50,18 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
         case 'b':
           tiles.push('bush');
           break;
+        case '~': // precipicio
+          tiles.push('chasm');
+          break;
+        case 't': // zarzal reseco
+          tiles.push('thorns');
+          break;
+        case 'x': // muro agrietado
+          tiles.push('cracked');
+          break;
+        case 's': // pared secreta
+          tiles.push('secret');
+          break;
         case '+':
           tiles.push('door');
           break;

@@ -1,4 +1,4 @@
-import { floorHints } from './hints';
+import { floorHints, terrainHints } from './hints';
 import { AFFINITIES } from '../content/affinities';
 import { BALANCE } from '../content/balance';
 import { isBossFloor } from '../content/enemies';
@@ -12,7 +12,7 @@ import { ALWAYS_KNOWN, shuffleAppearances, STARTING_KNOWN } from '../content/arc
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -86,6 +86,8 @@ export function createGame(opts: NewGameOptions): GameState {
     allies: [],
     chests: level.chests,
     barriers: [],
+    hazards: [],
+    hintedSecrets: [],
     drops: level.drops,
     telegraphs: [],
     npcs: level.npcs,
@@ -111,6 +113,6 @@ export function createGame(opts: NewGameOptions): GameState {
   for (const i of computeVisible(state.map, state.player.pos, visionRadiusOf(state))) {
     state.explored[i] = true;
   }
-  state.log.push(...floorHints(state));
+  state.log.push(...floorHints(state), ...terrainHints(state));
   return state;
 }

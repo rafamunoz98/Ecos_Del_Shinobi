@@ -31,7 +31,7 @@ import {
 import { drawIcon } from './icons';
 import { clamp, easeOut, hash2, rgba } from './noise';
 import { type Theme, themeFor } from './themes';
-import { E, N, NE, NW, S, SE, SW, W, barrierTile, bushTile, chestTile, doorTile, floorTile, lockedDoorTile, stairsTile, wallTile } from './tileart';
+import { E, N, NE, NW, S, SE, SW, W, barrierTile, bushTile, chasmTile, chestTile, crackOverlay, doorTile, floorTile, lockedDoorTile, stairsTile, thornsTile, wallTile } from './tileart';
 
 /** Qué casillas resaltar mientras se apunta una técnica o un lanzamiento. */
 export interface Overlay {
@@ -118,6 +118,7 @@ export class WorldRenderer {
   private wallMask = new Uint8Array(0);
   private variant = new Uint8Array(0);
   private doorNS = new Uint8Array(0);
+  private chasmMask = new Uint8Array(0);
   private barrierBorn = new Map<number, number>();
   private alertT0 = new Map<string, number>();
   private motes: Mote[] = [];
@@ -239,6 +240,7 @@ export class WorldRenderer {
     this.state = next;
     this.visible = visibleCells(next);
     this.doors = openDoors(next);
+    if (events.some((e) => e.type === 'TerrainChanged')) this.computeMasks(next);
     // Empujones y arrastres del jefe: el jugador se desliza (en vez de saltar) cuando se libera el golpe.
     const slide = new Map<string, number>();
     if (events.some((e) => e.type === 'PlayerShoved')) slide.set(PLAYER, ENEMY_DELAY);
@@ -254,20 +256,47 @@ export class WorldRenderer {
   }
 
   private prepareMap(s: GameState): void {
+    const { width: W_, height: H_ } = s.map;
+    const n = W_ * H_;
+    this.variant = new Uint8Array(n);
+    this.fog = new Float32Array(n).fill(1);
+    for (let y = 0; y < H_; y++) {
+      for (let x = 0; x < W_; x++) {
+        const r = hash2(x, y, s.floor * 31 + 7);
+        this.variant[y * W_ + x] = r < 0.5 ? 0 : r < 0.68 ? 1 : Math.floor(2 + ((r - 0.68) / 0.32) * 4);
+      }
+    }
+    this.computeMasks(s);
+    const [c, ctx] = makeCanvas(W_, H_);
+    this.fogCanvas = c;
+    this.fogCtx = ctx;
+    this.fogImg = ctx.createImageData(W_, H_);
+  }
+
+  /** Vecindades de paredes y vacíos (para unir bien los bordes). Se repite cuando el terreno cambia (algo arde, un muro cae...). */
+  private computeMasks(s: GameState): void {
     const { width: W_, height: H_, tiles } = s.map;
     const n = W_ * H_;
     this.floorMask = new Uint8Array(n);
     this.wallMask = new Uint8Array(n);
-    this.variant = new Uint8Array(n);
     this.doorNS = new Uint8Array(n);
-    this.fog = new Float32Array(n).fill(1);
-    const isWall = (x: number, y: number): boolean => x < 0 || y < 0 || x >= W_ || y >= H_ || tiles[y * W_ + x] === 'wall';
+    this.chasmMask = new Uint8Array(n);
+    // Las paredes agrietadas y las secretas se dibujan (y se unen) como paredes.
+    const wallKind = (k: string): boolean => k === 'wall' || k === 'cracked' || k === 'secret';
+    const isWall = (x: number, y: number): boolean => x < 0 || y < 0 || x >= W_ || y >= H_ || wallKind(tiles[y * W_ + x]);
+    const notChasm = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W_ && y < H_ && tiles[y * W_ + x] !== 'chasm';
     for (let y = 0; y < H_; y++) {
       for (let x = 0; x < W_; x++) {
         const i = y * W_ + x;
-        const r = hash2(x, y, s.floor * 31 + 7);
-        this.variant[i] = r < 0.5 ? 0 : r < 0.68 ? 1 : Math.floor(2 + ((r - 0.68) / 0.32) * 4);
-        if (tiles[i] === 'wall') {
+        if (tiles[i] === 'chasm') {
+          let cm = 0;
+          if (notChasm(x, y - 1)) cm |= N;
+          if (notChasm(x + 1, y)) cm |= E;
+          if (notChasm(x, y + 1)) cm |= S;
+          if (notChasm(x - 1, y)) cm |= W;
+          this.chasmMask[i] = cm;
+        }
+        if (wallKind(tiles[i])) {
           let m = 0;
           if (!isWall(x, y - 1)) m |= N;
           if (!isWall(x + 1, y)) m |= E;
@@ -289,10 +318,6 @@ export class WorldRenderer {
         }
       }
     }
-    const [c, ctx] = makeCanvas(W_, H_);
-    this.fogCanvas = c;
-    this.fogCtx = ctx;
-    this.fogImg = ctx.createImageData(W_, H_);
   }
 
   private syncDisp(s: GameState, prev: GameState | null, now: number, snap: boolean, slide: ReadonlyMap<string, number> = new Map()): void {
@@ -739,12 +764,21 @@ export class WorldRenderer {
         if (!s.explored[i]) continue;
         const kind = map.tiles[i];
         let img: HTMLCanvasElement;
-        if (kind === 'wall') img = wallTile(th, this.variant[i] % 3, this.wallMask[i]);
+        if (kind === 'wall' || kind === 'cracked' || kind === 'secret') img = wallTile(th, this.variant[i] % 3, this.wallMask[i]);
+        else if (kind === 'chasm') img = chasmTile(th, this.chasmMask[i]);
         else if (kind === 'exit') img = stairsTile(th);
         else if (kind === 'door') img = doorTile(th, this.doorNS[i] ? 'ns' : 'ew', this.doors.has(i));
         else if (kind === 'locked') img = lockedDoorTile(th, this.doorNS[i] ? 'ns' : 'ew');
         else img = floorTile(th, kind === 'bush' ? 0 : this.variant[i], this.floorMask[i]);
         ctx.drawImage(img, x - eps, y - eps, 1 + eps * 2, 1 + eps * 2);
+        if (kind === 'cracked') ctx.drawImage(crackOverlay(this.variant[i] % 3), x, y, 1, 1);
+        if (kind === 'thorns') {
+          ctx.save();
+          ctx.translate(x + 0.5, y + 0.9);
+          ctx.transform(1, 0, sway(x, y) * 0.5, 1, 0, 0);
+          ctx.drawImage(thornsTile(this.variant[i] % 3), -0.5, -0.9, 1, 1);
+          ctx.restore();
+        }
         if (kind === 'bush') {
           ctx.save();
           ctx.translate(x + 0.5, y + 0.9);
@@ -768,6 +802,9 @@ export class WorldRenderer {
         ctx.restore();
       }
     }
+
+    // Peligros del suelo: charcos, llamas y descargas.
+    this.drawHazards(ctx, s, now, x0, x1, y0, y1);
 
     // 2) Objetos: cofres, barreras, botín del suelo.
     for (const c of s.chests) {
@@ -1149,6 +1186,76 @@ export class WorldRenderer {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** Charcos (agua), llamas y descargas sobre el suelo. Todo procedural y animado; solo en casillas exploradas. */
+  private drawHazards(ctx: Ctx, s: GameState, now: number, x0: number, x1: number, y0: number, y1: number): void {
+    const { map } = s;
+    for (const h of s.hazards) {
+      if (h.pos.x < x0 || h.pos.x > x1 || h.pos.y < y0 || h.pos.y > y1) continue;
+      const i = h.pos.y * map.width + h.pos.x;
+      if (!s.explored[i]) continue;
+      const x = h.pos.x;
+      const y = h.pos.y;
+      const ph = hash2(x, y, 5) * 6.28;
+      if (h.kind === 'water') {
+        ctx.save();
+        ctx.fillStyle = 'rgba(70,140,220,0.42)';
+        ctx.beginPath();
+        ctx.ellipse(x + 0.5, y + 0.58, 0.44, 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(190,230,255,0.55)';
+        ctx.lineWidth = 0.025;
+        const r = 0.14 + 0.1 * ((now * 0.8 + ph) % 1);
+        ctx.beginPath();
+        ctx.ellipse(x + 0.5 + Math.sin(ph) * 0.12, y + 0.58 + Math.cos(ph) * 0.06, r, r * 0.6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (h.kind === 'fire') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = radial(ctx, x + 0.5, y + 0.6, 0.05, 0.75, 'rgba(255,150,40,0.55)', 'rgba(255,80,0,0)');
+        ctx.fillRect(x - 0.3, y - 0.3, 1.6, 1.6);
+        ctx.restore();
+        for (let k = 0; k < 3; k++) {
+          const fx = x + 0.25 + k * 0.25 + Math.sin(now * 7 + ph + k) * 0.03;
+          const hgt = 0.34 + 0.16 * Math.sin(now * 9 + ph * (k + 1)) + (k === 1 ? 0.1 : 0);
+          const base = y + 0.86;
+          ctx.beginPath();
+          ctx.moveTo(fx - 0.12, base);
+          ctx.quadraticCurveTo(fx - 0.14, base - hgt * 0.6, fx + Math.sin(now * 8 + k) * 0.05, base - hgt);
+          ctx.quadraticCurveTo(fx + 0.14, base - hgt * 0.55, fx + 0.12, base);
+          ctx.closePath();
+          ctx.fillStyle = k === 1 ? '#ffb43a' : '#ff6a1f';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(fx - 0.05, base);
+          ctx.quadraticCurveTo(fx - 0.06, base - hgt * 0.35, fx, base - hgt * 0.6);
+          ctx.quadraticCurveTo(fx + 0.06, base - hgt * 0.3, fx + 0.05, base);
+          ctx.closePath();
+          ctx.fillStyle = '#fff2a0';
+          ctx.fill();
+        }
+      } else {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = 'rgba(255,240,120,0.25)';
+        ctx.fillRect(x, y, 1, 1);
+        ctx.strokeStyle = 'rgba(255,255,200,0.95)';
+        ctx.lineWidth = 0.04;
+        ctx.beginPath();
+        let px = x + 0.1;
+        let py = y + 0.2 + hash2(x, y, 9) * 0.3;
+        ctx.moveTo(px, py);
+        for (let k = 0; k < 5; k++) {
+          px += 0.16;
+          py = y + 0.2 + hash2(x + k, y, Math.floor(now * 20) % 7) * 0.6;
+          ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
   private drawEnemyHud(ctx: Ctx, s: GameState, e: GameState['enemies'][number], x: number, y: number, now: number): void {

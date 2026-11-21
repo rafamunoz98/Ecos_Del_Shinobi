@@ -9,7 +9,21 @@ export interface Vec {
  * bush: arbusto (transitable, tapa la visión y esconde); door: puerta (transitable, tapa la visión salvo que alguien esté en ella);
  * locked: puerta con candado de una cámara sellada (no se puede cruzar ni ver a través; se abre con la llave de hierro y pasa a ser 'door').
  */
-export type TerrainKind = 'floor' | 'wall' | 'exit' | 'bush' | 'door' | 'locked';
+export type TerrainKind =
+  | 'floor'
+  | 'wall'
+  | 'exit'
+  | 'bush'
+  | 'door'
+  | 'locked'
+  /** Precipicio: se puede pisar, pero sin levitar caes al sector de abajo (y te haces mucho daño). */
+  | 'chasm'
+  /** Zarzal reseco: intransitable, deja ver a través y arde con facilidad. */
+  | 'thorns'
+  /** Muro agrietado: como una pared, pero se derrumba con una explosión. */
+  | 'cracked'
+  /** Pared que esconde una puerta: se descubre buscando (acción «Buscar»). */
+  | 'secret';
 
 export interface GameMap {
   readonly width: number;
@@ -208,9 +222,18 @@ export interface Drop {
   pos: Vec;
   itemId: string;
   count: number;
+  /** Objeto asegurado de un minidesafío: al recogerlo ya sabes qué es (aunque sea una poción sin identificar). */
+  known?: boolean;
 }
 
 export type RunStatus = 'playing' | 'won' | 'lost';
+
+/** Peligro temporal sobre una casilla: fuego (quema), agua (charco) o descarga (rayo que recorre el agua). */
+export interface Hazard {
+  pos: Vec;
+  kind: 'fire' | 'water' | 'shock';
+  turns: number;
+}
 
 export interface GameState {
   schemaVersion: number;
@@ -228,6 +251,10 @@ export interface GameState {
   allies: Ally[];
   chests: Chest[];
   barriers: Barrier[];
+  /** Fuego, charcos y descargas sobre el suelo. */
+  hazards: Hazard[];
+  /** Índices de paredes secretas de las que ya te avisó el instinto («aquí hay algo»). */
+  hintedSecrets: number[];
   drops: Drop[];
   telegraphs: Telegraph[];
   npcs: Npc[];
@@ -256,6 +283,8 @@ export interface GameState {
 export type Command =
   | { type: 'Move'; dx: number; dy: number }
   | { type: 'Wait' }
+  /** Como esperar, pero rastreando las paredes cercanas en busca de puertas ocultas. */
+  | { type: 'Search' }
   | { type: 'BasicAttack'; target: Vec }
   | { type: 'UseTechnique'; techniqueId: string; target: Vec }
   | { type: 'UseItem'; itemId: string }
@@ -381,6 +410,10 @@ export type GameEvent =
   | { type: 'BossDefeated'; enemyId: string }
   | { type: 'EnemyDefeated'; enemyId: string }
   | { type: 'FloorChanged'; floor: number }
+  | { type: 'PlayerFell'; damage: number }
+  | { type: 'TerrainChanged'; cells: Vec[]; to: TerrainKind }
+  | { type: 'HazardsChanged' }
+  | { type: 'SecretFound'; pos: Vec }
   | { type: 'PlayerDefeated' }
   | { type: 'RunWon' };
 

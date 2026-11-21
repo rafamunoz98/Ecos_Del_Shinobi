@@ -33,11 +33,14 @@ export function terrainAt(map: GameMap, p: Vec): TerrainKind {
   return inBounds(map, p) ? map.tiles[idx(map, p)] : 'wall';
 }
 
-/** Se puede pisar todo salvo paredes y puertas con candado. */
-export const isWalkable = (map: GameMap, p: Vec): boolean => {
-  const t = terrainAt(map, p);
-  return t !== 'wall' && t !== 'locked';
-};
+/** Terrenos sólidos: no se pisan ni se cruzan con proyectiles (las zarzas, eso sí, dejan ver a su través). */
+const SOLID: ReadonlySet<TerrainKind> = new Set<TerrainKind>(['wall', 'locked', 'thorns', 'cracked', 'secret']);
+
+/** Se puede pisar (o cruzar volando) todo salvo lo sólido. Un precipicio cuenta: puedes meterte en él, pero caes. */
+export const isWalkable = (map: GameMap, p: Vec): boolean => !SOLID.has(terrainAt(map, p));
+
+/** ¿Se puede estar ahí de pie? Como `isWalkable`, pero sin precipicios: por ellos no caminan enemigos, aliados ni los trayectos. */
+export const isStandable = (map: GameMap, p: Vec): boolean => isWalkable(map, p) && terrainAt(map, p) !== 'chasm';
 
 /**
  * ¿Se puede pasar (o atacar) de `a` a su vecina `b`? Las cardinales siempre. Una diagonal vale mientras exista alguna ruta
@@ -53,7 +56,8 @@ export function stepOk(map: GameMap, a: Vec, b: Vec): boolean {
 export const adjacent = (map: GameMap, a: Vec, b: Vec): boolean => chebyshev(a, b) === 1 && stepOk(map, a, b);
 
 /** ¿Este tipo de casilla tapa la visión? Las puertas solo mientras están cerradas (ver `open`). */
-export const blocksSight = (kind: TerrainKind): boolean => kind === 'wall' || kind === 'bush' || kind === 'door' || kind === 'locked';
+export const blocksSight = (kind: TerrainKind): boolean =>
+  kind === 'wall' || kind === 'bush' || kind === 'door' || kind === 'locked' || kind === 'cracked' || kind === 'secret';
 
 /** Casillas intermedias de la recta de a a b (Bresenham), sin a y con b. */
 export function lineCells(a: Vec, b: Vec): Vec[] {
@@ -144,7 +148,7 @@ export function findPath(map: GameMap, from: Vec, to: Vec, blocked: (p: Vec) => 
       if (!inBounds(map, n)) continue;
       const ni = idx(map, n);
       if (visited.has(ni)) continue;
-      if (!isWalkable(map, n) || !stepOk(map, cur, n)) continue;
+      if (!isStandable(map, n) || !stepOk(map, cur, n)) continue;
       const isGoal = equals(n, to);
       if (!isGoal && blocked(n)) continue;
       visited.add(ni);

@@ -849,6 +849,25 @@ function feather(ctx: Ctx): void {
   ctx.stroke();
 }
 
+/** Buscar: una lupa. */
+function magnifier(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.arc(-0.06, -0.06, 0.24, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(190,235,255,0.55)';
+  ctx.fill();
+  ctx.strokeStyle = '#d9a441';
+  ctx.lineWidth = 0.075;
+  ctx.stroke();
+  outline(ctx, 0.03);
+  ctx.beginPath();
+  ctx.moveTo(0.12, 0.12);
+  ctx.lineTo(0.34, 0.34);
+  ctx.strokeStyle = '#7a5a34';
+  ctx.lineWidth = 0.1;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
 function brokenSpool(ctx: Ctx): void {
   roundRectPath(ctx, -0.12, -0.3, 0.24, 0.6, 0.04);
   ctx.fillStyle = '#9a8a76';
@@ -926,6 +945,7 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   kunai_arrojadizo: kunai,
   senbon,
   punos: fist,
+  lupa: magnifier,
   kunai_de_hierro: (c) => blade(c, 0.46, 0.085, '#e4e8f2', '#8a92a6', '#3d3f52'),
   hoja_afilada: (c) => blade(c, 0.58, 0.075, '#f5f8ff', '#97a0b8'),
   hoja_de_ceniza: (c) => blade(c, 0.58, 0.085, '#8a7d9a', '#2e2438', '#2a2230'),

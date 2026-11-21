@@ -31,6 +31,7 @@ export type UiAction =
   | { type: 'reach' }
   | { type: 'weapon' }
   | { type: 'wait' }
+  | { type: 'search' }
   | { type: 'interact' }
   | { type: 'menu' }
   | { type: 'key'; key: string };
@@ -268,6 +269,7 @@ export class Hud {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
     if (p.weapons.length > 0) specs.push({ key: 'B', icon: w?.id ?? 'punos', name: 'Cambiar arma', sub: w?.name ?? 'Puños', action: { type: 'weapon' } });
+    specs.push({ key: 'Z', icon: 'lupa', name: 'Buscar', sub: 'varias rondas: puertas ocultas', action: { type: 'search' } });
     specs.push({ key: 'X', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 

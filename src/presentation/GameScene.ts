@@ -117,6 +117,8 @@ export class GameScene extends Phaser.Scene {
   private readonly confirm = new ConfirmBox();
   private readonly chords = new DirectionChords((key) => this.handleKey(key));
   private travel: Travel | null = null;
+  /** Búsqueda en curso: rondas que quedan (se repite sola hasta descubrir algo o que pase algo). */
+  private searching: { left: number; nextAt: number } | null = null;
   private hoverTile: Vec | null = null;
   private hoverFor: { state: GameState; tile: Vec } | null = null;
   private lastEvents: GameEvent[] = [];
@@ -214,6 +216,7 @@ export class GameScene extends Phaser.Scene {
     // La elección de afinidad espera a que acabe el diálogo del jefe.
     if (!this.dialogue.isOpen || !this.state.affinityOffer) this.affinityBox.sync(this.state);
     if (this.travel && now() >= this.travel.nextAt) this.stepTravel();
+    if (this.searching && now() >= this.searching.nextAt) this.stepSearch();
     this.updateHover();
     this.world.render(this.ctx, now(), this.overlay());
     this.tex.refresh();
@@ -326,6 +329,8 @@ export class GameScene extends Phaser.Scene {
       this.moveOrAct(dir);
     } else if (key === ' ' || key === 'np5') {
       this.dispatch({ type: 'Wait' });
+    } else if (key === 'z') {
+      this.startSearch();
     } else if (key === 'x' || key === 'enter') {
       this.interact();
     } else if (key === 'f') {
@@ -348,6 +353,20 @@ export class GameScene extends Phaser.Scene {
     const enemy = this.state.enemies.find((en) => equals(en.pos, to));
     if (enemy) return this.dispatch({ type: 'BasicAttack', target: to });
     if (this.bumpTarget(to)) return this.dispatch({ type: 'Interact', target: to });
+    const { player, map } = this.state;
+    if (terrainAt(map, to) === 'chasm' && !player.statuses.some((st) => st.id === 'levitando') && this.state.floor < this.state.maxFloor) {
+      // Saltar al vacío es una decisión seria: pregunta antes (cuesta la mitad de tu vida máxima y no hay vuelta atrás).
+      const cost = Math.max(0, Math.min(Math.ceil(player.maxHp * BALANCE.fallDamageFraction), player.hp - 1));
+      this.cancelTravel();
+      this.confirm.open({
+        title: '¿Saltar al precipicio?',
+        text: `Caerás al sector ${this.state.floor + 1} y te harás ${cost} de daño (la mitad de tu vida máxima). No podrás volver a subir.`,
+        yes: 'Sí, saltar',
+        no: 'No, retroceder',
+        onYes: () => void this.dispatch({ type: 'Move', dx: dir.x, dy: dir.y }),
+      });
+      return false;
+    }
     return this.dispatch({ type: 'Move', dx: dir.x, dy: dir.y });
   }
 
@@ -374,6 +393,8 @@ export class GameScene extends Phaser.Scene {
       case 'wait':
         void this.dispatch({ type: 'Wait' });
         return;
+      case 'search':
+        return this.startSearch();
       case 'interact':
         return this.interact();
       case 'menu':
@@ -672,6 +693,29 @@ export class GameScene extends Phaser.Scene {
 
   private cancelTravel(): void {
     this.travel = null;
+    this.searching = null;
+  }
+
+  /** Buscar: empieza una búsqueda de varias rondas junto a las paredes (se interrumpe si pasa algo o encuentras algo). */
+  private startSearch(): void {
+    this.cancelTravel();
+    this.searching = { left: BALANCE.search.turns, nextAt: 0 };
+    this.stepSearch();
+  }
+
+  private stepSearch(): void {
+    const q = this.searching;
+    if (!q) return;
+    if (this.modalOpen || this.aim || this.state.status !== 'playing') return this.cancelTravel();
+    const before = this.state;
+    if (!this.dispatch({ type: 'Search' })) return this.cancelTravel();
+    q.left -= 1;
+    const found = this.lastEvents.some((e) => e.type === 'SecretFound');
+    if (found || q.left <= 0 || travelInterrupted(before, this.state, this.lastEvents.filter((e) => e.type !== 'PlayerWaited'))) {
+      this.cancelTravel();
+      return;
+    }
+    q.nextAt = now() + TRAVEL_STEP * 1.6;
   }
 
   /** Previsualiza (solo con ratón) el camino hasta la casilla señalada, con marco rojo si es un enemigo. */
