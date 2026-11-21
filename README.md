@@ -20,6 +20,7 @@
 9. `09_pruebas_y_aceptacion.md` — calidad y criterios de salida.
 10. `10_publicacion_privacidad_y_opciones_comerciales.md` — lanzamiento y decisiones comerciales.
 11. `11_riesgos_y_decisiones_pendientes.md` — riesgos y registro de decisiones.
+12. `12_ideas_y_mejoras.md` — ideas y mejoras sugeridas (Pixel Dungeon, género ninja y otros juegos), con prioridad, coste y ruta recomendada.
 
 ## Principio de propiedad intelectual
 El juego debe ser una obra original. No usar personajes, nombres, aldeas, clanes, criaturas, técnicas, símbolos, diseños, música ni textos de Naruto u otras franquicias. La inspiración se limita a ideas generales de género —ninjas, energía interior, rivalidades, entrenamiento y poderes elementales— expresadas mediante nombres, reglas, historia y diseños propios. Antes de comercializar, revisar derechos de todos los recursos y solicitar asesoramiento legal si hay dudas.
@@ -56,7 +57,7 @@ npm run build
 
 | Tecla | Acción |
 |---|---|
-| Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo (con el arma equipada) |
+| Flechas / WASD | Mover; si hay un enemigo en esa casilla, atacarlo (con el arma equipada). **Dos flechas a la vez (p. ej. ↑ y →) forman una diagonal y cuestan un solo turno** |
 | Q / E / Z / C (o teclado numérico 7 9 1 3, Inicio/RePág/Fin/AvPág) | Mover o atacar en **diagonal** (↖ ↗ ↙ ↘) |
 | Espacio | Esperar (recupera 2 de kiro; el kiro también se recupera solo con el tiempo) |
 | X / Enter | Interactuar: hablar con un PNJ o mercader (no gasta turno), abrir cofre, bajar la escalera (también basta caminar contra el objeto) |
@@ -66,11 +67,12 @@ npm run build
 | V | Cambiar de arma arrojadiza (también mientras apuntas; no gasta turno) |
 | B | Cambiar a la siguiente arma de la mochila (gasta un turno) |
 | Tab / I | Menú: Estado, Técnicas (grimorio), Objetos, Equipo, Notas y Mapa |
+| Ratón: clic | Casilla adyacente: moverse, atacar o interactuar (igual que las flechas, también en diagonal). Casilla lejana ya explorada: **viaje automático** paso a paso, que se interrumpe si te hieren, aparece un enemigo, hay un ataque anunciado o recoges algo; cualquier tecla o clic lo detiene. Clic sobre ti: esperar (o usar la escalera si estás encima). Al pasar el ratón se ve el camino previsto |
 | Ratón: mantener y arrastrar | Mirar otras zonas ya exploradas del sector (cualquier acción recentra) |
 | Rueda del ratón, + / − | Zoom |
-| R | Nueva expedición |
+| R | Nueva expedición (**pide confirmación** si hay una partida en curso; también en Menú → Estado → «Reiniciar expedición») |
 
-En pantallas táctiles aparece una cruceta de 8 direcciones (las esquinas son diagonales), un botón «Usar» y otro de cancelar; arrastrar con un dedo mueve la vista, y todos los botones de la barra de acciones son pulsables.
+En pantallas táctiles aparece una cruceta de 8 direcciones (las esquinas son diagonales), un botón «Usar» y otro de cancelar; **tocar una casilla** mueve, ataca o viaja hasta ella como el clic; arrastrar con un dedo mueve la vista, y todos los botones de la barra de acciones son pulsables.
 
 ### Estado frente a la hoja de ruta
 
@@ -85,6 +87,7 @@ En pantallas táctiles aparece una cruceta de 8 direcciones (las esquinas son di
 - **Hito 6.5** Botín (objetos por el suelo, cofres, monedas y esquirlas), puertas con candado y llaves, cofre lacado, armas arrojadizas que se clavan y mesas de forja para mejorar armas.
 - **Hito 6.6** Ampliación: 6 sectores en dos zonas con **jefes shinobi** (Sōkan y Yūgiri), 10 shinobi con habilidades, movimiento diagonal, kiro que se recupera con el tiempo, 40 técnicas por afinidad con grimorio, equipo sin identificar (encantado o maldito), 11 pociones y 12 pergaminos sin identificar, mercader tras cada jefe, enemigos que persiguen a través de puertas, nivel controlado (uno por sector despejado) y estética que cambia al caer cada jefe.
 - **Hito 6.7** Ajustes tras probar el 6.6: las pociones recogidas ya no revelan lo que son; sin tónicos ni ungüentos (hay Poción de Sanación y Poción de Kiro Mayor, y **una Poción de Sanación asegurada por fase**); el equipo tarda 20 rondas en identificarse (lo maldito se revela al equiparlo y no se quita sin purificarlo); arbustos en los pasillos; **Lanzar Roca** sustituye a Fortaleza de Pizarra; los enemigos ya no disparan a través de muros; diagonales al cortar esquina cuando hay hueco; **hasta 6 técnicas equipadas** sin sustituir ninguna antes; **Sustitución deja un tronco señuelo**; manuales de técnica mucho más raros; la estética cambia de verdad tras el jefe (Raíces Hundidas, tierra parda con hongos luminosos); los clones y el tronco reciben daño de los jefes; **jefes rediseñados** (escudo de tablillas y empujones de Sōkan; hilo que arrastra, redes que atan y kawarimi con marioneta explosiva de Yūgiri) y **segunda afinidad** como recompensa del primer jefe.
+- **Hito 6.8** Tras probar el 6.7: **un protagonista distinto por afinidad** (Ren Sorae, Jūrō Kurobane, Tōma Shirasagi, Mizuna Aoyagi y Momoka Iwase, con su pelo, ropa y rasgos propios), la diagonal con dos flechas cuesta un solo turno, **confirmación al reiniciar**, **mover, atacar e interactuar con clic o toque** (con viaje automático y camino previsto) y la lista de ideas `doc/12_ideas_y_mejoras.md`.
 - Siguiente: Hito 7 (progresión permanente: árbol de técnicas, desbloqueos, linaje, refugio).
 
 ### Contenido

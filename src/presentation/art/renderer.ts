@@ -7,6 +7,7 @@ import { getThrowable } from '../../content/weapons';
 import { canSeeEntity, enemySees, openDoors, visibleCells, visionRadiusOf } from '../../core/sight';
 import { manhattan } from '../../core/grid';
 import type { Affinity, GameEvent, GameState, Vec } from '../../core/types';
+import { heroFor } from '../../content/heroes';
 import { type Dir, drawAlly, drawEnemy, drawNinja } from './actors';
 import { SHINOBI_STYLES } from './shinobi';
 import { drawNpc } from './bosses';
@@ -95,6 +96,7 @@ export class WorldRenderer {
   private userZoom = 1;
   private baseTile = 56;
   private cam = { x: 0, y: 0 };
+  private hover: { path: Vec[]; goal: Vec; color: string } | null = null;
   private disp = new Map<string, Disp>();
   private fx: Fx[] = [];
   private texts: FloatText[] = [];
@@ -134,6 +136,16 @@ export class WorldRenderer {
 
   get tilePx(): number {
     return this.baseTile * this.userZoom;
+  }
+
+  /** Casilla del mapa bajo un punto de la pantalla (píxeles CSS del lienzo), según la cámara que se está dibujando. */
+  screenToTile(px: number, py: number): Vec {
+    return { x: Math.floor(this.cam.x + (px - this.w / 2) / this.tilePx), y: Math.floor(this.cam.y + (py - this.h / 2) / this.tilePx) };
+  }
+
+  /** Camino previsto hasta la casilla bajo el ratón (puntos) y su destino (marco); null lo oculta. */
+  setHover(h: { path: Vec[]; goal: Vec; color: string } | null): void {
+    this.hover = h;
   }
 
   zoomBy(f: number): void {
@@ -847,7 +859,7 @@ export class WorldRenderer {
         draw: () =>
           this.drawActor(ctx, px + 0.5, py + 0.5, flashOf(pd), (c) =>
             drawNinja(c, {
-              t: now, walk: pp.moving ? 1 : 0, phase: now * 16, dir: pd.dir, weapon,
+              t: now, walk: pp.moving ? 1 : 0, phase: now * 16, dir: pd.dir, weapon, hero: heroFor(s.player.affinity),
               protected: s.player.statuses.some((st) => st.id === 'protegido'), alpha: inBush ? 0.92 : 1,
             }),
           ),
@@ -943,6 +955,7 @@ export class WorldRenderer {
 
     // 6) Efectos y resaltes (por encima de la niebla).
     if (overlay) this.drawOverlay(ctx, overlay, now);
+    else if (this.hover) this.drawHover(ctx, this.hover, now);
     this.fx = this.fx.filter((f) => now - f.start < f.dur);
     for (const f of this.fx) {
       if (now < f.start) continue;
@@ -1243,6 +1256,31 @@ export class WorldRenderer {
       }
       ctx.stroke();
     }
+  }
+
+  private drawHover(ctx: Ctx, h: { path: Vec[]; goal: Vec; color: string }, now: number): void {
+    const pulse = 0.5 + 0.5 * Math.sin(now * 5);
+    // Puntos con un borde oscuro para que se vean sobre suelos claros y oscuros.
+    for (const c of h.path.slice(0, -1)) {
+      ctx.beginPath();
+      ctx.arc(c.x + 0.5, c.y + 0.5, 0.115, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(10,8,20,0.55)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(c.x + 0.5, c.y + 0.5, 0.085, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(h.color, 0.95);
+      ctx.fill();
+    }
+    const g = h.goal;
+    roundRectPath(ctx, g.x + 0.08, g.y + 0.08, 0.84, 0.84, 0.14);
+    ctx.fillStyle = rgba(h.color, 0.14 + pulse * 0.1);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,8,20,0.6)';
+    ctx.lineWidth = 0.09;
+    ctx.stroke();
+    ctx.strokeStyle = rgba(h.color, 0.7 + pulse * 0.25);
+    ctx.lineWidth = 0.05;
+    ctx.stroke();
   }
 
   private drawTelegraphLabels(ctx: Ctx, now: number, scale: number, ox: number, oy: number): void {

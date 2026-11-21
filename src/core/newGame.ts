@@ -2,6 +2,7 @@ import { floorHints } from './hints';
 import { AFFINITIES } from '../content/affinities';
 import { BALANCE } from '../content/balance';
 import { isBossFloor } from '../content/enemies';
+import { heroFor } from '../content/heroes';
 import { techniquesFor } from '../content/techniques';
 import { generateLevel } from '../dungeon/generator';
 import { levelFromRoom } from '../dungeon/ascii';
@@ -98,7 +99,7 @@ export function createGame(opts: NewGameOptions): GameState {
     seenDialogues: [],
     explored: new Array<boolean>(level.map.width * level.map.height).fill(false),
     status: 'playing',
-    log: ['Entras en la cripta. El aire huele a ceniza.'],
+    log: [`${heroFor(affinity).name}, ${heroFor(affinity).epithet}, entra en la cripta. El aire huele a ceniza.`],
   };
 
   state.appearance = shuffleAppearances(() => {

@@ -453,6 +453,19 @@ button.close {
   margin: 0;
 }
 
+.portrait .epithet {
+  color: var(--gold);
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  margin-bottom: 2px;
+}
+
+button.restart {
+  margin-top: 4px;
+  padding: 8px 12px;
+}
+
 .sub {
   color: var(--muted);
   font-size: 12px;
@@ -880,7 +893,8 @@ button.use:disabled {
 #choice,
 #forge,
 #shop,
-#affinity {
+#affinity,
+#confirm {
   position: fixed;
   inset: 0;
   z-index: 12;
@@ -895,7 +909,8 @@ button.use:disabled {
 #choice[hidden],
 #forge[hidden],
 #shop[hidden],
-#affinity[hidden] {
+#affinity[hidden],
+#confirm[hidden] {
   display: none;
 }
 
@@ -987,6 +1002,40 @@ button.choice-opt .txt em {
 
 #affinity button.choice-opt .txt em {
   color: #9bdcff;
+}
+
+/* ---------- Confirmación ---------- */
+
+#confirm {
+  z-index: 30;
+}
+
+.confirm-panel {
+  width: min(420px, 100%);
+}
+
+.confirm-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 12px 14px;
+}
+
+.confirm-row button {
+  min-width: 96px;
+  min-height: 40px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.confirm-row button.danger {
+  background: linear-gradient(180deg, #b84646, #8a3131);
+  border-color: #e07a7a;
+}
+
+.confirm-row button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 
 /* ---------- Notas ---------- */

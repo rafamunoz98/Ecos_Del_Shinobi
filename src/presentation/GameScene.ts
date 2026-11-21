@@ -2,12 +2,14 @@ import Phaser from 'phaser';
 import { getTechnique, needsAim } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { applyCommand, previewAttack, previewTechnique, previewThrow } from '../core/engine';
-import { DIRS8, equals, inBounds, manhattan, terrainAt } from '../core/grid';
+import { DIRS8, chebyshev, equals, inBounds, manhattan, stepOk, terrainAt } from '../core/grid';
 import { createGame } from '../core/newGame';
 import { canSeeEntity, visibleCells } from '../core/sight';
+import { knownPath, travelInterrupted } from '../core/travel';
 import type { Command, GameEvent, GameState, Vec } from '../core/types';
 import { AffinityBox } from '../ui/affinityBox';
 import { ChoiceBox } from '../ui/choice';
+import { ConfirmBox } from '../ui/confirm';
 import { ForgeBox } from '../ui/forge';
 import { ShopBox } from '../ui/shop';
 import { MERCHANT_KIND } from '../content/shop';
@@ -15,6 +17,7 @@ import { DialogueBox } from '../ui/dialogue';
 import { Hud, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
 import { Menu } from '../ui/menu';
 import { type Overlay, WorldRenderer, affinityColor } from './art/renderer';
+import { DirectionChords, isCardinal } from './chords';
 
 const N: Vec = { x: 0, y: -1 };
 const E: Vec = { x: 1, y: 0 };
@@ -69,7 +72,20 @@ interface PointerLike {
   x: number;
   y: number;
   isDown: boolean;
+  /** 0 = botón principal (o el dedo). */
+  button?: number;
 }
+
+/** Viaje automático iniciado con un clic: sigue hasta llegar o hasta que algo lo interrumpa. */
+interface Travel {
+  goal: Vec;
+  /** Si el clic fue sobre un enemigo, se le persigue hasta quedar a su lado (no se le ataca solo). */
+  enemyId?: string;
+  nextAt: number;
+}
+
+/** Segundos entre pasos del viaje (un poco más que la animación de un paso, para que se vea fluido). */
+const TRAVEL_STEP = 0.15;
 
 const now = (): number => performance.now() / 1000;
 
@@ -94,6 +110,12 @@ export class GameScene extends Phaser.Scene {
   private readonly forge = new ForgeBox();
   private readonly shop = new ShopBox();
   private readonly affinityBox = new AffinityBox();
+  private readonly confirm = new ConfirmBox();
+  private readonly chords = new DirectionChords((key) => this.handleKey(key));
+  private travel: Travel | null = null;
+  private hoverTile: Vec | null = null;
+  private hoverFor: { state: GameState; tile: Vec } | null = null;
+  private lastEvents: GameEvent[] = [];
   private introShown = false;
   private aim: Aim | null = null;
   private facing: Vec = E;
@@ -112,16 +134,24 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x05050a);
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => this.onKey(e));
+    this.input.keyboard?.on('keyup', (e: KeyboardEvent) => this.chords.release(this.keyOf(e)));
+    window.addEventListener('blur', () => this.chords.clear());
     this.input.on('wheel', (_pointer: unknown, _objects: unknown, _dx: number, dy: number) => {
       this.world.zoomBy(dy > 0 ? 0.9 : 1.1);
     });
     // Mantener pulsado y arrastrar mueve la vista para repasar lo ya explorado; cualquier acción la recentra.
     this.input.on('pointerdown', (ptr: PointerLike) => {
+      this.cancelTravel();
       this.drag = { x: ptr.x, y: ptr.y, moved: false };
     });
     this.input.on('pointermove', (ptr: PointerLike) => {
       const d = this.drag;
-      if (!d || !ptr.isDown) return;
+      if (!ptr.isDown) {
+        // Ratón sin pulsar: se previsualiza el camino hasta la casilla señalada.
+        this.hoverTile = this.world.screenToTile(ptr.x, ptr.y);
+        return;
+      }
+      if (!d) return;
       const dx = ptr.x - d.x;
       const dy = ptr.y - d.y;
       if (!d.moved && Math.hypot(dx, dy) < 8) return;
@@ -135,8 +165,16 @@ export class GameScene extends Phaser.Scene {
       this.drag = null;
       document.getElementById('game')?.classList.remove('panning');
     };
-    this.input.on('pointerup', endDrag);
+    this.input.on('pointerup', (ptr: PointerLike) => {
+      const d = this.drag;
+      endDrag();
+      // Un toque o clic corto (sin arrastrar) es una orden sobre la casilla pulsada.
+      if (d && !d.moved && (ptr.button ?? 0) === 0) this.onTap(this.world.screenToTile(ptr.x, ptr.y));
+    });
     this.input.on('pointerupoutside', endDrag);
+    this.input.on('gameout', () => {
+      this.hoverTile = null;
+    });
     this.scale.on('resize', () => this.rebuildTexture());
     this.events.on('update', () => this.tick());
     this.hud.onAction = (a) => this.perform(a);
@@ -145,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.forge.onPurify = (npcId, itemId) => void this.dispatch({ type: 'Purify', npcId, itemId });
     this.shop.onBuy = (npcId, offerId) => void this.dispatch({ type: 'Buy', npcId, offerId });
     this.affinityBox.onChoose = (affinity) => void this.dispatch({ type: 'ChooseAffinity', affinity });
+    this.menu.onRestart = () => this.requestRestart();
     this.rebuildTexture();
     this.startRun(this.initialSeed);
   }
@@ -170,6 +209,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.ctx || !this.tex || !this.state) return;
     // La elección de afinidad espera a que acabe el diálogo del jefe.
     if (!this.dialogue.isOpen || !this.state.affinityOffer) this.affinityBox.sync(this.state);
+    if (this.travel && now() >= this.travel.nextAt) this.stepTravel();
+    this.updateHover();
     this.world.render(this.ctx, now(), this.overlay());
     this.tex.refresh();
     const panned = this.world.isPanned;
@@ -183,6 +224,11 @@ export class GameScene extends Phaser.Scene {
   private startRun(seed: number): void {
     this.state = createGame({ seed });
     this.aim = null;
+    this.travel = null;
+    this.hoverFor = null;
+    this.world.setHover(null);
+    this.chords.clear();
+    this.confirm.close();
     this.hud.notice('');
     this.world.reset(this.state, now());
     this.menu.close();
@@ -201,16 +247,50 @@ export class GameScene extends Phaser.Scene {
 
   // ---------- Entrada ----------
 
+  /** Nombre de la tecla en minúsculas; el teclado numérico va aparte (`np1`…) para que 1-6 sigan siendo las técnicas. */
+  private keyOf(e: KeyboardEvent): string {
+    if (e.code.startsWith('Numpad') && /^[0-9]$/.test(e.code.slice(6))) return `np${e.code.slice(6)}`;
+    return e.key.toLowerCase();
+  }
+
   private onKey(e: KeyboardEvent): void {
-    let key = e.key.toLowerCase();
-    // El teclado numérico va aparte para que 1-6 sigan siendo las técnicas.
-    if (e.code.startsWith('Numpad') && /^[0-9]$/.test(e.code.slice(6))) key = `np${e.code.slice(6)}`;
+    const key = this.keyOf(e);
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'tab', 'home', 'end', 'pageup', 'pagedown'].includes(key)) e.preventDefault();
+    // Dos flechas casi a la vez forman UNA diagonal (un solo turno). Solo en juego: en menús las flechas no esperan.
+    const dir = KEY_DIRS[key];
+    if (dir && isCardinal(dir) && this.state.status === 'playing' && !this.modalOpen) {
+      this.chords.press(key, dir, e.repeat);
+      return;
+    }
+    this.chords.flush();
     this.handleKey(key);
+  }
+
+  /** ¿Hay una ventana encima del mapa (menú, diálogo, tienda...)? */
+  private get modalOpen(): boolean {
+    return this.menu.isOpen || this.dialogue.isOpen || this.affinityBox.isOpen || this.choice.isOpen || this.forge.isOpen || this.shop.isOpen || this.confirm.isOpen;
+  }
+
+  /** Reiniciar: si hay una expedición en marcha pregunta antes de abandonarla; sin nada que perder (turno 0 o ya terminada) reinicia sin más. */
+  private requestRestart(): void {
+    if (this.state.status !== 'playing' || this.state.turn === 0) {
+      this.startRun((Date.now() >>> 0) || 1);
+      return;
+    }
+    this.menu.close();
+    this.confirm.open({
+      title: '¿Reiniciar la expedición?',
+      text: `Perderás el progreso de esta partida (sector ${this.state.floor}, nivel ${this.state.player.level}, turno ${this.state.turn}).`,
+      yes: 'Sí, reiniciar',
+      no: 'No, seguir',
+      onYes: () => this.startRun((Date.now() >>> 0) || 1),
+    });
   }
 
   /** Una tecla (física o de la cruceta táctil) ya en minúsculas. */
   private handleKey(key: string): void {
+    if (this.confirm.onKey(key)) return;
+    this.cancelTravel();
     if (this.dialogue.onKey(key)) return;
     if (this.affinityBox.onKey(key)) return;
     if (this.choice.onKey(key)) return;
@@ -219,7 +299,7 @@ export class GameScene extends Phaser.Scene {
     if (this.menu.onKey(key)) return;
 
     if (key === 'r') {
-      this.startRun((Date.now() >>> 0) || 1);
+      this.requestRestart();
       return;
     }
     if (key === '+' || key === '=') return this.world.zoomBy(1.15);
@@ -239,12 +319,7 @@ export class GameScene extends Phaser.Scene {
     const dir = KEY_DIRS[key];
     const slot = TECHNIQUE_SLOT_KEYS.indexOf(key);
     if (dir) {
-      this.facing = dir;
-      const to = { x: this.state.player.pos.x + dir.x, y: this.state.player.pos.y + dir.y };
-      const enemy = this.state.enemies.find((en) => equals(en.pos, to));
-      if (enemy) this.dispatch({ type: 'BasicAttack', target: to });
-      else if (this.bumpTarget(to)) this.dispatch({ type: 'Interact', target: to });
-      else this.dispatch({ type: 'Move', dx: dir.x, dy: dir.y });
+      this.moveOrAct(dir);
     } else if (key === ' ' || key === 'np5') {
       this.dispatch({ type: 'Wait' });
     } else if (key === 'x' || key === 'enter') {
@@ -262,10 +337,21 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Un paso hacia `dir`: ataca si hay un enemigo, interactúa si hay un cofre, PNJ o puerta con candado, y si no, camina. */
+  private moveOrAct(dir: Vec): boolean {
+    this.facing = dir;
+    const to = { x: this.state.player.pos.x + dir.x, y: this.state.player.pos.y + dir.y };
+    const enemy = this.state.enemies.find((en) => equals(en.pos, to));
+    if (enemy) return this.dispatch({ type: 'BasicAttack', target: to });
+    if (this.bumpTarget(to)) return this.dispatch({ type: 'Interact', target: to });
+    return this.dispatch({ type: 'Move', dx: dir.x, dy: dir.y });
+  }
+
   /** Órdenes dadas con el ratón o el dedo desde el panel: equivalen a su tecla. */
   private perform(a: UiAction): void {
     if (a.type === 'key') return this.handleKey(a.key);
-    if (this.state.status !== 'playing' || this.menu.isOpen || this.dialogue.isOpen || this.affinityBox.isOpen || this.choice.isOpen || this.forge.isOpen || this.shop.isOpen) return;
+    this.cancelTravel();
+    if (this.state.status !== 'playing' || this.modalOpen) return;
     if (this.aim) {
       this.aim = null;
       this.refreshHud();
@@ -444,6 +530,7 @@ export class GameScene extends Phaser.Scene {
       return false;
     }
     this.state = result.state;
+    this.lastEvents = result.events as GameEvent[];
     this.world.resetPan();
     this.hud.notice('');
     this.world.setState(this.state, result.events as GameEvent[], now());
@@ -477,6 +564,136 @@ export class GameScene extends Phaser.Scene {
     if (learned && getTechnique(learned.techniqueId)?.learnable && !this.dialogue.isOpen) {
       this.menu.open(this.state, 'tecnicas', learned.techniqueId);
     }
+  }
+
+  // ---------- Ratón y toque ----------
+
+  /** Enemigo que el jugador ve en `tile` (los que están en la niebla no se delatan al señalarlos). */
+  private visibleEnemyAt(tile: Vec): GameState['enemies'][number] | undefined {
+    const visible = visibleCells(this.state);
+    return this.state.enemies.find((e) => equals(e.pos, tile) && canSeeEntity(this.state, visible, e.pos));
+  }
+
+  /**
+   * Clic o toque corto sobre una casilla. Con el modo de apuntado activo sirve para elegir objetivo (un segundo clic en
+   * el mismo sitio confirma); si no, es la orden «ve ahí»: junto a ti es un paso (o ataque, o interacción) como con
+   * las flechas, y lejos es un viaje automático por lo ya explorado.
+   */
+  private onTap(tile: Vec): void {
+    if (this.state.status !== 'playing' || this.modalOpen) return;
+    if (!inBounds(this.state.map, tile)) return;
+    if (this.aim) {
+      this.tapAim(tile);
+      return;
+    }
+    const { player, map } = this.state;
+    this.world.resetPan();
+    if (equals(tile, player.pos)) {
+      // Tocarte a ti mismo: usa lo que haya bajo tus pies (la escalera) o espera un turno.
+      if (terrainAt(map, tile) === 'exit') void this.dispatch({ type: 'Interact', target: tile });
+      else void this.dispatch({ type: 'Wait' });
+      return;
+    }
+    const enemy = this.visibleEnemyAt(tile);
+    // Arma de alcance (látigo, lanza) con el enemigo a tiro: se ataca desde donde estás.
+    if (enemy && chebyshev(tile, player.pos) > 1 && previewAttack(this.state, tile).valid) {
+      this.facing = { x: Math.sign(tile.x - player.pos.x), y: Math.sign(tile.y - player.pos.y) };
+      void this.dispatch({ type: 'BasicAttack', target: tile });
+      return;
+    }
+    if (chebyshev(tile, player.pos) === 1 && stepOk(map, player.pos, tile)) {
+      void this.moveOrAct({ x: tile.x - player.pos.x, y: tile.y - player.pos.y });
+      return;
+    }
+    const path = knownPath(this.state, tile);
+    if (!path || path.length === 0) {
+      this.hud.notice(this.state.explored[tile.y * map.width + tile.x] ? 'No hay un camino conocido hasta ahí.' : 'Esa zona aún no la has explorado.');
+      return;
+    }
+    this.travel = { goal: tile, enemyId: enemy?.id, nextAt: 0 };
+    this.stepTravel();
+  }
+
+  /** En el modo de apuntado, un clic mueve el cursor; repetirlo sobre el mismo objetivo lo confirma. */
+  private tapAim(tile: Vec): void {
+    const a = this.aim as Aim;
+    const pos = this.state.player.pos;
+    const def = a.kind === 'technique' ? getTechnique(a.techniqueId) : undefined;
+    const lineLike = a.kind === 'reach' || def?.target.kind === 'line';
+    let cursor = tile;
+    if (lineLike) {
+      // En las de línea el clic elige la dirección (la más cercana de las ocho) desde el jugador.
+      if (equals(tile, pos)) return;
+      const ang = Math.atan2(tile.y - pos.y, tile.x - pos.x);
+      const k = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;
+      const dir = [E, SE, S, SW, W, NW, N, NE][k];
+      this.facing = dir;
+      cursor = this.step(pos, dir);
+    }
+    if (equals(cursor, a.cursor)) {
+      if (this.dispatch(this.aimCommand(a))) this.aim = null;
+    } else {
+      a.cursor = cursor;
+    }
+    this.refreshHud();
+  }
+
+  /** Da el siguiente paso del viaje, o lo termina si ya llegaste o algo cambió. */
+  private stepTravel(): void {
+    const t = this.travel;
+    if (!t) return;
+    if (this.modalOpen || this.aim || this.state.status !== 'playing') return this.cancelTravel();
+    const chased = t.enemyId ? this.state.enemies.find((e) => e.id === t.enemyId) : undefined;
+    if (t.enemyId && !chased) return this.cancelTravel();
+    const goal = chased ? chased.pos : t.goal;
+    const path = knownPath(this.state, goal);
+    if (!path || path.length === 0) return this.cancelTravel();
+    const next = path[0];
+    // Pegado al enemigo perseguido (o a uno que se ha puesto en el destino): ya basta, atacar lo decides tú.
+    if (path.length === 1 && this.state.enemies.some((e) => equals(e.pos, next))) return this.cancelTravel();
+    const before = this.state;
+    const pos = before.player.pos;
+    if (!this.moveOrAct({ x: next.x - pos.x, y: next.y - pos.y })) return this.cancelTravel();
+    const arrived = equals(this.state.player.pos, goal);
+    if (arrived || travelInterrupted(before, this.state, this.lastEvents, t.enemyId)) {
+      this.cancelTravel();
+      if (!arrived && this.state.status === 'playing') this.hud.notice('Te detienes: ha cambiado algo.');
+      return;
+    }
+    t.nextAt = now() + TRAVEL_STEP;
+  }
+
+  private cancelTravel(): void {
+    this.travel = null;
+  }
+
+  /** Previsualiza (solo con ratón) el camino hasta la casilla señalada, con marco rojo si es un enemigo. */
+  private updateHover(): void {
+    const tile = this.hoverTile;
+    const show = tile && !this.travel && !this.aim && !this.modalOpen && this.state.status === 'playing' && inBounds(this.state.map, tile) && !equals(tile, this.state.player.pos);
+    if (!show || !tile) {
+      if (this.hoverFor) {
+        this.hoverFor = null;
+        this.world.setHover(null);
+      }
+      return;
+    }
+    // Solo se recalcula si cambió la casilla señalada o el estado del juego.
+    if (this.hoverFor && this.hoverFor.state === this.state && equals(this.hoverFor.tile, tile)) return;
+    this.hoverFor = { state: this.state, tile };
+    const enemy = this.visibleEnemyAt(tile);
+    const pos = this.state.player.pos;
+    if (enemy && chebyshev(tile, pos) > 1 && previewAttack(this.state, tile).valid) {
+      this.world.setHover({ path: [tile], goal: tile, color: '#ff7a7a' });
+      return;
+    }
+    const path = chebyshev(tile, pos) === 1 && stepOk(this.state.map, pos, tile) ? [tile] : knownPath(this.state, tile);
+    if (!path || path.length === 0) {
+      this.world.setHover(null);
+      return;
+    }
+    const color = enemy ? '#ff7a7a' : this.bumpTarget(tile) ? '#ffd166' : '#ffffff';
+    this.world.setHover({ path, goal: tile, color });
   }
 
   // ---------- Presentación ----------

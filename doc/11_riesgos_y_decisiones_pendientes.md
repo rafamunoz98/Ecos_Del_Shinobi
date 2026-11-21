@@ -31,6 +31,9 @@
 8. ¿Arte propio, contratado o assets con licencia comercial?
 9. ¿Qué dispositivos móviles serán objetivo?
 10. ¿Se desea una beta privada o pública?
+11. ¿Los cinco protagonistas tendrán pasivas y equipo inicial propios, o serán solo de aspecto? (`12_ideas_y_mejoras.md` §2)
+12. ¿Hambre y comida? Recomendación: no; usar «campanas de alarma» como presión de ritmo.
+13. ¿Ciclo de ventaja entre las cinco afinidades? Si sí, uno propio y distinto del de la serie original.
 
 ## 4. Registro de decisiones
 | Fecha | Decisión | Estado |
@@ -40,3 +43,6 @@
 | 2026-11-14 | Progresión profunda y transformaciones | Confirmada |
 | 2026-11-14 | Monetización se decide más adelante | Confirmada |
 | 2026-11-14 | Phaser + TypeScript como stack propuesto | Provisional |
+| 2026-11-21 | Un protagonista distinto por afinidad inicial (rubio/Vendaval, moreno de melena larga/Ascua, pelo blanco/Rayo, mujer de pelo azul/Marea, mujer de pelo rosa/Piedra), con diseños y nombres originales | Confirmada |
+| 2026-11-21 | Una diagonal cuesta un solo turno; dos flechas a la vez forman una diagonal | Confirmada |
+| 2026-11-21 | Reiniciar pide confirmación; mover, atacar e interactuar también con clic o toque | Confirmada |

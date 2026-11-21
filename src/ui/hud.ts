@@ -1,6 +1,7 @@
 import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_NAMES } from '../content/describe';
 import { ENEMIES } from '../content/enemies';
+import { heroFor } from '../content/heroes';
 import { NOTES, getRelic } from '../content/story';
 import { KEYS, getEquipment } from '../content/items';
 import { getTechnique } from '../content/techniques';
@@ -91,7 +92,8 @@ export class Hud {
     const weapon = getWeapon(p.equipment.weapon);
     const armor = getEquipment(p.equipment.armor);
     el('meta').textContent = [
-      `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`,
+      `${heroFor(p.affinity).name} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`,
+      `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn}`,
       `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : '—'}`,
       `Vestimenta: ${armor && p.equipment.armor ? `${gearLabel(p.equipment.armor, 0, state)} (+${armor.bonus + (getMod(p.equipment.armor)?.defense ?? 0)})` : '—'}`,
       `Semilla ${state.seed}`,
@@ -139,7 +141,7 @@ export class Hud {
     log.scrollTop = log.scrollHeight;
 
     el('help').textContent =
-      'WASD/flechas: mover · Q E Z C (o teclado numérico): diagonales · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición';
+      'WASD/flechas: mover (dos flechas a la vez = diagonal) · Q E Z C (o teclado numérico): diagonales · Clic o toque: mover, atacar o interactuar; en una casilla lejana, viaje automático · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición (pide confirmación)';
     this.drawMinimap(state);
 
     this.renderResult(state);

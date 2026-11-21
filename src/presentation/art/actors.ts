@@ -1,6 +1,8 @@
+import type { Hero } from '../../content/heroes';
 import type { WeaponKind } from '../../content/weapons';
 import { echoWisp, explosiveDoll, hollowMonk, sealTablet } from './bosses';
 import { drawShinobiEnemy } from './shinobi';
+import { type HeroView, drawHeroHairBehind, drawHeroHead } from './heroes';
 import { type Ctx, INK, circle, ellipse, radial, roundRectPath, vGrad } from './draw';
 
 /**
@@ -42,6 +44,8 @@ function shadow(ctx: Ctx, rx = 0.26, ry = 0.08, a = 0.36, y = 0.35): void {
 
 export interface NinjaOptions extends ActorPose {
   dir: Dir;
+  /** Protagonista concreto (según su afinidad inicial). Sin él se dibuja el shinobi encapuchado genérico. */
+  hero?: Hero;
   weapon?: WeaponKind;
   protected?: boolean;
 }
@@ -53,8 +57,15 @@ const RED = '#d62839';
 const RED_D = '#8f1522';
 const SKIN = '#e9c39b';
 
+const side0 = (d: Dir): boolean => d === 'left' || d === 'right';
+
 export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
   const { t, walk, phase } = o;
+  const hero = o.hero;
+  const pal = hero
+    ? { main: hero.tunic.main, light: hero.tunic.light, dark: hero.tunic.dark, trim: hero.trim.main, trimDark: hero.trim.dark }
+    : { main: NAVY, light: NAVY_L, dark: NAVY_D, trim: RED, trimDark: RED_D };
+  const view: HeroView = o.dir === 'up' ? 'back' : side0(o.dir) ? 'side' : 'front';
   ctx.save();
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
   shadow(ctx);
@@ -79,18 +90,19 @@ export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
       ctx.lineTo(sx + dirX * (0.26 + lag), 0.13 + wave(i + 3, 0.05));
       ctx.bezierCurveTo(sx + dirX * 0.16, 0.08 + wave(i + 4, 0.03), sx + dirX * 0.08, 0.06, sx, 0.05 + sy);
       ctx.closePath();
-      ctx.fillStyle = vGrad(ctx, -0.04, 0.14, RED, RED_D);
+      ctx.fillStyle = vGrad(ctx, -0.04, 0.14, pal.trim, pal.trimDark);
       ctx.fill();
       stroke(ctx, 0.035);
     });
   };
+  if (hero) drawHeroHairBehind(ctx, hero, view, t, walk);
   if (o.dir !== 'up') scarf();
 
   // Piernas.
   for (const sx of [-1, 1]) {
     const lift = sx * swing;
     roundRectPath(ctx, sx * 0.085 - 0.06, 0.18 + (lift > 0 ? -lift : 0), 0.12, 0.17 + lift * 0.4, 0.04);
-    ctx.fillStyle = vGrad(ctx, 0.18, 0.35, NAVY, NAVY_D);
+    ctx.fillStyle = vGrad(ctx, 0.18, 0.35, pal.main, pal.dark);
     ctx.fill();
     stroke(ctx);
     // Botín.
@@ -115,17 +127,17 @@ export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
 
   // Torso.
   roundRectPath(ctx, -0.17, -0.03, 0.34, 0.27, 0.08);
-  ctx.fillStyle = vGrad(ctx, -0.03, 0.24, NAVY_L, NAVY_D);
+  ctx.fillStyle = vGrad(ctx, -0.03, 0.24, pal.light, pal.dark);
   ctx.fill();
   stroke(ctx);
   // Cinturón y nudo.
-  ctx.fillStyle = RED;
+  ctx.fillStyle = pal.trim;
   ctx.fillRect(-0.17, 0.14, 0.34, 0.055);
   ctx.strokeStyle = INK;
   ctx.lineWidth = 0.025;
   ctx.strokeRect(-0.17, 0.14, 0.34, 0.055);
   if (o.dir === 'down') {
-    ctx.fillStyle = RED_D;
+    ctx.fillStyle = pal.trimDark;
     circle(ctx, 0.0, 0.167, 0.032);
     ctx.fill();
     // Solapa cruzada.
@@ -137,6 +149,21 @@ export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
     ctx.stroke();
   }
 
+  if (hero?.female) {
+    // Falda corta de la túnica.
+    ctx.beginPath();
+    ctx.moveTo(-0.17, 0.18);
+    ctx.lineTo(0.17, 0.18);
+    ctx.lineTo(0.215, 0.3);
+    ctx.quadraticCurveTo(0, 0.325, -0.215, 0.3);
+    ctx.closePath();
+    ctx.fillStyle = vGrad(ctx, 0.18, 0.32, pal.main, pal.dark);
+    ctx.fill();
+    stroke(ctx, 0.035);
+    ctx.fillStyle = pal.trim;
+    ctx.fillRect(-0.17, 0.14, 0.34, 0.055);
+  }
+
   // Brazos.
   const armY = 0.06;
   const arm = (sx: number, ang: number): void => {
@@ -144,7 +171,7 @@ export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
     ctx.translate(sx * 0.19, armY);
     ctx.rotate(ang);
     roundRectPath(ctx, -0.045, -0.03, 0.09, 0.17, 0.045);
-    ctx.fillStyle = NAVY;
+    ctx.fillStyle = pal.main;
     ctx.fill();
     stroke(ctx, 0.04);
     ctx.fillStyle = SKIN;
@@ -161,66 +188,71 @@ export function drawNinja(ctx: Ctx, o: NinjaOptions): void {
     arm(1, -0.12 - swing * 3);
   }
 
-  // Cabeza con capucha.
-  const hy = -0.15;
-  ctx.beginPath();
-  ctx.arc(0, hy, 0.215, 0, Math.PI * 2);
-  ctx.fillStyle = radial(ctx, -0.07, hy - 0.09, 0.02, 0.26, NAVY_L, NAVY_D);
-  ctx.fill();
-  stroke(ctx, 0.05);
-
-  if (o.dir !== 'up') {
-    // Abertura de la capucha con los ojos (hacia el lado al que mira).
-    const fx = side ? 0.06 : 0;
-    const fw = side ? 0.12 : 0.15;
-    roundRectPath(ctx, fx - fw, hy - 0.075, fw * 2 + (side ? 0.07 : 0), 0.105, 0.05);
-    ctx.fillStyle = SKIN;
+  if (hero) {
+    drawHeroHead(ctx, hero, view, t, -0.15);
+  } else {
+    // Cabeza con capucha.
+    const hy = -0.15;
+    ctx.beginPath();
+    ctx.arc(0, hy, 0.215, 0, Math.PI * 2);
+    ctx.fillStyle = radial(ctx, -0.07, hy - 0.09, 0.02, 0.26, pal.light, pal.dark);
     ctx.fill();
-    stroke(ctx, 0.03);
-    const eyes = side ? [0.1] : [-0.07, 0.07];
-    for (const ex of eyes) {
-      ctx.fillStyle = '#ffffff';
-      ellipse(ctx, ex, hy - 0.022, 0.038, 0.042);
+    stroke(ctx, 0.05);
+
+    if (o.dir !== 'up') {
+      // Abertura de la capucha con los ojos (hacia el lado al que mira).
+      const fx = side ? 0.06 : 0;
+      const fw = side ? 0.12 : 0.15;
+      roundRectPath(ctx, fx - fw, hy - 0.075, fw * 2 + (side ? 0.07 : 0), 0.105, 0.05);
+      ctx.fillStyle = SKIN;
       ctx.fill();
-      ctx.fillStyle = INK;
-      circle(ctx, ex + (side ? 0.012 : 0), hy - 0.016, 0.024);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      circle(ctx, ex + (side ? 0.02 : 0.008), hy - 0.026, 0.009);
+      stroke(ctx, 0.03);
+      const eyes = side ? [0.1] : [-0.07, 0.07];
+      for (const ex of eyes) {
+        ctx.fillStyle = '#ffffff';
+        ellipse(ctx, ex, hy - 0.022, 0.038, 0.042);
+        ctx.fill();
+        ctx.fillStyle = INK;
+        circle(ctx, ex + (side ? 0.012 : 0), hy - 0.016, 0.024);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        circle(ctx, ex + (side ? 0.02 : 0.008), hy - 0.026, 0.009);
+        ctx.fill();
+      }
+      // Máscara bajo la abertura.
+      ctx.fillStyle = pal.dark;
+      roundRectPath(ctx, fx - fw - 0.005, hy + 0.03, fw * 2 + (side ? 0.08 : 0.01), 0.1, 0.05);
       ctx.fill();
     }
-    // Máscara bajo la abertura.
-    ctx.fillStyle = NAVY_D;
-    roundRectPath(ctx, fx - fw - 0.005, hy + 0.03, fw * 2 + (side ? 0.08 : 0.01), 0.1, 0.05);
-    ctx.fill();
-  }
-  // Banda de la frente con placa.
-  ctx.fillStyle = RED;
-  ctx.beginPath();
-  ctx.moveTo(-0.205, hy - 0.1);
-  ctx.quadraticCurveTo(0, hy - 0.16, 0.205, hy - 0.1);
-  ctx.lineTo(0.2, hy - 0.06);
-  ctx.quadraticCurveTo(0, hy - 0.12, -0.2, hy - 0.06);
-  ctx.closePath();
-  ctx.fill();
-  stroke(ctx, 0.03);
-  if (o.dir === 'down') {
-    roundRectPath(ctx, -0.055, hy - 0.125, 0.11, 0.055, 0.015);
-    ctx.fillStyle = '#d8dde8';
-    ctx.fill();
-    stroke(ctx, 0.025);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 0.02;
+    // Banda de la frente con placa.
+    ctx.fillStyle = pal.trim;
     ctx.beginPath();
-    ctx.arc(0, hy - 0.097, 0.014, 0.4, Math.PI * 1.8);
+    ctx.moveTo(-0.205, hy - 0.1);
+    ctx.quadraticCurveTo(0, hy - 0.16, 0.205, hy - 0.1);
+    ctx.lineTo(0.2, hy - 0.06);
+    ctx.quadraticCurveTo(0, hy - 0.12, -0.2, hy - 0.06);
+    ctx.closePath();
+    ctx.fill();
+    stroke(ctx, 0.03);
+    if (o.dir === 'down') {
+      roundRectPath(ctx, -0.055, hy - 0.125, 0.11, 0.055, 0.015);
+      ctx.fillStyle = '#d8dde8';
+      ctx.fill();
+      stroke(ctx, 0.025);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 0.02;
+      ctx.beginPath();
+      ctx.arc(0, hy - 0.097, 0.014, 0.4, Math.PI * 1.8);
+      ctx.stroke();
+    }
+    // Brillo de la capucha.
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 0.03;
+    ctx.beginPath();
+    ctx.arc(0, hy, 0.17, Math.PI * 1.1, Math.PI * 1.45);
     ctx.stroke();
+
   }
-  // Brillo de la capucha.
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 0.03;
-  ctx.beginPath();
-  ctx.arc(0, hy, 0.17, Math.PI * 1.1, Math.PI * 1.45);
-  ctx.stroke();
 
   if (o.dir === 'up') scarf();
 
@@ -248,7 +280,7 @@ function drawHeldWeapon(ctx: Ctx, kind: WeaponKind, side: boolean): void {
   const hy = 0.2;
   ctx.translate(hx, hy);
   if (kind === 'blade') {
-    ctx.rotate(side ? -1.15 : -0.5);
+    ctx.rotate(side ? -1.15 : 0.45);
     roundRectPath(ctx, -0.02, -0.04, 0.04, 0.09, 0.015);
     ctx.fillStyle = '#5b3a24';
     ctx.fill();
@@ -282,7 +314,7 @@ function drawHeldWeapon(ctx: Ctx, kind: WeaponKind, side: boolean): void {
     ctx.fill();
     stroke(ctx, 0.022);
   } else {
-    ctx.rotate(side ? -1.35 : -0.25);
+    ctx.rotate(side ? -1.35 : 0.22);
     ctx.strokeStyle = '#8a9a52';
     ctx.lineWidth = 0.04;
     ctx.lineCap = 'round';

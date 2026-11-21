@@ -10,6 +10,7 @@ import { TECHNIQUES, affinitiesOf, getTechnique, techniquesFor, type TechniqueDe
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { effectiveDefense, effectivePower, weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
+import { heroFor } from '../content/heroes';
 import { drawNinja } from '../presentation/art/actors';
 import { iconDataUrl } from '../presentation/art/icons';
 import { drawMinimap } from './minimap';
@@ -65,6 +66,8 @@ export class Menu {
   private state: GameState | null = null;
   private readonly root: HTMLElement;
   actions: MenuActions;
+  /** Pide reiniciar la expedición (la escena pregunta antes de hacerlo). */
+  onRestart: () => void = () => undefined;
 
   constructor(actions: MenuActions) {
     this.actions = actions;
@@ -168,9 +171,9 @@ export class Menu {
       c.fill();
       c.translate(110, 110);
       c.scale(170, 170);
-      drawNinja(c, { t: 0.3, walk: 0, phase: 0, dir: 'down', weapon: getWeapon(p.equipment.weapon)?.kind, protected: p.statuses.some((x) => x.id === 'protegido') });
+      drawNinja(c, { t: 0.3, walk: 0, phase: 0, dir: 'down', hero: heroFor(p.affinity), weapon: getWeapon(p.equipment.weapon)?.kind, protected: p.statuses.some((x) => x.id === 'protegido') });
     }
-    left.append(cv, h('h3', undefined, 'Shinobi errante'), h('div', 'sub', `Nivel ${p.level} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`));
+    left.append(cv, h('h3', undefined, heroFor(p.affinity).name), h('div', 'epithet', heroFor(p.affinity).epithet), h('div', 'sub', `Nivel ${p.level} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`));
     const aff = h('div', 'aff');
     aff.append(icon(p.affinity, 40), h('span', undefined, `Afinidad ${AFFINITY_NAMES[p.affinity]}`));
     left.append(aff);
@@ -232,6 +235,11 @@ export class Menu {
       const rel = getRelic(id);
       if (rel) right.append(this.row(rel.id, rel.name, rel.description));
     }
+
+    const restart = h('button', 'close restart', '↻ Reiniciar expedición');
+    restart.type = 'button';
+    restart.addEventListener('click', () => this.onRestart());
+    right.append(h('h4', undefined, 'Partida'), restart);
 
     right.append(h('h4', undefined, 'Sigilo'));
     right.append(h('div', 'muted', 'Los arbustos y las puertas cerradas tapan la visión. Dentro de un arbusto solo te ven desde una casilla, pero tú también ves menos. Atacar a un enemigo que no te ha visto hace el doble de daño. Sube un nivel por sector, y solo si derrotas a todos sus enemigos.'));

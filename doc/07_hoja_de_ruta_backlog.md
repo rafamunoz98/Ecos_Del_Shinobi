@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (20-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice), el **Hito 6.5** (botín, llaves y forja) el **Hito 6.6** (ampliación: 6 sectores, jefes shinobi, objetos sin identificar, tienda y nuevos controles) y el **Hito 6.7** (ajustes tras probarlo: jefes rediseñados, segunda afinidad, 6 técnicas, tronco señuelo, identificación por tiempo). Siguiente: Hito 7 (progresión permanente).
+**Estado (21-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice), el **Hito 6.5** (botín, llaves y forja) el **Hito 6.6** (ampliación: 6 sectores, jefes shinobi, objetos sin identificar, tienda y nuevos controles) el **Hito 6.7** (ajustes tras probarlo: jefes rediseñados, segunda afinidad, 6 técnicas, tronco señuelo, identificación por tiempo) y el **Hito 6.8** (protagonista por afinidad, diagonal en un turno, clic/toque, confirmación al reiniciar). Siguiente: Hito 7 (progresión permanente).
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*
@@ -121,6 +121,15 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 **Aceptación:** los dos jefes juegan distinto y exigen leer sus señales; una expedición ofrece decisiones de build más tempranas. *(261 pruebas automáticas; comprobado en Chromium de escritorio y móvil. Simulaciones de duelo con un bot que falla el 25 % de las esquivas: Sōkan ≈ 68 % de victorias a nivel 4 y Yūgiri ≈ 88 % a nivel 6, con 2 pociones de sanación.)*
 **Pendiente de decidir con el equipo:** equilibrio fino de los jefes con jugadores reales (Sōkan podría resultar duro como primer jefe), y qué técnicas debe enseñar cada jefe además de la afinidad nueva.
 
+## Hito 6.8 — Ajustes tras probar el 6.7 **[Completado]**
+- [x] La diagonal cuesta un solo turno: el motor ya lo cumplía (verificado), el fallo era que dos flechas pulsadas a la vez daban dos movimientos; ahora se fusionan en una diagonal (`presentation/chords.ts`).
+- [x] **Un protagonista distinto por afinidad**: Ren Sorae (Vendaval, rubio), Jūrō Kurobane (Ascua, moreno de melena larga), Tōma Shirasagi (Rayo, pelo blanco), Mizuna Aoyagi (Marea, mujer de pelo azul) y Momoka Iwase (Piedra, mujer de pelo rosa). Originales; nombre y apodo en el HUD, el menú y el registro inicial.
+- [x] **Confirmación al reiniciar** (R o botón del menú) cuando hay una partida en curso.
+- [x] **Mover, atacar e interactuar con clic o toque**, con viaje automático interrumpible y camino previsto con el ratón (`core/travel.ts`).
+- [x] Lista de ideas y mejoras basada en Pixel Dungeon, el género ninja y otros juegos: `12_ideas_y_mejoras.md`.
+**Aceptación:** una diagonal gasta un turno en teclado, clic y táctil; cada afinidad se reconoce a simple vista; no se pierde una partida por pulsar R sin querer. *(289 pruebas automáticas; comprobado en Chromium de escritorio y móvil.)*
+**Pendiente de decidir con el equipo:** si los protagonistas tendrán pasivas propias (ver `12_ideas_y_mejoras.md` §2), y falta un gesto para inspeccionar en el móvil (pulsación larga), ya que tocar ahora actúa.
+
 ## Hito 7 — Progresión
 - [ ] Árbol de técnicas.
 - [ ] Desbloqueos permanentes.
@@ -148,7 +157,7 @@ Multijugador, PvP, ranking online, tienda con dinero real, cuentas, mundo abiert
 - Economía: monedas escasas a propósito; vigilar que la tienda (tras Sōkan y Yūgiri) ofrezca decisiones reales y no sea inalcanzable.
 - Grimorio: con 6 ranuras y dos afinidades (5 técnicas por nivel cada una), el grimorio se llenará en la segunda zona; valorar si hacen falta más ranuras desbloqueables en el Hito 7.
 - Un tirador que retrocede puede alargar la persecución si el jugador no tiene kiro; valorar si debe dejar de huir al quedarse sin espacio o tras N retrocesos.
-- Controles táctiles: hay cruceta y barra de acciones pulsables; falta pulirlos con pruebas en dispositivos reales (Hito 8).
+- Controles táctiles: hay cruceta, barra de acciones pulsables y toque sobre el mapa (mover, atacar, viajar); faltan zoom con pellizco, pulsación larga para inspeccionar y pruebas en dispositivos reales (Hito 8).
 - Arte: ya es propio y procedural (ver `05_direccion_artistica_audio.md`). Faltan más fotogramas de animación, altar, sprites de jefe y audio.
 - Sigilo: revisar con jugadores si el alcance de percepción (8) y las 8 rondas de alerta son justos; los arbustos podrían tener un coste adicional.
 - Mejora de armas: implementada (mesas de forja, Hito 6.5). La fabricación desde cero y la alquimia siguen sin decidir.

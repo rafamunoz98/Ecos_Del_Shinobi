@@ -26,6 +26,18 @@ Cada afinidad tiene **ocho técnicas propias**: cinco se desbloquean por nivel (
 
 Al empezar cada expedición se sortea una de las cinco (con la semilla) y no hay ninguna desbloqueada de antemano. Cada afinidad **reconoce de entrada** una poción y un pergamino (ver §6.3).
 
+**Protagonistas (Hito 6.8).** El shinobi cambia con la afinidad inicial (no con la segunda). Son originales; solo coinciden con lo pedido en el color del pelo. Datos en `src/content/heroes.ts`.
+
+| Afinidad | Protagonista | Apodo | Rasgos |
+|---|---|---|---|
+| Vendaval | Ren Sorae | el Viento Inquieto | Rubio, pelo en pinchos, gafas de vuelo en la frente, túnica verde azulada |
+| Ascua | Jūrō Kurobane | la Brasa Callada | Moreno, melena larga, túnica carmesí, bufanda ámbar |
+| Rayo | Tōma Shirasagi | el Relámpago Blanco | Pelo blanco en pinchos con mechón lateral, pasador de rayo, túnica índigo, bufanda dorada |
+| Marea | Mizuna Aoyagi | la Calma del Oleaje | Mujer, pelo azul largo con trenza lateral, perla en el pelo, túnica azul marino |
+| Piedra | Momoka Iwase | el Muro Florecido | Mujer, pelo rosa en dos moños con cuentas, túnica ocre, bufanda verde musgo |
+
+Por ahora son solo de aspecto y presentación (nombre en el HUD, el menú y el registro); las **pasivas propias** se proponen en `12_ideas_y_mejoras.md` §2.
+
 ### 2.1 Técnicas **[Implementado]**
 Fórmula de daño: `max(1, poder de la técnica + bonificación de nivel − defensa)`. La bonificación de nivel es `+1 cada dos niveles` (nivel 1 = 0). "Ignora defensa" no resta la defensa del objetivo. Las líneas y rayos funcionan en las 8 direcciones.
 
