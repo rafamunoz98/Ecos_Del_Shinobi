@@ -8,11 +8,11 @@ import { generateLevel } from '../dungeon/generator';
 import { levelFromRoom } from '../dungeon/ascii';
 import { computeVisible } from './grid';
 import { visionRadiusOf } from './sight';
-import { shuffleAppearances, STARTING_KNOWN } from '../content/arcana';
+import { ALWAYS_KNOWN, shuffleAppearances, STARTING_KNOWN } from '../content/arcana';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -59,6 +59,7 @@ export function createGame(opts: NewGameOptions): GameState {
       maxKiro: BALANCE.player.maxKiro,
       power: BALANCE.player.power,
       defense: BALANCE.player.defense,
+      strength: BALANCE.player.strength,
       level: 1,
       xp: 0,
       affinity,
@@ -66,11 +67,11 @@ export function createGame(opts: NewGameOptions): GameState {
       tier2: 0,
       techniques: techniquesFor(affinity, 1),
       grimoire: [],
-      weapons: ['tanto_gastado'],
+      weapons: [],
       armors: [],
-      identified: ['tanto_gastado'],
+      identified: [],
       wear: {},
-      known: [...STARTING_KNOWN[affinity]],
+      known: [...ALWAYS_KNOWN, ...STARTING_KNOWN[affinity]],
       notes: [],
       relics: [],
       inventory: { shuriken: 5 },
@@ -78,7 +79,7 @@ export function createGame(opts: NewGameOptions): GameState {
       shards: 0,
       keys: [],
       weaponLevels: {},
-      equipment: { weapon: 'tanto_gastado', armor: null },
+      equipment: { weapon: null, armor: null },
       statuses: [],
     },
     enemies: level.enemies,

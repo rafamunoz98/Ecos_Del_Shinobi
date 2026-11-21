@@ -138,12 +138,12 @@ describe('equipo', () => {
       });
       const r = applyCommand(s, interact({ x: 2, y: 1 }));
       for (const w of r.state.player.weapons) seen.add(w);
-      expect(r.state.player.equipment.weapon).toBe('tanto_gastado');
-      expect(r.state.player.weapons.length).toBeLessThanOrEqual(2);
+      expect(r.state.player.equipment.weapon).toBeNull(); // sigue a puños
+      expect(r.state.player.weapons.length).toBeLessThanOrEqual(1);
     }
     expect(seen.size).toBeGreaterThan(3);
     const owned = makeGame(['#####', '#@C.#', '#####'], (g) => {
-      g.player.weapons = ['tanto_gastado', 'kunai_de_hierro', 'latigo_de_cadena'];
+      g.player.weapons = ['kunai_de_hierro', 'latigo_de_cadena'];
     });
     for (let seed = 1; seed <= 100; seed++) {
       owned.rngState = seed;

@@ -19,22 +19,32 @@ export interface WeaponDef {
   bonus: number;
   /** Alcance en casillas (1 = adyacente). */
   reach: number;
+  /** Fuerza mínima para empuñarla; cada nivel de forja la reduce en 1 (mínimo 1). */
+  req: number;
   description: string;
 }
 
+/** Sin arma equipada peleas a puños: ataque adyacente sin bonificación, y no exige fuerza. */
+export const FISTS_ID = 'punos';
+export const FISTS: WeaponDef = { id: FISTS_ID, name: 'Puños', kind: 'blade', bonus: 0, reach: 1, req: 0, description: 'Sin arma: golpeas a un enemigo adyacente con los puños.' };
+
 export const WEAPONS: Record<string, WeaponDef> = {
-  tanto_gastado: { id: 'tanto_gastado', name: 'Tanto gastado', kind: 'blade', bonus: 0, reach: 1, description: 'Tu hoja de entrenamiento. Golpea a un enemigo adyacente.' },
-  kunai_de_hierro: { id: 'kunai_de_hierro', name: 'Kunai de hierro', kind: 'blade', bonus: 1, reach: 1, description: 'Hoja corta y equilibrada. +1 de poder.' },
-  hoja_afilada: { id: 'hoja_afilada', name: 'Hoja afilada', kind: 'blade', bonus: 2, reach: 1, description: 'Una espada corta bien cuidada. +2 de poder.' },
-  hoja_de_ceniza: { id: 'hoja_de_ceniza', name: 'Hoja de ceniza', kind: 'blade', bonus: 3, reach: 1, description: 'Acero ennegrecido por el fuego del santuario. +3 de poder.' },
-  latigo_de_cadena: { id: 'latigo_de_cadena', name: 'Látigo de cadena', kind: 'whip', bonus: 0, reach: 2, description: 'Alcanza hasta 2 casillas en línea recta y golpea al primer enemigo que encuentra.' },
-  lanza_de_bambu: { id: 'lanza_de_bambu', name: 'Lanza de bambú', kind: 'spear', bonus: 1, reach: 2, description: 'Ataca 2 casillas en línea y atraviesa: golpea a todos los que haya. +1 de poder.' },
+  kunai_de_hierro: { id: 'kunai_de_hierro', name: 'Kunai de hierro', kind: 'blade', bonus: 1, reach: 1, req: 3, description: 'Hoja corta y equilibrada. +1 de poder.' },
+  latigo_de_cadena: { id: 'latigo_de_cadena', name: 'Látigo de cadena', kind: 'whip', bonus: 0, reach: 2, req: 3, description: 'Alcanza hasta 2 casillas en línea recta y golpea al primer enemigo que encuentra.' },
+  lanza_de_bambu: { id: 'lanza_de_bambu', name: 'Lanza de bambú', kind: 'spear', bonus: 1, reach: 2, req: 4, description: 'Ataca 2 casillas en línea y atraviesa: golpea a todos los que haya. +1 de poder.' },
+  hoja_afilada: { id: 'hoja_afilada', name: 'Hoja afilada', kind: 'blade', bonus: 2, reach: 1, req: 4, description: 'Una espada corta bien cuidada. +2 de poder.' },
+  hoja_de_ceniza: { id: 'hoja_de_ceniza', name: 'Hoja de ceniza', kind: 'blade', bonus: 3, reach: 1, req: 5, description: 'Acero ennegrecido por el fuego del santuario. +3 de poder.' },
 };
 
 /** Acepta ids con modificador («hoja_afilada~llama»): devuelve la definición del arma base. */
 export function getWeapon(id: string | null | undefined): WeaponDef | undefined {
   const base = id ? baseGearId(id) : '';
   return base && Object.hasOwn(WEAPONS, base) ? WEAPONS[base] : undefined;
+}
+
+/** Arma o puños (id 'punos'). */
+export function weaponOrFists(id: string | null | undefined): WeaponDef {
+  return getWeapon(id) ?? FISTS;
 }
 
 /** Nombre con el nivel de mejora de la forja: «Hoja afilada +2». */

@@ -30,6 +30,8 @@ export interface TechniqueDef {
   minLevel: number;
   /** Se aprende con un manual o un maestro (no por nivel). */
   learnable?: boolean;
+  /** Fusión de dos afinidades: solo la aprende (y usa) quien domina las dos. */
+  fusion?: readonly [Affinity, Affinity];
   kiroCost: number;
   target: TechniqueTarget;
   /** Daño = max(1, power + bonus de nivel - defensa); con ignoreDefense no resta defensa. */

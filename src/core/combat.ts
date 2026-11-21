@@ -33,3 +33,20 @@ export function effectiveDefense(p: Player): number {
 export function xpToNext(level: number): number {
   return BALANCE.xpBase * level;
 }
+
+/** Fuerza total del jugador (la base; los abalorios de la siguiente fase pueden sumar). */
+export function strengthOf(p: Player): number {
+  return p.strength;
+}
+
+/** Fuerza que exige un arma: la base menos un punto por nivel de forja (nunca menos de 1). Los puños no exigen nada. */
+export function weaponReq(p: Player, weaponId: string): number {
+  const w = getWeapon(weaponId);
+  if (!w) return 0;
+  return Math.max(1, w.req - weaponLevel(p, weaponId));
+}
+
+/** ¿Tiene fuerza para empuñarla? */
+export function canWield(p: Player, weaponId: string): boolean {
+  return strengthOf(p) >= weaponReq(p, weaponId);
+}

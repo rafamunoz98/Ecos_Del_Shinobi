@@ -1,4 +1,4 @@
-import { AFFINITY_NAMES } from '../content/affinities';
+import { AFFINITY_NAMES, strongVs, weakTo } from '../content/affinities';
 import { getArcana, isArcana } from '../content/arcana';
 import { BALANCE } from '../content/balance';
 import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describeShape, describeWeaponPattern } from '../content/describe';
@@ -7,8 +7,8 @@ import { CURRENCY, KEYS, getEquipment } from '../content/items';
 import { gearLabel, iconIdFor, itemName } from '../content/names';
 import { NOTES, getNote, getRelic } from '../content/story';
 import { TECHNIQUES, affinitiesOf, getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
-import { THROWABLES, getWeapon } from '../content/weapons';
-import { effectiveDefense, effectivePower, weaponLevel } from '../core/combat';
+import { FISTS, FISTS_ID, THROWABLES, getWeapon } from '../content/weapons';
+import { canWield, effectiveDefense, effectivePower, strengthOf, weaponLevel, weaponReq } from '../core/combat';
 import type { GameState } from '../core/types';
 import { heroFor } from '../content/heroes';
 import { drawNinja } from '../presentation/art/actors';
@@ -190,6 +190,7 @@ export class Menu {
       stat('Kiro', `${p.kiro} / ${p.maxKiro}`),
       stat('Poder de ataque', String(effectivePower(p))),
       stat('Defensa', String(effectiveDefense(p))),
+      stat('Fuerza', `${strengthOf(p)} (las armas pesadas la exigen)`),
       stat('Enemigos del sector', s.floorCleared ? 'despejado (nivel ganado)' : `${s.floorKilled} / ${s.floorEnemies}`),
       stat('Sector', `${s.floor} / ${s.maxFloor}`),
       stat('Turno', String(s.turn)),
@@ -205,9 +206,9 @@ export class Menu {
     const aMod = getMod(p.equipment.armor);
     gear.append(
       this.row(
-        p.equipment.weapon ?? 'tanto_gastado',
-        `Arma: ${p.equipment.weapon ? gearLabel(p.equipment.weapon, lvl, s) : '—'}`,
-        w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus + lvl + (wMod?.power ?? 0)} de poder · alcance ${w.reach}${wMod ? ` · ${wMod.description}` : ''}` : '',
+        p.equipment.weapon ?? FISTS_ID,
+        `Arma: ${p.equipment.weapon ? gearLabel(p.equipment.weapon, lvl, s) : 'Puños'}`,
+        w ? `${WEAPON_KIND_NAMES[w.kind]} · +${w.bonus + lvl + (wMod?.power ?? 0)} de poder · alcance ${w.reach}${wMod ? ` · ${wMod.description}` : ''}` : FISTS.description,
       ),
     );
     gear.append(
@@ -218,6 +219,14 @@ export class Menu {
       ),
     );
     right.append(h('h4', undefined, 'Equipo'), gear);
+    right.append(h('h4', undefined, 'Afinidades'));
+    right.append(
+      h(
+        'div',
+        'muted',
+        `${AFFINITY_NAMES[p.affinity]} vence a ${AFFINITY_NAMES[strongVs(p.affinity)]} (×1,5 de daño con tus técnicas) y pierde contra ${AFFINITY_NAMES[weakTo(p.affinity)]} (esos enemigos te hacen ×1,5). Ciclo: Marea > Ascua > Vendaval > Piedra > Rayo > Marea. Cada enemigo lleva su gema de afinidad: ▲ verde si tu afinidad lo vence, ▼ roja si te amenaza.`,
+      ),
+    );
 
     right.append(h('h4', undefined, 'Cartera y llaves'));
     right.append(this.row('moneda', `${p.coins} monedas`, CURRENCY.moneda.description));
@@ -399,6 +408,15 @@ export class Menu {
           this.actions.useItem(id);
         });
         c.append(b);
+        if (id.startsWith('pocion:')) {
+          const tb = h('button', 'use', 'Lanzar (se rompe en un área)');
+          tb.type = 'button';
+          tb.addEventListener('click', () => {
+            this.close();
+            this.actions.throwItem(id);
+          });
+          c.append(tb);
+        }
         cons.append(c);
       }
       out.push(cons);
@@ -486,8 +504,27 @@ export class Menu {
     const weaponCursed = isCursedGear(p.equipment.weapon);
     const armorCursed = isCursedGear(p.equipment.armor);
 
-    out.push(h('h4', undefined, 'Armas'));
+    out.push(h('h4', undefined, `Armas (tu Fuerza: ${strengthOf(p)})`));
+    out.push(h('div', 'muted', 'Cada arma exige una Fuerza mínima. Sube con la Poción de Fuerza (una por jefe, antes de llegar a él) y cada mejora en la forja le quita 1 de exigencia.'));
     const grid = h('div', 'cards');
+    {
+      const on = p.equipment.weapon === null;
+      const c = h('div', `card${on ? ' equipped' : ''}`);
+      const top = h('div', 'ctop');
+      const t = h('div', 'rt');
+      t.append(h('b', undefined, FISTS.name), h('span', undefined, on ? 'Puños · en uso' : 'Sin arma'));
+      top.append(icon(FISTS_ID, 52), t);
+      c.append(top, h('p', undefined, FISTS.description));
+      const b = h('button', 'use', on ? 'En uso' : weaponCursed ? 'Tu arma está maldita' : 'Guardar el arma (gasta un turno)');
+      b.type = 'button';
+      b.disabled = on || weaponCursed;
+      b.addEventListener('click', () => {
+        this.close();
+        this.actions.equipWeapon(FISTS_ID);
+      });
+      c.append(b);
+      grid.append(c);
+    }
     for (const id of p.weapons) {
       const w = getWeapon(id);
       if (!w) continue;
@@ -502,13 +539,15 @@ export class Menu {
       top.append(icon(iconIdFor(id, s), 52), t);
       c.append(top, h('p', undefined, w.description), h('div', 'shape', describeWeaponPattern(w)));
       const tags = h('div', 'tags');
-      tags.append(h('span', 'tag', `+${w.bonus + lvl + (mod?.power ?? 0)} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`));
+      const req = weaponReq(p, id);
+      const strong = canWield(p, id);
+      tags.append(h('span', 'tag', `+${w.bonus + lvl + (mod?.power ?? 0)} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`), h('span', `tag${strong ? '' : ' cursed'}`, `Fuerza ${req}${strong ? '' : ` (te faltan ${req - strengthOf(p)})`}`));
       if (mod) tags.append(h('span', `tag${mod.kind === 'curse' ? ' cursed' : ''}`, mod.description));
       else if (!known) tags.append(h('span', 'tag', 'Sin identificar: ¿encantada? ¿maldita?'));
       c.append(tags);
-      const b = h('button', 'use', on ? 'Equipada' : weaponCursed ? 'Tu arma está maldita' : 'Equipar (gasta un turno)');
+      const b = h('button', 'use', on ? 'Equipada' : weaponCursed ? 'Tu arma está maldita' : !strong ? `Muy pesada (Fuerza ${req})` : 'Equipar (gasta un turno)');
       b.type = 'button';
-      b.disabled = on || weaponCursed;
+      b.disabled = on || weaponCursed || !strong;
       b.addEventListener('click', () => {
         this.close();
         this.actions.equipWeapon(id);

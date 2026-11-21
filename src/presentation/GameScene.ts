@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import { getTechnique, needsAim } from '../content/techniques';
-import { THROWABLES, getWeapon } from '../content/weapons';
+import { isPotion } from '../content/arcana';
+import { BALANCE } from '../content/balance';
+import { itemName } from '../content/names';
+import { canWield } from '../core/combat';
+import { FISTS_ID, THROWABLES, getWeapon } from '../content/weapons';
 import { applyCommand, previewAttack, previewTechnique, previewThrow } from '../core/engine';
 import { DIRS8, chebyshev, equals, inBounds, manhattan, stepOk, terrainAt } from '../core/grid';
 import { createGame } from '../core/newGame';
@@ -399,12 +403,13 @@ export class GameScene extends Phaser.Scene {
   startThrow(itemId?: string): void {
     const inv = this.state.player.inventory;
     const have = Object.keys(THROWABLES).filter((id) => (inv[id] ?? 0) > 0);
-    if (have.length === 0) {
+    const potion = itemId && isPotion(itemId) && (inv[itemId] ?? 0) > 0;
+    if (have.length === 0 && !potion) {
       this.hud.notice('No llevas armas arrojadizas.');
       return;
     }
-    const pick = itemId && have.includes(itemId) ? itemId : have.includes(this.throwSel) ? this.throwSel : have[0];
-    this.throwSel = pick;
+    const pick = potion ? (itemId as string) : itemId && have.includes(itemId) ? itemId : have.includes(this.throwSel) ? this.throwSel : have[0];
+    if (!potion) this.throwSel = pick;
     const { player } = this.state;
     this.aim = { kind: 'throw', itemId: pick, cursor: this.nearestVisibleEnemy() ?? this.step(player.pos, this.facing) };
     this.hud.notice('');
@@ -424,12 +429,14 @@ export class GameScene extends Phaser.Scene {
 
   /** Equipa la siguiente arma de la mochila (gasta un turno). */
   private cycleWeapon(): void {
-    const { weapons, equipment } = this.state.player;
-    if (weapons.length < 2) {
-      this.hud.notice('No tienes otra arma.');
+    const p = this.state.player;
+    // Puños, y las armas que tienes con fuerza suficiente: pasa a la siguiente de la lista.
+    const options = [FISTS_ID, ...p.weapons.filter((w) => canWield(p, w))];
+    if (options.length < 2) {
+      this.hud.notice(p.weapons.length > 0 ? 'Tus armas pesan demasiado: necesitas más Fuerza o mejorarlas en la forja.' : 'No tienes ninguna arma: peleas a puños.');
       return;
     }
-    const next = weapons[(weapons.indexOf(equipment.weapon ?? '') + 1) % weapons.length];
+    const next = options[(options.indexOf(p.equipment.weapon ?? FISTS_ID) + 1) % options.length];
     this.dispatch({ type: 'EquipWeapon', weaponId: next });
   }
 
@@ -487,7 +494,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const cur = this.aim?.kind === 'throw' ? this.aim.itemId : this.throwSel;
-    const next = have[(have.indexOf(cur) + 1) % have.length];
+    const next = have[(have.indexOf(cur) + 1) % have.length]; // desde una poción (índice -1) pasa a la primera arrojadiza
     this.throwSel = next;
     if (this.aim?.kind === 'throw') this.aim.itemId = next;
     this.hud.notice(`Arrojadiza: ${THROWABLES[next]?.name ?? next} (×${inv[next]}).`);
@@ -707,7 +714,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (a.kind === 'throw') {
       const pv = previewThrow(this.state, a.itemId, a.cursor);
-      return { cells: pv.cells, cursor: a.cursor, valid: pv.valid, color: '#d8e4ff' };
+      return { cells: [...pv.cells, ...pv.area], cursor: a.cursor, valid: pv.valid, color: isPotion(a.itemId) ? '#ffb86a' : '#d8e4ff' };
     }
     const pv = previewAttack(this.state, a.cursor);
     return { cells: pv.cells, cursor: a.cursor, valid: pv.valid, color: '#ffffff' };
@@ -722,7 +729,8 @@ export class GameScene extends Phaser.Scene {
     }
     if (a.kind === 'throw') {
       const pv = previewThrow(this.state, a.itemId, a.cursor);
-      return { title: `Lanzar ${THROWABLES[a.itemId]?.name ?? a.itemId}`, detail: `V o Tab: cambiar de arrojadiza · Quedan ${this.state.player.inventory[a.itemId] ?? 0}`, valid: pv.valid, message: pv.message, canCycle: Object.keys(THROWABLES).filter((id) => (this.state.player.inventory[id] ?? 0) > 0).length > 1 };
+      const potionAim = isPotion(a.itemId);
+      return { title: `Lanzar ${potionAim ? itemName(a.itemId, this.state) : (THROWABLES[a.itemId]?.name ?? a.itemId)}`, detail: potionAim ? `El frasco se rompe donde cae y afecta un área de radio ${BALANCE.potionThrow.radius} (también a ti si estás cerca)` : `V o Tab: cambiar de arrojadiza · Quedan ${this.state.player.inventory[a.itemId] ?? 0}`, valid: pv.valid, message: pv.message, canCycle: Object.keys(THROWABLES).filter((id) => (this.state.player.inventory[id] ?? 0) > 0).length > 1 };
     }
     const pv = previewAttack(this.state, a.cursor);
     const w = getWeapon(this.state.player.equipment.weapon);

@@ -4,7 +4,7 @@ import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, isBossFloor, type EnemyDef, type SkillDef } from '../content/enemies';
 import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getEquipment, isKey, lootTableFor, type LootEntry } from '../content/items';
 import { itemName } from '../content/names';
-import { AFFINITIES, AFFINITY_NAMES } from '../content/affinities';
+import { AFFINITIES, AFFINITY_NAMES, affinityFactor, scaleDamage } from '../content/affinities';
 import { affinitiesOf, getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { getAllyDef } from '../content/allies';
 import { MERCHANT_KIND, SHOP_PRICES } from '../content/shop';
@@ -12,10 +12,10 @@ import { getArcana, getPotion, getScroll, isArcana, isPotion, POTIONS, RANDOM_PO
 import { baseGearId, getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
 import { getNpc, getNote, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
-import { getThrowable, getWeapon, weaponLabel, WEAPONS, type WeaponDef } from '../content/weapons';
+import { FISTS, FISTS_ID, getThrowable, getWeapon, weaponLabel, type WeaponDef } from '../content/weapons';
 import { FORGE_KIND, generateLevel } from '../dungeon/generator';
 import { createBoss, createEnemy } from '../dungeon/spawn';
-import { calcDamage, effectiveDefense, effectivePower, weaponLevel } from './combat';
+import { calcDamage, canWield, effectiveDefense, effectivePower, weaponLevel } from './combat';
 import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, inBounds, isWalkable, lineCells, manhattan, mutualSight, stepOk, terrainAt } from './grid';
 import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
@@ -67,6 +67,7 @@ export const REASON_TEXT: Record<InvalidReason, string> = {
   no_item: 'No te quedan de ese objeto.',
   not_throwable: 'Eso no se puede lanzar.',
   already_equipped: 'Ya la llevas equipada.',
+  too_weak: 'Es demasiado pesada para ti: necesitas más Fuerza (Poción de Fuerza) o mejorarla en la forja.',
   already_known: 'Ya conoces esa técnica.',
   not_in_grimoire: 'Esa técnica no está en tu grimorio.',
   cursed: 'Un sello maldito te impide soltarla: purifícala (Sello de Purificación o forja).',
@@ -99,7 +100,7 @@ const enemyName = (e: Enemy): string => getEnemy(e.kind)?.name ?? e.kind;
 /** Defensa de un enemigo contando el estado «vulnerable». */
 const defenseOf = (e: Enemy): number => Math.max(0, e.defense - (e.statuses.some((st) => st.id === 'vulnerable') ? BALANCE.vulnerableDefense : 0));
 /** Estados a los que un jefe es inmune. */
-const BOSS_IMMUNE: readonly string[] = ['aturdido', 'atado', 'ralentizado'];
+const BOSS_IMMUNE: readonly string[] = ['aturdido', 'atado', 'ralentizado', 'ceguera'];
 /** Los manuales de técnica viven en la mochila como «manual:<id de técnica>». */
 export const MANUAL_PREFIX = 'manual:';
 
@@ -263,7 +264,7 @@ interface AttackPlan {
 
 /** Qué casillas y enemigos alcanza el arma equipada al atacar hacia `target`. */
 function attackPlan(s: GameState, target: Vec): AttackPlan {
-  const weapon = getWeapon(s.player.equipment.weapon) ?? WEAPONS.tanto_gastado;
+  const weapon = getWeapon(s.player.equipment.weapon) ?? FISTS;
   const p = s.player.pos;
   const fail = (reason: InvalidReason): AttackPlan => ({ reason, cells: [], hits: [], weapon });
   if (weapon.kind === 'blade') {
@@ -318,13 +319,20 @@ function throwPath(s: GameState, target: Vec): { landing: Vec; victim: Enemy | u
   return { landing, victim: undefined, cells };
 }
 
+/** Alcance de lo que se puede lanzar: arrojadizas y pociones (null = no se lanza). */
+function throwRange(itemId: string): number | null {
+  const t = getThrowable(itemId);
+  if (t) return t.range;
+  return isPotion(itemId) && getPotion(itemId) ? BALANCE.potionThrow.range : null;
+}
+
 function validateThrow(s: GameState, itemId: string, target: Vec): InvalidReason | null {
-  const def = getThrowable(itemId);
-  if (!def) return 'not_throwable';
+  const range = throwRange(itemId);
+  if (range === null) return 'not_throwable';
   if ((s.player.inventory[itemId] ?? 0) <= 0) return 'no_item';
   if (!inBounds(s.map, target)) return 'out_of_bounds';
   if (equals(target, s.player.pos)) return 'blocked';
-  if (manhattan(s.player.pos, target) > def.range) return 'out_of_range';
+  if (manhattan(s.player.pos, target) > range) return 'out_of_range';
   if (!hasLineOfSight(s.map, s.player.pos, target, openDoors(s))) return 'no_line_of_sight';
   if (equals(throwPath(s, target).landing, s.player.pos)) return 'blocked';
   return null;
@@ -337,14 +345,17 @@ export interface ThrowPreview {
   /** Casillas del recorrido, y casilla donde caerá. */
   cells: Vec[];
   landing: Vec;
+  /** Solo pociones: casillas que alcanzará el frasco al romperse. */
+  area: Vec[];
 }
 
 export function previewThrow(state: GameState, itemId: string, target: Vec): ThrowPreview {
   const reason = validateThrow(state, itemId, target);
   const path = inBounds(state.map, target) ? throwPath(state, target) : { landing: state.player.pos, cells: [] as Vec[] };
+  const area = isPotion(itemId) && !reason ? region(state, path.landing, BALANCE.potionThrow.radius, true) : [];
   return reason
-    ? { valid: false, reason, message: REASON_TEXT[reason], cells: path.cells, landing: path.landing }
-    : { valid: true, cells: path.cells, landing: path.landing };
+    ? { valid: false, reason, message: REASON_TEXT[reason], cells: path.cells, landing: path.landing, area }
+    : { valid: true, cells: path.cells, landing: path.landing, area };
 }
 
 export interface TechniquePreview {
@@ -449,9 +460,14 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
     case 'Throw':
       return validateThrow(state, cmd.itemId, cmd.target);
     case 'EquipWeapon':
+      if (cmd.weaponId === FISTS_ID) {
+        if (p.equipment.weapon === null) return 'already_equipped';
+        return isCursedGear(p.equipment.weapon) ? 'cursed' : null;
+      }
       if (!getWeapon(cmd.weaponId)) return 'unknown_item';
       if (!p.weapons.includes(cmd.weaponId)) return 'no_item';
       if (p.equipment.weapon === cmd.weaponId) return 'already_equipped';
+      if (!canWield(p, cmd.weaponId)) return 'too_weak';
       return isCursedGear(p.equipment.weapon) ? 'cursed' : null;
     case 'EquipArmor':
       if (!getEquipment(cmd.armorId)) return 'unknown_item';
@@ -653,7 +669,7 @@ function substituteBoss(ctx: Ctx, boss: Enemy): boolean {
   return true;
 }
 
-function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string): void {
+function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string, mult = 1): void {
   if (amount > 0 && enemy.hp > 0) {
     if (shieldUp(ctx.state, enemy)) {
       // El escudo de tablillas absorbe el golpe.
@@ -669,7 +685,7 @@ function damageEnemy(ctx: Ctx, enemy: Enemy, amount: number, source: string): vo
   }
   enemy.hp = Math.max(0, enemy.hp - amount);
   ctx.state.stats.damageDealt += amount;
-  ctx.events.push({ type: 'DamageApplied', targetId: enemy.id, amount, source });
+  ctx.events.push(mult === 1 ? { type: 'DamageApplied', targetId: enemy.id, amount, source } : { type: 'DamageApplied', targetId: enemy.id, amount, source, mult });
   alertEnemy(ctx, enemy);
   updateBossPhase(ctx, enemy);
 }
@@ -681,12 +697,24 @@ function defeatPlayer(ctx: Ctx): void {
   say(ctx, 'Caes derrotado. La expedición termina.');
 }
 
-function damagePlayer(ctx: Ctx, rawAmount: number, source: string): void {
+/** Multiplicador con que un enemigo te daña según su afinidad frente a tu afinidad de nacimiento (tu debilidad). */
+function incomingFactor(s: GameState, e: Enemy): number {
+  return affinityFactor([e.affinity], s.player.affinity);
+}
+
+/** Frase para el registro cuando la afinidad cambia el daño. */
+function factorNote(factor: number, who: 'enemy' | 'you'): string {
+  if (factor > 1) return who === 'enemy' ? ' ¡Es débil a esa afinidad!' : ' ¡Es tu punto débil!';
+  if (factor < 1) return who === 'enemy' ? ' Lo resiste.' : ' Lo resistes.';
+  return '';
+}
+
+function damagePlayer(ctx: Ctx, rawAmount: number, source: string, mult = 1): void {
   const p = ctx.state.player;
   const amount = rawAmount + (rawAmount > 0 ? (getMod(p.equipment.armor)?.damageTaken ?? 0) : 0);
   p.hp = Math.max(0, p.hp - amount);
   ctx.state.stats.damageTaken += amount;
-  ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount, source });
+  ctx.events.push(mult === 1 ? { type: 'DamageApplied', targetId: 'player', amount, source } : { type: 'DamageApplied', targetId: 'player', amount, source, mult });
   if (p.hp <= 0) {
     ctx.state.stats.defeatedBy = ctx.state.enemies.find((e) => e.id === source)?.kind ?? source;
     defeatPlayer(ctx);
@@ -757,8 +785,8 @@ function drinkPotion(ctx: Ctx, fx: PotionEffect): void {
       return;
     }
     case 'strength':
-      p.power += 1;
-      say(ctx, 'Sientes los músculos arder: +1 de poder para siempre.');
+      p.strength += 1;
+      say(ctx, `Sientes los músculos arder: tu Fuerza sube a ${p.strength} para siempre.`);
       return;
     case 'status':
       applyStatus(p, fx.status, fx.turns);
@@ -772,6 +800,86 @@ function drinkPotion(ctx: Ctx, fx: PotionEffect): void {
       raiseAlarm(ctx, 'Un silbido agudo recorre el sector: todos saben dónde estás.');
       return;
   }
+}
+
+/** Descubre el efecto de una poción o pergamino para el resto de la expedición. */
+function identifyArcana(ctx: Ctx, id: string): void {
+  const p = ctx.state.player;
+  const def = getArcana(id);
+  if (!def || p.known.includes(id)) return;
+  p.known.push(id);
+  ctx.events.push({ type: 'ArcanaIdentified', itemId: id });
+  say(ctx, `Ahora lo sabes: era ${def.name}.`);
+}
+
+/** Lanza una poción: se rompe donde cae (o en el primer enemigo) y su efecto alcanza un área. Las buenas se derraman sin más. */
+function throwPotion(ctx: Ctx, id: string, target: Vec): void {
+  const s = ctx.state;
+  const p = s.player;
+  const def = getPotion(id) as NonNullable<ReturnType<typeof getPotion>>;
+  const shown = itemName(id, s);
+  consume(p, id);
+  s.stats.itemsUsed += 1;
+  const { landing, victim } = throwPath(s, target);
+  ctx.events.push({ type: 'ItemThrown', itemId: id, from: p.pos, to: landing, hit: Boolean(victim) });
+  say(ctx, `Lanzas ${shown}: el frasco se hace añicos.`);
+  const fx = def.thrown;
+  if (!fx) {
+    say(ctx, 'El líquido se derrama por el suelo sin provocar nada que se vea. (Una poción buena desperdiciada.)');
+    return;
+  }
+  const cells = region(s, landing, BALANCE.potionThrow.radius, true);
+  const inArea = (pos: Vec): boolean => cells.some((c) => equals(c, pos));
+  const foes = s.enemies.filter((e) => e.hp > 0 && inArea(e.pos));
+  const hitYou = inArea(p.pos);
+  const inflict = (status: StatusId, turns: number, verb: string): void => {
+    for (const e of foes) {
+      if (isBoss(e) && BOSS_IMMUNE.includes(status)) {
+        say(ctx, `${enemyName(e)} resiste el efecto.`);
+        continue;
+      }
+      applyStatus(e, status, turns);
+      ctx.events.push({ type: 'StatusApplied', targetId: e.id, status, turns });
+      alertEnemy(ctx, e);
+    }
+    if (hitYou) {
+      applyStatus(p, status, turns);
+      ctx.events.push({ type: 'StatusApplied', targetId: 'player', status, turns });
+      say(ctx, `¡Las salpicaduras te alcanzan!`);
+    }
+    say(ctx, foes.length > 0 ? `${verb} a ${foes.length === 1 ? enemyName(foes[0]) : `${foes.length} enemigos`}.` : `${verb}, pero no alcanza a nadie.`);
+  };
+  switch (fx.kind) {
+    case 'fire':
+      igniteArea(ctx, cells);
+      inflict('quemadura', fx.burnTurns, 'Las llamas prenden');
+      break;
+    case 'poison':
+      inflict('veneno', fx.turns, 'Una nube de hiel envenena');
+      break;
+    case 'blind':
+      inflict('ceguera', fx.turns, 'Una niebla negra ciega');
+      break;
+    case 'lure': {
+      let lured = 0;
+      for (const e of s.enemies) {
+        if (e.hp <= 0 || isBoss(e) || manhattan(e.pos, landing) > BALANCE.chaseLimit) continue;
+        if (e.alert === 0) noticePlayer(ctx, e);
+        e.alert = BALANCE.alertTurns;
+        e.lastSeen = { ...landing };
+        e.tracking = false;
+        lured += 1;
+      }
+      say(ctx, lured > 0 ? `Un silbido agudo resuena donde cayó: ${lured} enemigo${lured === 1 ? '' : 's'} acuden hacia allí.` : 'Un silbido agudo resuena, pero nadie acude.');
+      break;
+    }
+  }
+  identifyArcana(ctx, id);
+}
+
+/** Prende una zona (de momento solo daña a quien está dentro; el fuego sobre el terreno llega con los peligros del suelo). */
+function igniteArea(_ctx: Ctx, _cells: Vec[]): void {
+  /* se amplía en el bloque de terreno */
 }
 
 function revealMap(ctx: Ctx): void {
@@ -1194,9 +1302,10 @@ function castTechnique(ctx: Ctx, def: TechniqueDef, target: Vec): void {
   for (const enemy of [...s.enemies]) {
     if (!cells.some((c) => equals(c, enemy.pos))) continue;
     if (def.damage) {
-      const dmg = calcDamage(def.damage.power, levelBonus, def.damage.ignoreDefense ? 0 : defenseOf(enemy));
-      damageEnemy(ctx, enemy, dmg, def.id);
-      say(ctx, `${enemyName(enemy)} recibe ${dmg} de daño.`);
+      const factor = affinityFactor(def.fusion ?? [def.affinity], enemy.affinity);
+      const dmg = scaleDamage(calcDamage(def.damage.power, levelBonus, def.damage.ignoreDefense ? 0 : defenseOf(enemy)), factor);
+      damageEnemy(ctx, enemy, dmg, def.id, factor);
+      say(ctx, `${enemyName(enemy)} recibe ${dmg} de daño.${factorNote(factor, 'enemy')}`);
     }
     if (def.inflict && enemy.hp > 0) {
       if (isBoss(enemy) && BOSS_IMMUNE.includes(def.inflict.status)) {
@@ -1495,21 +1604,26 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       const plan = attackPlan(s, cmd.target);
       ctx.events.push({ type: 'PlayerAttacked', weaponId: plan.weapon.id, cells: plan.cells, targets: plan.hits.map((e) => e.pos) });
       for (const enemy of plan.hits) {
-        let dmg = calcDamage(effectivePower(p), 0, defenseOf(enemy));
+        const factor = affinityFactor([getMod(p.equipment.weapon)?.affinity], enemy.affinity);
+        let dmg = scaleDamage(calcDamage(effectivePower(p), 0, defenseOf(enemy)), factor);
         if (enemy.alert === 0) {
           dmg *= BALANCE.sneakMultiplier;
           ctx.state.stats.sneakAttacks += 1;
           ctx.events.push({ type: 'SneakAttack', enemyId: enemy.id });
-          say(ctx, `¡Golpe furtivo a ${enemyName(enemy)}! (${dmg} de daño).`);
+          say(ctx, `¡Golpe furtivo a ${enemyName(enemy)}! (${dmg} de daño).${factorNote(factor, 'enemy')}`);
         } else {
-          say(ctx, `Golpeas a ${enemyName(enemy)} (${dmg} de daño).`);
+          say(ctx, `Golpeas a ${enemyName(enemy)} (${dmg} de daño).${factorNote(factor, 'enemy')}`);
         }
-        damageEnemy(ctx, enemy, dmg, 'ataque_basico');
+        damageEnemy(ctx, enemy, dmg, 'ataque_basico', factor);
         applyWeaponMod(ctx, enemy);
       }
       return;
     }
     case 'Throw': {
+      if (isPotion(cmd.itemId)) {
+        throwPotion(ctx, cmd.itemId, cmd.target);
+        return;
+      }
       const def = getThrowable(cmd.itemId) as NonNullable<ReturnType<typeof getThrowable>>;
       const left = (p.inventory[def.id] ?? 0) - 1;
       if (left > 0) p.inventory[def.id] = left;
@@ -1546,8 +1660,13 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       return;
     }
     case 'EquipWeapon': {
-      p.equipment.weapon = cmd.weaponId;
       ctx.events.push({ type: 'WeaponEquipped', weaponId: cmd.weaponId });
+      if (cmd.weaponId === FISTS_ID) {
+        p.equipment.weapon = null;
+        say(ctx, 'Guardas el arma: peleas a puños.');
+        return;
+      }
+      p.equipment.weapon = cmd.weaponId;
       say(ctx, `Equipas: ${itemName(cmd.weaponId, s)}.`);
       wearGear(ctx, cmd.weaponId);
       return;
@@ -1952,9 +2071,10 @@ function startTelegraph(ctx: Ctx, enemy: Enemy, sk: SkillDef, cells: Vec[], powe
 /** Daño de una habilidad y el estado que deja; lo usan los ataques anunciados al liberarse y los disparos inmediatos. */
 function hitPlayerWithSkill(ctx: Ctx, enemy: Enemy, name: string, power: number, inflict?: { status: StatusId; turns: number }, fx?: Telegraph['fx']): void {
   const p = ctx.state.player;
-  const dmg = calcDamage(power, 0, effectiveDefense(p));
-  damagePlayer(ctx, dmg, enemy.id);
-  say(ctx, `${name} te alcanza (${dmg} de daño).`);
+  const factor = incomingFactor(ctx.state, enemy);
+  const dmg = scaleDamage(calcDamage(power, 0, effectiveDefense(p)), factor);
+  damagePlayer(ctx, dmg, enemy.id, factor);
+  say(ctx, `${name} te alcanza (${dmg} de daño).${factorNote(factor, 'you')}`);
   if (inflict && ctx.state.status === 'playing') {
     applyStatus(p, inflict.status, inflict.turns);
     ctx.events.push({ type: 'StatusApplied', targetId: 'player', status: inflict.status, turns: inflict.turns });
@@ -2073,9 +2193,10 @@ function enemyStep(ctx: Ctx, enemy: Enemy, def: EnemyDef, sees: boolean): StepRe
   const dist = manhattan(enemy.pos, p.pos);
 
   const hit = (verb: string): StepResult => {
-    const dmg = calcDamage(enemy.power, 0, effectiveDefense(p));
-    damagePlayer(ctx, dmg, enemy.id);
-    say(ctx, `${enemyName(enemy)} ${verb} (${dmg} de daño).`);
+    const factor = incomingFactor(s, enemy);
+    const dmg = scaleDamage(calcDamage(enemy.power, 0, effectiveDefense(p)), factor);
+    damagePlayer(ctx, dmg, enemy.id, factor);
+    say(ctx, `${enemyName(enemy)} ${verb} (${dmg} de daño).${factorNote(factor, 'you')}`);
     const thorns = getMod(p.equipment.armor)?.thorns;
     if (thorns && s.status === 'playing' && enemy.hp > 0 && chebyshev(enemy.pos, p.pos) <= 1) {
       damageEnemy(ctx, enemy, thorns, 'espinas');

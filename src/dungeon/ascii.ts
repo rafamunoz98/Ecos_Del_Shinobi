@@ -118,9 +118,9 @@ export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerSt
     playerStart: room.playerStart,
     // Los enemigos de una sala de prototipo/prueba ya están alerta (no esperan a verte).
     enemies: [
-      ...room.enemyStarts.map((pos, i) => ({ ...createEnemy(def, `enemy-${i}`, pos, 1), alert: BALANCE.alertTurns })),
-      ...room.monkStarts.map((pos, i) => ({ ...createEnemy(ENEMIES.monje_hueco, `enemy-m${i}`, pos, 1), alert: BALANCE.alertTurns })),
-      ...room.bossStarts.map((pos, i) => ({ ...createBoss(ENEMIES[BOSS_ID], `enemy-b${i}`, pos), alert: BALANCE.alertTurns })),
+      ...room.enemyStarts.map((pos, i) => ({ ...createEnemy(def, `enemy-${i}`, pos, 1), affinity: null, alert: BALANCE.alertTurns })),
+      ...room.monkStarts.map((pos, i) => ({ ...createEnemy(ENEMIES.monje_hueco, `enemy-m${i}`, pos, 1), affinity: null, alert: BALANCE.alertTurns })),
+      ...room.bossStarts.map((pos, i) => ({ ...createBoss(ENEMIES[BOSS_ID], `enemy-b${i}`, pos), affinity: null, alert: BALANCE.alertTurns })),
     ],
     chests: [
       ...room.chestStarts.map((pos, i) => ({ id: `chest-${i}`, pos, opened: false })),

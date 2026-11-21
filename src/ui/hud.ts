@@ -94,7 +94,7 @@ export class Hud {
     el('meta').textContent = [
       `${heroFor(p.affinity).name} · ${AFFINITY_NAMES[p.affinity]}${p.affinity2 ? ` + ${AFFINITY_NAMES[p.affinity2]}` : ''}`,
       `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn}`,
-      `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : '—'}`,
+      `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : 'Puños'} · Fuerza ${p.strength}`,
       `Vestimenta: ${armor && p.equipment.armor ? `${gearLabel(p.equipment.armor, 0, state)} (+${armor.bonus + (getMod(p.equipment.armor)?.defense ?? 0)})` : '—'}`,
       `Semilla ${state.seed}`,
     ].join('\n');
@@ -267,7 +267,7 @@ export class Hud {
     if (w && w.reach >= 2) {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
-    if (p.weapons.length > 1) specs.push({ key: 'B', icon: w?.id ?? 'tanto_gastado', name: 'Cambiar arma', sub: w?.name ?? '', action: { type: 'weapon' } });
+    if (p.weapons.length > 0) specs.push({ key: 'B', icon: w?.id ?? 'punos', name: 'Cambiar arma', sub: w?.name ?? 'Puños', action: { type: 'weapon' } });
     specs.push({ key: 'X', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 

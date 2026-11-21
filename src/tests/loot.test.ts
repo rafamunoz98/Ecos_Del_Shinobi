@@ -226,7 +226,7 @@ describe('cofres: madera y laca', () => {
       });
       const r = applyCommand(s, interact({ x: 2, y: 1 }));
       expect(r.state.player.coins).toBeGreaterThan(0);
-      if (r.state.player.weapons.length > 1 || r.state.player.armors.length > 0) gear++;
+      if (r.state.player.weapons.length > 0 || r.state.player.armors.length > 0) gear++;
       for (const [id, n] of Object.entries(r.state.player.inventory)) {
         if (id !== 'shuriken' && id !== 'unguento_musgo') expect(n).toBeGreaterThanOrEqual(1);
       }
@@ -358,6 +358,12 @@ describe('arrojadizas clavadas', () => {
 
 describe('forja: mejora de armas', () => {
   const room = ['#######', '#@F...#', '#######'];
+  /** Empieza a puños: para probar la forja se le da un kunai (equipado). */
+  const kunai = (g: GameState): void => {
+    g.player.weapons = ['kunai_de_hierro'];
+    g.player.equipment.weapon = 'kunai_de_hierro';
+    g.player.identified.push('kunai_de_hierro');
+  };
   const upgrade = (weaponId: string, pay: 'coins' | 'shards'): Command => ({ type: 'Upgrade', npcId: 'npc-0', weaponId, pay });
 
   it('hablar con la mesa no gasta turno', () => {
@@ -370,19 +376,20 @@ describe('forja: mejora de armas', () => {
 
   it('mejorar con monedas o esquirlas sube el poder del arma y gasta un turno', () => {
     const s = makeGame(room, (g) => {
+      kunai(g);
       g.enemies = [];
       g.player.coins = 40;
       g.player.shards = 5;
     });
     const base = effectivePower(s.player);
-    const a = applyCommand(s, upgrade('tanto_gastado', 'coins'));
+    const a = applyCommand(s, upgrade('kunai_de_hierro', 'coins'));
     expect(a.ok).toBe(true);
     expect(a.state.player.coins).toBe(40 - BALANCE.forge.coins[0]);
-    expect(a.state.player.weaponLevels.tanto_gastado).toBe(1);
+    expect(a.state.player.weaponLevels.kunai_de_hierro).toBe(1);
     expect(effectivePower(a.state.player)).toBe(base + 1);
     expect(a.state.turn).toBe(1);
-    expect(a.events).toContainEqual({ type: 'WeaponUpgraded', weaponId: 'tanto_gastado', level: 1 });
-    const b = applyCommand(a.state, upgrade('tanto_gastado', 'shards'));
+    expect(a.events).toContainEqual({ type: 'WeaponUpgraded', weaponId: 'kunai_de_hierro', level: 1 });
+    const b = applyCommand(a.state, upgrade('kunai_de_hierro', 'shards'));
     expect(b.state.player.shards).toBe(5 - BALANCE.forge.shards[1]);
     expect(effectivePower(b.state.player)).toBe(base + 2);
     expect(b.state.stats.upgrades).toBe(2);
@@ -390,34 +397,38 @@ describe('forja: mejora de armas', () => {
 
   it('el nivel máximo, el coste, la distancia y el arma se validan sin gastar turno', () => {
     const s = makeGame(room, (g) => {
+      kunai(g);
       g.enemies = [];
       g.player.coins = 5;
       g.player.shards = 1;
     });
-    expect(applyCommand(s, upgrade('tanto_gastado', 'coins')).reason).toBe('cannot_afford');
-    expect(applyCommand(s, upgrade('tanto_gastado', 'shards')).reason).toBe('cannot_afford');
+    expect(applyCommand(s, upgrade('kunai_de_hierro', 'coins')).reason).toBe('cannot_afford');
+    expect(applyCommand(s, upgrade('kunai_de_hierro', 'shards')).reason).toBe('cannot_afford');
     expect(applyCommand(s, upgrade('hoja_afilada', 'coins')).reason).toBe('no_item');
-    expect(applyCommand(s, { type: 'Upgrade', npcId: 'npc-9', weaponId: 'tanto_gastado', pay: 'coins' }).reason).toBe('not_at_forge');
+    expect(applyCommand(s, { type: 'Upgrade', npcId: 'npc-9', weaponId: 'kunai_de_hierro', pay: 'coins' }).reason).toBe('not_at_forge');
     const far = makeGame(['########', '#@.F...#', '########'], (g) => {
+      kunai(g);
       g.enemies = [];
       g.player.coins = 99;
     });
-    expect(applyCommand(far, upgrade('tanto_gastado', 'coins')).reason).toBe('not_at_forge');
+    expect(applyCommand(far, upgrade('kunai_de_hierro', 'coins')).reason).toBe('not_at_forge');
     const rich = makeGame(room, (g) => {
+      kunai(g);
       g.enemies = [];
       g.player.coins = 999;
-      g.player.weaponLevels.tanto_gastado = BALANCE.forge.maxLevel;
+      g.player.weaponLevels.kunai_de_hierro = BALANCE.forge.maxLevel;
     });
-    expect(applyCommand(rich, upgrade('tanto_gastado', 'coins')).reason).toBe('max_upgrade');
-    expect(upgradeQuote(rich, 'tanto_gastado').maxed).toBe(true);
+    expect(applyCommand(rich, upgrade('kunai_de_hierro', 'coins')).reason).toBe('max_upgrade');
+    expect(upgradeQuote(rich, 'kunai_de_hierro').maxed).toBe(true);
   });
 
   it('un arma mejorada pega más y el aviso de alcance sigue siendo el mismo', () => {
     const s = makeGame(['####', '#@E#', '####'], (g) => {
       calm(g);
-      g.player.weaponLevels.tanto_gastado = 3;
+      kunai(g);
+      g.player.weaponLevels.kunai_de_hierro = 3;
     });
-    expect(applyCommand(s, attack({ x: 2, y: 1 })).state.enemies[0].hp).toBe(40 - (4 + 3));
+    expect(applyCommand(s, attack({ x: 2, y: 1 })).state.enemies[0].hp).toBe(40 - (4 + 1 + 3));
     expect(previewAttack(s, { x: 2, y: 1 }).valid).toBe(true);
   });
 

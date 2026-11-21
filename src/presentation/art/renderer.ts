@@ -1,6 +1,8 @@
 import { getEnemy } from '../../content/enemies';
 import { getTechnique } from '../../content/techniques';
 import { getWeapon } from '../../content/weapons';
+import { beats } from '../../content/affinities';
+import { affinitiesOf } from '../../content/techniques';
 import { isKey } from '../../content/items';
 import { itemName } from '../../content/names';
 import { getThrowable } from '../../content/weapons';
@@ -1161,6 +1163,35 @@ export class WorldRenderer {
       roundRectPath(ctx, cx - w / 2 + 0.012, top + 0.012, Math.max(0.04, (w - 0.024) * f), 0.066, 0.033);
       ctx.fillStyle = f > 0.5 ? '#5bd37a' : f > 0.25 ? '#f0c040' : '#e2514b';
       ctx.fill();
+    }
+    // Afinidad: una gema junto a la barra y una flecha si te conviene (▲ verde: tu afinidad la vence) o te amenaza (▼ roja: ella vence a la tuya).
+    if (e.affinity) {
+      const gx = cx - 0.4;
+      circle(ctx, gx, top + 0.04, 0.11);
+      ctx.fillStyle = 'rgba(8,6,14,0.82)';
+      ctx.fill();
+      drawIcon(ctx, e.affinity, gx, top + 0.04, 0.2);
+      const good = affinitiesOf(s.player).some((a) => beats(a, e.affinity));
+      const bad = beats(e.affinity, s.player.affinity);
+      if (good || bad) {
+        ctx.beginPath();
+        if (good) {
+          ctx.moveTo(gx, top - 0.13);
+          ctx.lineTo(gx - 0.07, top - 0.03);
+          ctx.lineTo(gx + 0.07, top - 0.03);
+        } else {
+          ctx.moveTo(gx, top + 0.01 - 0.0);
+          ctx.moveTo(gx - 0.07, top - 0.13);
+          ctx.lineTo(gx + 0.07, top - 0.13);
+          ctx.lineTo(gx, top - 0.03);
+        }
+        ctx.closePath();
+        ctx.fillStyle = good ? '#5bd37a' : '#e2514b';
+        ctx.fill();
+        ctx.strokeStyle = '#120a14';
+        ctx.lineWidth = 0.025;
+        ctx.stroke();
+      }
     }
     // Estados.
     let ix = cx + 0.3;

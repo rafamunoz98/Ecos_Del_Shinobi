@@ -16,6 +16,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   potenciado: 'Potenciado',
   sigilo: 'Sigilo',
   ceguera: 'Oscuridad',
+  levitando: 'Levitando',
 };
 
 export const STATUS_HELP: Record<StatusId, string> = {
@@ -29,7 +30,8 @@ export const STATUS_HELP: Record<StatusId, string> = {
   regeneracion: 'Recupera 1 de vida por ronda.',
   potenciado: '+2 de poder mientras dura.',
   sigilo: 'Los enemigos no te notan salvo que estén pegados a ti.',
-  ceguera: 'Tu visión se reduce a 2 casillas.',
+  ceguera: 'Tu visión se reduce a 2 casillas (un enemigo ciego solo nota a quien tiene pegado).',
+  levitando: 'Flotas: cruzas precipicios sin caer y no pisas fuego ni charcos.',
 };
 
 export const WEAPON_KIND_NAMES: Record<WeaponKind, string> = { blade: 'Hoja', whip: 'Látigo', spear: 'Lanza' };

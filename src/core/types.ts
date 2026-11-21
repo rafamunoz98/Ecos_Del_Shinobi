@@ -30,7 +30,8 @@ export type StatusId =
   | 'regeneracion'
   | 'potenciado'
   | 'sigilo'
-  | 'ceguera';
+  | 'ceguera'
+  | 'levitando';
 export type EquipSlot = 'weapon' | 'armor';
 
 export interface StatusEffect {
@@ -48,6 +49,8 @@ export interface Player {
   power: number;
   /** Defensa base; la vestimenta y el estado "protegido" suman (ver combat.effectiveDefense). */
   defense: number;
+  /** Fuerza: cada arma exige un mínimo para poder empuñarla (ver content/weapons). Sube con la Poción de Fuerza (una por jefe). */
+  strength: number;
   level: number;
   xp: number;
   affinity: Affinity;
@@ -115,6 +118,8 @@ export interface Enemy {
   /** Ya llegó a ese punto sin verte: ahora sigue tu rastro (tu posición real) mientras le dure la alerta. */
   tracking: boolean;
   statuses: StatusEffect[];
+  /** Afinidad del enemigo (null = neutral): decide si tus técnicas le hacen más o menos daño y cuánto daño te hace a ti. */
+  affinity: Affinity | null;
   /** Fase de combate de un jefe (1-3); 0 en enemigos normales. */
   phase: number;
   /** Armas arrojadizas clavadas en él (id → cantidad); caen al suelo cuando muere. */
@@ -292,6 +297,7 @@ export type InvalidReason =
   | 'no_item'
   | 'not_throwable'
   | 'already_equipped'
+  | 'too_weak'
   | 'cursed'
   | 'already_known'
   | 'not_in_grimoire'
@@ -320,7 +326,8 @@ export type GameEvent =
   | { type: 'PlayerWaited'; kiroRecovered: number }
   | { type: 'TechniqueCast'; techniqueId: string; target: Vec; cells: Vec[] }
   | { type: 'KiroSpent'; amount: number }
-  | { type: 'DamageApplied'; targetId: string; amount: number; source: string }
+  /** `mult` solo aparece cuando la afinidad cambia el daño (1,5 = débil a ello; 0,75 = lo resiste). */
+  | { type: 'DamageApplied'; targetId: string; amount: number; source: string; mult?: number }
   | { type: 'StatusApplied'; targetId: string; status: StatusId; turns: number }
   | { type: 'BarrierRaised'; cells: Vec[] }
   | { type: 'ItemUsed'; itemId: string }

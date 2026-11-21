@@ -10,7 +10,7 @@ export type PotionEffect =
   | { kind: 'heal'; amount: number; cleanse?: boolean }
   | { kind: 'kiro'; amount: number }
   | { kind: 'strength' }
-  | { kind: 'status'; status: 'sigilo' | 'regeneracion' | 'protegido' | 'veneno' | 'ceguera' | 'quemadura'; turns: number }
+  | { kind: 'status'; status: 'sigilo' | 'regeneracion' | 'protegido' | 'veneno' | 'ceguera' | 'quemadura' | 'levitando'; turns: number }
   | { kind: 'reveal' }
   | { kind: 'alarm' };
 
@@ -26,6 +26,16 @@ export type ScrollEffect =
   | { kind: 'identify' }
   | { kind: 'alarm' };
 
+/**
+ * Qué hace una poción al LANZARLA (se rompe en la casilla de impacto y afecta a un área). Las que no tienen efecto arrojadizo
+ * (las buenas) se derraman sin más y siguen sin identificar: lanzar para probar sale barato con las malas y caro con las buenas.
+ */
+export type ThrownEffect =
+  | { kind: 'fire'; burnTurns: number }
+  | { kind: 'poison'; turns: number }
+  | { kind: 'blind'; turns: number }
+  | { kind: 'lure' };
+
 export interface ArcanaDef<E> {
   id: string;
   /** Nombre verdadero (cuando está identificado). */
@@ -37,6 +47,8 @@ export interface ArcanaDef<E> {
   /** Precio base en la tienda (monedas). */
   price: number;
   effect: E;
+  /** Solo pociones: efecto al lanzarla. */
+  thrown?: ThrownEffect;
 }
 
 export const POTION_PREFIX = 'pocion:';
@@ -50,15 +62,16 @@ export const POTIONS: Record<string, ArcanaDef<PotionEffect>> = Object.fromEntri
     [
       { id: 'sanacion', name: 'Poción de Sanación', description: 'Cierra las heridas: recuperas 15 de vida y te libras de quemaduras y venenos.', good: true, weight: 8, price: 14, effect: { kind: 'heal', amount: 15, cleanse: true } },
       { id: 'kiro_mayor', name: 'Poción de Kiro Mayor', description: 'Recuperas 12 de kiro.', good: true, weight: 6, price: 12, effect: { kind: 'kiro', amount: 12 } },
-      { id: 'akimichi', name: 'Píldora Akimichi', description: 'Una píldora de las que devoran la grasa y dan fuerza: +1 de poder permanente.', good: true, weight: 1, price: 40, effect: { kind: 'strength' } },
+      { id: 'fuerza', name: 'Poción de Fuerza', description: 'Un brebaje espeso que endurece los músculos: +1 de Fuerza para siempre (las armas pesadas exigen Fuerza). Solo hay una por jefe, antes de llegar a él.', good: true, weight: 0, price: 60, effect: { kind: 'strength' } },
+      { id: 'levitacion', name: 'Poción de Levitación', description: 'Flotas sobre el suelo durante 12 rondas: cruzas precipicios sin caer y no pisas fuego ni charcos. Si se acaba sobre un vacío, caes.', good: true, weight: 3, price: 14, effect: { kind: 'status', status: 'levitando', turns: 12 } },
       { id: 'sombra', name: 'Poción de Sombra', description: 'Durante 20 rondas los enemigos solo te notan si están pegados a ti.', good: true, weight: 3, price: 12, effect: { kind: 'status', status: 'sigilo', turns: 20 } },
       { id: 'regeneracion', name: 'Poción de Savia', description: 'Recuperas 1 de vida por ronda durante 15 rondas.', good: true, weight: 4, price: 10, effect: { kind: 'status', status: 'regeneracion', turns: 15 } },
       { id: 'piel_roca', name: 'Poción de Piel de Roca', description: 'Tu defensa sube +2 durante 25 rondas.', good: true, weight: 3, price: 10, effect: { kind: 'status', status: 'protegido', turns: 25 } },
       { id: 'ojo_blanco', name: 'Poción de Ojo Blanco', description: 'Tu mirada atraviesa las paredes: revelas todo el mapa del sector.', good: true, weight: 3, price: 12, effect: { kind: 'reveal' } },
-      { id: 'veneno', name: 'Poción de Hiel', description: 'Veneno puro: pierdes vida cada ronda durante 6 rondas.', good: false, weight: 3, price: 4, effect: { kind: 'status', status: 'veneno', turns: 6 } },
-      { id: 'niebla_oscura', name: 'Poción de Niebla Oscura', description: 'Una niebla negra te nubla la vista durante 15 rondas.', good: false, weight: 3, price: 4, effect: { kind: 'status', status: 'ceguera', turns: 15 } },
-      { id: 'ignea', name: 'Poción Ígnea', description: 'Aliento de fuego: prendes en llamas durante 3 rondas.', good: false, weight: 2, price: 4, effect: { kind: 'status', status: 'quemadura', turns: 3 } },
-      { id: 'estridente', name: 'Poción Estridente', description: 'Un silbido agudo: todos los enemigos del sector sabrán dónde estás.', good: false, weight: 2, price: 4, effect: { kind: 'alarm' } },
+      { id: 'veneno', name: 'Poción de Hiel', description: 'Veneno puro: si la bebes, pierdes vida cada ronda durante 6 rondas. Lánzala: envenena a todos en un área de radio 1.', good: false, weight: 3, price: 4, effect: { kind: 'status', status: 'veneno', turns: 6 }, thrown: { kind: 'poison', turns: 6 } },
+      { id: 'niebla_oscura', name: 'Poción de Niebla Oscura', description: 'Una niebla negra te nubla la vista durante 15 rondas si la bebes. Lánzala: ciega a todos en un área de radio 1.', good: false, weight: 3, price: 4, effect: { kind: 'status', status: 'ceguera', turns: 15 }, thrown: { kind: 'blind', turns: 8 } },
+      { id: 'ignea', name: 'Poción Ígnea', description: 'Aliento de fuego: si la bebes, prendes en llamas durante 3 rondas. Lánzala: incendia a todos en un área de radio 1.', good: false, weight: 2, price: 4, effect: { kind: 'status', status: 'quemadura', turns: 3 }, thrown: { kind: 'fire', burnTurns: 3 } },
+      { id: 'estridente', name: 'Poción Estridente', description: 'Un silbido agudo: si la bebes, todos los enemigos del sector sabrán dónde estás. Lánzala lejos para atraerlos hacia donde cae.', good: false, weight: 2, price: 4, effect: { kind: 'alarm' }, thrown: { kind: 'lure' } },
     ] as ArcanaDef<PotionEffect>[]
   ).map((d) => [d.id, d]),
 );
@@ -82,7 +95,7 @@ export const SCROLLS: Record<string, ArcanaDef<ScrollEffect>> = Object.fromEntri
   ).map((d) => [d.id, d]),
 );
 
-const POTION_LOOKS = ['turbia', 'ámbar', 'carmesí', 'jade', 'violeta', 'marfil', 'índigo', 'ceniza', 'azafrán', 'cobalto', 'ébano', 'coral'];
+const POTION_LOOKS = ['turbia', 'ámbar', 'carmesí', 'jade', 'violeta', 'marfil', 'índigo', 'ceniza', 'azafrán', 'cobalto', 'ébano', 'coral', 'perla', 'ocre'];
 const SCROLL_LOOKS = ['Kan', 'Rin', 'Tō', 'Sen', 'Mei', 'Shō', 'Gen', 'Hō', 'Zan', 'Ryū', 'Kō', 'Ten'];
 
 export const isPotion = (id: string): boolean => id.startsWith(POTION_PREFIX);
@@ -109,6 +122,9 @@ export const STARTING_KNOWN: Record<Affinity, readonly string[]> = {
   piedra: ['pocion:piel_roca', 'pergamino:invocacion_sapo'],
   rayo: ['pocion:kiro_mayor', 'pergamino:inmovil'],
 };
+
+/** Lo que todo shinobi reconoce desde el principio, sea cual sea su afinidad: la Poción de Fuerza (las hay aseguradas) y la de Levitación. */
+export const ALWAYS_KNOWN: readonly string[] = ['pocion:fuerza'];
 
 /** Reparte las apariencias al azar. `random` devuelve [0,1) y avanza el generador de la partida. */
 export function shuffleAppearances(random: () => number): Record<string, string> {

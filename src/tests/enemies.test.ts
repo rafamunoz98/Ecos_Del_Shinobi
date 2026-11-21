@@ -22,11 +22,11 @@ describe('Cuervo de Sal (rápido y frágil)', () => {
   });
 
   it('si queda adyacente tras moverse, ataca en la misma ronda, una sola vez', () => {
-    const s = makeGame(['######', '#@.E.#', '######'], asKind('cuervo_de_sal'));
+    const s = makeGame(['######', '#@.E.#', '######'], asKind('cuervo_de_sal'), { affinity: 'piedra' });
     const r = applyCommand(s, wait());
     expect(r.state.enemies[0].pos).toEqual({ x: 2, y: 1 });
     expect(r.state.player.hp).toBe(20 - 2); // poder 3 - defensa 1
-    const adjacent = makeGame(['####', '#@E#', '####'], asKind('cuervo_de_sal'));
+    const adjacent = makeGame(['####', '#@E#', '####'], asKind('cuervo_de_sal'), { affinity: 'piedra' });
     expect(applyCommand(adjacent, wait()).state.player.hp).toBe(18);
   });
 });
@@ -56,7 +56,7 @@ describe('Tirador de Junco (a distancia)', () => {
   const kind = asKind('tirador_de_junco', 2);
 
   it('dispara con línea de visión dentro de su alcance sin acercarse', () => {
-    const s = makeGame(['#########', '#@..E...#', '#########'], kind);
+    const s = makeGame(['#########', '#@..E...#', '#########'], kind, { affinity: 'piedra' });
     const r = applyCommand(s, wait());
     expect(r.state.player.hp).toBe(20 - 2); // poder 3 + 0 de sector 2 → 3 - 1
     expect(r.state.enemies[0].pos).toEqual({ x: 4, y: 1 });
@@ -76,7 +76,7 @@ describe('Tirador de Junco (a distancia)', () => {
   });
 
   it('acorralado, dispara en lugar de huir', () => {
-    const s = makeGame(['####', '#@E#', '####'], kind);
+    const s = makeGame(['####', '#@E#', '####'], kind, { affinity: 'piedra' });
     expect(applyCommand(s, wait()).state.player.hp).toBe(18);
   });
 });

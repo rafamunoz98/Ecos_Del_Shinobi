@@ -12,6 +12,8 @@ export interface ModDef {
   slot: GearSlot;
   kind: 'enchant' | 'curse';
   description: string;
+  /** Afinidad del arma encantada: sus golpes cuentan como esa afinidad contra la debilidad del enemigo. */
+  affinity?: 'ascua' | 'marea' | 'vendaval' | 'piedra' | 'rayo';
   /** Poder / defensa que suma (o resta, si es negativo). */
   power?: number;
   defense?: number;
@@ -35,9 +37,9 @@ export interface ModDef {
 
 const list: ModDef[] = [
   // ----- Armas: encantamientos -----
-  { id: 'llama', name: 'de Llama', slot: 'weapon', kind: 'enchant', description: 'Los golpes prenden al enemigo (quemadura).', onHitStatus: { status: 'quemadura', turns: 3, chance: 0.5 } },
-  { id: 'marea', name: 'de Marea', slot: 'weapon', kind: 'enchant', description: 'Sus golpes ralentizan al enemigo.', onHitStatus: { status: 'ralentizado', turns: 3, chance: 0.5 } },
-  { id: 'trueno', name: 'de Trueno', slot: 'weapon', kind: 'enchant', description: 'A veces aturde al enemigo con una descarga.', onHitStatus: { status: 'aturdido', turns: 1, chance: 0.25 } },
+  { id: 'llama', name: 'de Llama', slot: 'weapon', kind: 'enchant', affinity: 'ascua', description: 'Los golpes prenden al enemigo (quemadura).', onHitStatus: { status: 'quemadura', turns: 3, chance: 0.5 } },
+  { id: 'marea', name: 'de Marea', slot: 'weapon', kind: 'enchant', affinity: 'marea', description: 'Sus golpes ralentizan al enemigo.', onHitStatus: { status: 'ralentizado', turns: 3, chance: 0.5 } },
+  { id: 'trueno', name: 'de Trueno', slot: 'weapon', kind: 'enchant', affinity: 'rayo', description: 'A veces aturde al enemigo con una descarga.', onHitStatus: { status: 'aturdido', turns: 1, chance: 0.25 } },
   { id: 'colmillo', name: 'del Colmillo', slot: 'weapon', kind: 'enchant', description: 'Inyecta veneno con cada golpe.', onHitStatus: { status: 'veneno', turns: 4, chance: 0.5 } },
   { id: 'filo_fino', name: 'de Filo Fino', slot: 'weapon', kind: 'enchant', description: '+2 de poder.', power: 2 },
   { id: 'sed', name: 'de la Sed Oscura', slot: 'weapon', kind: 'enchant', description: 'Cada golpe te devuelve 1 de vida.', onHitHeal: 1 },

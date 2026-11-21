@@ -1,6 +1,8 @@
 // Números provisionales: se ajustarán con pruebas de juego.
 export const BALANCE = {
-  player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1 },
+  player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1, strength: 3 },
+  /** Alcance de las pociones lanzadas (distancia Manhattan) y radio de su efecto. */
+  potionThrow: { range: 5, radius: 1 },
   /** Kiro que se recupera al esperar (el documento lo deja "si se aprueba en balance"). */
   waitKiro: 2,
   /** El kiro vuelve solo: 1 cada N rondas (la vida, más despacio). */

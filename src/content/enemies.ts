@@ -1,3 +1,5 @@
+import type { Affinity } from '../core/types';
+
 /*
  * Enemigos. Tres familias:
  *  - Monstruos y ecos: criaturas del Pulso (acechador, cuervo, larva, lobo de raíz...).
@@ -54,6 +56,8 @@ export interface SkillDef {
 export interface EnemyDef {
   id: string;
   name: string;
+  /** Afinidad del enemigo (ver content/affinities): sin ella es neutral. */
+  affinity?: Affinity;
   /** Familia: decide el arte y cómo se describe en el registro. */
   family: 'monster' | 'shinobi' | 'echo';
   maxHp: number;
@@ -115,51 +119,51 @@ const E = (d: EnemyDef): EnemyDef => d;
 
 export const ENEMIES: Record<string, EnemyDef> = {
   // ---------- Monstruos ----------
-  acechador_hollin: E({ id: 'acechador_hollin', name: 'Acechador de Hollín', family: 'monster', maxHp: 10, power: 4, defense: 0, aggroRange: 8, xp: 4, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 1, weight: 4 }),
-  cuervo_de_sal: E({ id: 'cuervo_de_sal', name: 'Cuervo de Sal', family: 'monster', maxHp: 5, power: 3, defense: 0, aggroRange: 10, xp: 3, behavior: 'melee', actionsPerTurn: 2, actEvery: 1, minFloor: 1, weight: 3 }),
-  larva_de_piedra: E({ id: 'larva_de_piedra', name: 'Larva de Piedra', family: 'monster', maxHp: 16, power: 4, defense: 2, aggroRange: 6, xp: 6, behavior: 'melee', actionsPerTurn: 1, actEvery: 2, minFloor: 2, weight: 2 }),
-  lobo_de_raiz: E({ id: 'lobo_de_raiz', name: 'Lobo de Raíz', family: 'monster', maxHp: 14, power: 4, defense: 0, aggroRange: 11, xp: 8, behavior: 'melee', actionsPerTurn: 2, actEvery: 1, minFloor: 4, weight: 2 }),
+  acechador_hollin: E({ id: 'acechador_hollin', name: 'Acechador de Hollín', affinity: 'ascua', family: 'monster', maxHp: 10, power: 4, defense: 0, aggroRange: 8, xp: 4, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 1, weight: 4 }),
+  cuervo_de_sal: E({ id: 'cuervo_de_sal', name: 'Cuervo de Sal', affinity: 'marea', family: 'monster', maxHp: 5, power: 3, defense: 0, aggroRange: 10, xp: 3, behavior: 'melee', actionsPerTurn: 2, actEvery: 1, minFloor: 1, weight: 3 }),
+  larva_de_piedra: E({ id: 'larva_de_piedra', name: 'Larva de Piedra', affinity: 'piedra', family: 'monster', maxHp: 16, power: 4, defense: 2, aggroRange: 6, xp: 6, behavior: 'melee', actionsPerTurn: 1, actEvery: 2, minFloor: 2, weight: 2 }),
+  lobo_de_raiz: E({ id: 'lobo_de_raiz', name: 'Lobo de Raíz', affinity: 'piedra', family: 'monster', maxHp: 14, power: 4, defense: 0, aggroRange: 11, xp: 8, behavior: 'melee', actionsPerTurn: 2, actEvery: 1, minFloor: 4, weight: 2 }),
   espora_flotante: E({
-    id: 'espora_flotante', name: 'Espora Flotante', family: 'monster', maxHp: 8, power: 3, defense: 0, aggroRange: 8, xp: 6, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2, range: 4, keepAway: 3,
+    id: 'espora_flotante', name: 'Espora Flotante', affinity: 'vendaval', family: 'monster', maxHp: 8, power: 3, defense: 0, aggroRange: 8, xp: 6, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2, range: 4, keepAway: 3,
     skills: [{ id: 'nube_cegadora', name: 'Nube Cegadora', shape: { kind: 'zone', radius: 1, range: 5 }, power: 2, delay: 2, cooldown: 4, inflict: { status: 'ceguera', turns: 8 } }],
   }),
 
   // ---------- Shinobi ----------
   aprendiz_renegado: E({
-    id: 'aprendiz_renegado', name: 'Aprendiz Renegado', family: 'shinobi', maxHp: 9, power: 4, defense: 0, aggroRange: 9, xp: 5, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 1, weight: 3,
+    id: 'aprendiz_renegado', name: 'Aprendiz Renegado', affinity: 'vendaval', family: 'shinobi', maxHp: 9, power: 4, defense: 0, aggroRange: 9, xp: 5, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 1, weight: 3,
     skills: [{ id: 'lanzar_kunai', name: 'Lanzar kunai', shape: { kind: 'shot', range: 4 }, power: 3, delay: 0, cooldown: 4, minDist: 2, flavor: 'lanza un kunai' }],
   }),
-  tirador_de_junco: E({ id: 'tirador_de_junco', name: 'Tirador de Junco', family: 'shinobi', maxHp: 7, power: 3, defense: 0, aggroRange: 9, xp: 5, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 3, range: 5, keepAway: 2 }),
+  tirador_de_junco: E({ id: 'tirador_de_junco', name: 'Tirador de Junco', affinity: 'marea', family: 'shinobi', maxHp: 7, power: 3, defense: 0, aggroRange: 9, xp: 5, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 3, range: 5, keepAway: 2 }),
   espadachin_de_laca: E({
-    id: 'espadachin_de_laca', name: 'Espadachín de Laca', family: 'shinobi', maxHp: 15, power: 5, defense: 1, aggroRange: 8, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
+    id: 'espadachin_de_laca', name: 'Espadachín de Laca', affinity: 'piedra', family: 'shinobi', maxHp: 15, power: 5, defense: 1, aggroRange: 8, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
     skills: [{ id: 'tajo_giratorio', name: 'Tajo Giratorio', shape: { kind: 'burst', radius: 1 }, power: 6, delay: 1, cooldown: 3 }],
   }),
   rastreador_hilo_gris: E({
-    id: 'rastreador_hilo_gris', name: 'Rastreador del Hilo Gris', family: 'shinobi', maxHp: 11, power: 4, defense: 0, aggroRange: 11, xp: 7, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
+    id: 'rastreador_hilo_gris', name: 'Rastreador del Hilo Gris', affinity: 'vendaval', family: 'shinobi', maxHp: 11, power: 4, defense: 0, aggroRange: 11, xp: 7, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
     skills: [{ id: 'paso_fantasma', name: 'Paso Fantasma', shape: { kind: 'dash', range: 5 }, power: 0, delay: 0, cooldown: 5, minDist: 3, flavor: 'se esfuma y reaparece a tu lado' }],
   }),
   monje_hueco: E({
-    id: 'monje_hueco', name: 'Monje Hueco', family: 'shinobi', maxHp: 12, power: 6, defense: 1, aggroRange: 8, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
+    id: 'monje_hueco', name: 'Monje Hueco', affinity: 'rayo', family: 'shinobi', maxHp: 12, power: 6, defense: 1, aggroRange: 8, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 2, weight: 2,
     skills: [{ id: 'pulso_hueco', name: 'Pulso Hueco', shape: { kind: 'zone', radius: 1, range: 5 }, power: 6, delay: 2, cooldown: 0 }],
   }),
   acolito_de_la_campana: E({
-    id: 'acolito_de_la_campana', name: 'Acólito de la Campana', family: 'shinobi', maxHp: 12, power: 5, defense: 0, aggroRange: 9, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 3, weight: 2,
+    id: 'acolito_de_la_campana', name: 'Acólito de la Campana', affinity: 'piedra', family: 'shinobi', maxHp: 12, power: 5, defense: 0, aggroRange: 9, xp: 8, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 3, weight: 2,
     skills: [{ id: 'cruz_de_plegaria', name: 'Cruz de Plegaria', shape: { kind: 'cross', length: 3, range: 5 }, power: 5, delay: 2, cooldown: 3 }],
   }),
   adepto_de_brasa: E({
-    id: 'adepto_de_brasa', name: 'Adepto de la Brasa', family: 'shinobi', maxHp: 12, power: 5, defense: 0, aggroRange: 9, xp: 9, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2,
+    id: 'adepto_de_brasa', name: 'Adepto de la Brasa', affinity: 'ascua', family: 'shinobi', maxHp: 12, power: 5, defense: 0, aggroRange: 9, xp: 9, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2,
     skills: [{ id: 'aliento_de_brasa', name: 'Aliento de Brasa', shape: { kind: 'beam', length: 5 }, power: 6, delay: 1, cooldown: 4, inflict: { status: 'quemadura', turns: 2 } }],
   }),
   envenenador_de_raiz: E({
-    id: 'envenenador_de_raiz', name: 'Envenenador de Raíz', family: 'shinobi', maxHp: 10, power: 3, defense: 0, aggroRange: 9, xp: 9, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2, range: 5, keepAway: 3,
+    id: 'envenenador_de_raiz', name: 'Envenenador de Raíz', affinity: 'marea', family: 'shinobi', maxHp: 10, power: 3, defense: 0, aggroRange: 9, xp: 9, behavior: 'ranged', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 2, range: 5, keepAway: 3,
     skills: [{ id: 'senbon_envenenadas', name: 'Senbon envenenadas', shape: { kind: 'shot', range: 5 }, power: 2, delay: 0, cooldown: 3, minDist: 2, inflict: { status: 'veneno', turns: 4 }, flavor: 'te clava unas senbon envenenadas' }],
   }),
   sellador_invocador: E({
-    id: 'sellador_invocador', name: 'Sellador Invocador', family: 'shinobi', maxHp: 12, power: 3, defense: 0, aggroRange: 9, xp: 10, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 1,
+    id: 'sellador_invocador', name: 'Sellador Invocador', affinity: 'rayo', family: 'shinobi', maxHp: 12, power: 3, defense: 0, aggroRange: 9, xp: 10, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 4, weight: 1,
     skills: [{ id: 'clones_de_niebla', name: 'Clones de Niebla', shape: { kind: 'summon', enemy: 'clon_de_niebla', count: 2 }, power: 0, delay: 0, cooldown: 12, minDist: 2 }],
   }),
   maestro_del_trueno: E({
-    id: 'maestro_del_trueno', name: 'Maestro del Trueno', family: 'shinobi', maxHp: 15, power: 5, defense: 1, aggroRange: 10, xp: 12, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 5, weight: 2,
+    id: 'maestro_del_trueno', name: 'Maestro del Trueno', affinity: 'rayo', family: 'shinobi', maxHp: 15, power: 5, defense: 1, aggroRange: 10, xp: 12, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 5, weight: 2,
     skills: [{ id: 'relampago_en_cruz', name: 'Relámpago en Cruz', shape: { kind: 'cross', length: 4, range: 6 }, power: 7, delay: 2, cooldown: 4 }],
   }),
 
@@ -175,7 +179,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
 
   // ---------- Jefes shinobi ----------
   sokan_predicador: E({
-    id: 'sokan_predicador', name: 'Sōkan, Predicador Hueco', family: 'shinobi', maxHp: 64, power: 8, defense: 2, aggroRange: 10, xp: 30, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
+    id: 'sokan_predicador', name: 'Sōkan, Predicador Hueco', affinity: 'piedra', family: 'shinobi', maxHp: 64, power: 8, defense: 2, aggroRange: 10, xp: 30, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
     skills: [
       { id: 'golpe_de_cayado', name: 'Golpe de Cayado', shape: { kind: 'burst', radius: 2 }, power: 10, delay: 2, cooldown: 3, pushPlayer: 3 },
       { id: 'mantra_hueco', name: 'Mantra Hueco', shape: { kind: 'zone', radius: 2, range: 6 }, power: 5, delay: 2, cooldown: 5, drainKiro: 6 },
@@ -197,7 +201,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     },
   }),
   yugiri_hilo_roto: E({
-    id: 'yugiri_hilo_roto', name: 'Yūgiri, el Hilo Roto', family: 'shinobi', maxHp: 130, power: 9, defense: 2, aggroRange: 12, xp: 45, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
+    id: 'yugiri_hilo_roto', name: 'Yūgiri, el Hilo Roto', affinity: 'vendaval', family: 'shinobi', maxHp: 130, power: 9, defense: 2, aggroRange: 12, xp: 45, behavior: 'boss', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
     skills: [
       { id: 'tajo_de_hilo', name: 'Tajo de Hilo', shape: { kind: 'burst', radius: 1 }, power: 12, delay: 1, cooldown: 1 },
       { id: 'hilo_atrapador', name: 'Hilo Atrapador', shape: { kind: 'beam', length: 7 }, power: 6, delay: 1, cooldown: 4, pullPlayer: 6, flavor: 'lanza un hilo hacia ti' },

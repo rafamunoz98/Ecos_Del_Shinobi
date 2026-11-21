@@ -56,13 +56,25 @@ const MAX_ATTEMPTS = 50;
  * que se sortea con la semilla (misma semilla = mismo sector).
  */
 export function healFloorOfPhase(seed: number, floor: number): number {
+  return phaseFloor(seed, floor, 4242);
+}
+
+/**
+ * Cada fase tiene además asegurada UNA Poción de Fuerza (la de ese jefe) en otro sector sin jefe de la fase, para tenerla antes
+ * de llegar a él. Misma semilla = mismo sector.
+ */
+export function strengthFloorOfPhase(seed: number, floor: number): number {
+  return phaseFloor(seed, floor, 7373);
+}
+
+function phaseFloor(seed: number, floor: number, salt: number): number {
   const bossFloor = BOSS_FLOORS.find((b) => b >= floor);
   const start = Math.max(0, ...BOSS_FLOORS.filter((b) => b < floor)) + 1;
   const end = bossFloor ?? Math.max(floor, start);
   const candidates: number[] = [];
   for (let f = start; f < end; f++) candidates.push(f);
   if (candidates.length === 0) candidates.push(start);
-  return candidates[mixSeed(seed, start, 4242) % candidates.length];
+  return candidates[mixSeed(seed, start, salt) % candidates.length];
 }
 
 const center = (r: Room): Vec => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) });
@@ -118,7 +130,7 @@ function carveCorridor(tiles: TerrainKind[], width: number, a: Vec, b: Vec, hori
   }
 }
 
-function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean, guaranteeHeal: boolean): GeneratedLevel | null {
+function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean, guaranteeHeal: boolean, extra: Rng, guaranteeStrength: boolean): GeneratedLevel | null {
   const tiles: TerrainKind[] = new Array<TerrainKind>(width * height).fill('wall');
   const rooms: Room[] = [];
 
@@ -470,6 +482,20 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
     thickets++;
   }
 
+  // 11. Extras con su propio generador (no alteran los mapas ya conocidos): la Poción de Fuerza asegurada de la fase.
+  if (guaranteeStrength) {
+    const roomsForStrength = rooms.filter((r) => r !== bossRoom);
+    for (let t = 0; t < 300; t++) {
+      const r = roomsForStrength[extra.int(0, roomsForStrength.length - 1)];
+      const c = { x: extra.int(r.x, r.x + r.w - 1), y: extra.int(r.y, r.y + r.h - 1) };
+      const i = idx(map, c);
+      if (used.has(i) || tiles[i] !== 'floor' || manhattan(c, playerStart) < 3) continue;
+      used.add(i);
+      drops.push({ pos: c, itemId: 'pocion:fuerza', count: 1 });
+      break;
+    }
+  }
+
   return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, rooms, bossRoom };
 }
 
@@ -524,7 +550,8 @@ export function generateLevel(params: LevelParams): GeneratedLevel {
   const height = params.height ?? BALANCE.level.height;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const heal = healFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
-    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal);
+    const strength = strengthFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
+    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal, new Rng(mixSeed(params.seed, params.floor, attempt + 9001)), strength);
     if (level) return level;
   }
   throw new Error(`No se pudo generar el sector ${params.floor} con la semilla ${params.seed}.`);

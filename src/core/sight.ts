@@ -43,6 +43,7 @@ export function enemySees(s: GameState, e: Enemy): boolean {
   const d = manhattan(e.pos, p);
   if (equals(e.pos, p)) return true;
   if (chebyshev(e.pos, p) === 1 && stepOk(s.map, e.pos, p)) return true; // pegados (sin una esquina cerrada de por medio)
+  if (e.statuses.some((st) => st.id === 'ceguera')) return false; // ciego: solo te nota si estás pegado a él
   if (s.player.statuses.some((st) => st.id === 'sigilo')) return false; // invisible salvo a quemarropa
   if (d > e.aggroRange) return false;
   if (terrainAt(s.map, p) === 'bush') return false;

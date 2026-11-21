@@ -610,6 +610,8 @@ const POTION_COLORS: Record<string, [string, string]> = {
   niebla_oscura: ['#26222e', '#6a6478'],
   ignea: ['#e0561c', '#ffd070'],
   estridente: ['#e0c020', '#fff2a0'],
+  fuerza: ['#c0402a', '#ffb09a'],
+  levitacion: ['#7ad0e8', '#eafcff'],
 };
 
 const LOOK_COLORS: Record<string, [string, string]> = {
@@ -625,6 +627,8 @@ const LOOK_COLORS: Record<string, [string, string]> = {
   cobalto: ['#1858c8', '#8cbcff'],
   ébano: ['#1e1824', '#645a70'],
   coral: ['#f06a58', '#ffc0b4'],
+  perla: ['#e6e0f0', '#ffffff'],
+  ocre: ['#b8842c', '#f0d08a'],
 };
 
 function hashStr(s: string): number {
@@ -633,20 +637,24 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-/** Píldora Akimichi: una bolita rojiza con una marca. */
-function pill(ctx: Ctx): void {
-  circle(ctx, 0, 0.02, 0.3);
-  ctx.fillStyle = vGrad(ctx, -0.28, 0.32, '#ffb25a', '#c4561c');
+/** Puños: un guantelete cerrado, sin arma. */
+function fist(ctx: Ctx): void {
+  roundRectPath(ctx, -0.26, -0.2, 0.52, 0.42, 0.12);
+  ctx.fillStyle = vGrad(ctx, -0.2, 0.22, '#f0cfa8', '#c79a72');
   ctx.fill();
   outline(ctx, 0.05);
-  ctx.strokeStyle = '#6a2a10';
-  ctx.lineWidth = 0.05;
-  ctx.beginPath();
-  ctx.moveTo(-0.14, 0.02);
-  ctx.lineTo(0.14, 0.02);
-  ctx.moveTo(0, -0.12);
-  ctx.lineTo(0, 0.16);
-  ctx.stroke();
+  ctx.strokeStyle = '#8a5f3a';
+  ctx.lineWidth = 0.035;
+  for (const x of [-0.13, 0, 0.13]) {
+    ctx.beginPath();
+    ctx.moveTo(x, -0.2);
+    ctx.lineTo(x, -0.04);
+    ctx.stroke();
+  }
+  roundRectPath(ctx, -0.2, 0.22, 0.4, 0.12, 0.04);
+  ctx.fillStyle = '#4a4a62';
+  ctx.fill();
+  outline(ctx, 0.04);
 }
 
 /** Pergamino cerrado con un sello de runa generado a partir de `seed` (cada aspecto lleva el suyo). */
@@ -824,6 +832,23 @@ function darkEye(ctx: Ctx): void {
   ctx.stroke();
 }
 
+/** Levitación: una pluma que flota. */
+function feather(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 0.3);
+  ctx.bezierCurveTo(-0.34, -0.1, 0.0, -0.4, 0.34, -0.32);
+  ctx.bezierCurveTo(0.32, 0.0, 0.1, 0.3, -0.3, 0.3);
+  ctx.fillStyle = vGrad(ctx, -0.35, 0.3, '#eafcff', '#7ad0e8');
+  ctx.fill();
+  outline(ctx, 0.05);
+  ctx.strokeStyle = '#3f7f98';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 0.3);
+  ctx.lineTo(0.2, -0.22);
+  ctx.stroke();
+}
+
 function brokenSpool(ctx: Ctx): void {
   roundRectPath(ctx, -0.12, -0.3, 0.24, 0.6, 0.04);
   ctx.fillStyle = '#9a8a76';
@@ -871,7 +896,6 @@ function resolveIcon(id: string): ((ctx: Ctx) => void) | undefined {
   if (id === 'pergamino_azar') return (c) => sealedScroll(c, 'azar');
   if (id.startsWith('pocion:')) {
     const k = id.slice(7);
-    if (k === 'akimichi') return pill;
     const col = POTION_COLORS[k] ?? ['#8a6aa8', '#e0d0f0'];
     return (c) => vial(c, col[0], col[1]);
   }
@@ -901,7 +925,7 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   shuriken,
   kunai_arrojadizo: kunai,
   senbon,
-  tanto_gastado: (c) => blade(c, 0.4, 0.07, '#c9cfdb', '#7a8296'),
+  punos: fist,
   kunai_de_hierro: (c) => blade(c, 0.46, 0.085, '#e4e8f2', '#8a92a6', '#3d3f52'),
   hoja_afilada: (c) => blade(c, 0.58, 0.075, '#f5f8ff', '#97a0b8'),
   hoja_de_ceniza: (c) => blade(c, 0.58, 0.085, '#8a7d9a', '#2e2438', '#2a2230'),
@@ -928,6 +952,7 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   potenciado: empower,
   sigilo: cloak,
   ceguera: darkEye,
+  levitando: feather,
   carrete_roto: brokenSpool,
   mercader: mercantile,
 };

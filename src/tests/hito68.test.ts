@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POTIONS, SCROLLS, STARTING_KNOWN } from '../content/arcana';
+import { ALWAYS_KNOWN, POTIONS, SCROLLS, STARTING_KNOWN } from '../content/arcana';
 import { BALANCE } from '../content/balance';
 import { MODS, makeGearId, splitGear } from '../content/enchants';
 import { itemName } from '../content/names';
@@ -37,10 +37,10 @@ describe('apariencias y conocimiento por afinidad', () => {
     for (const aff of AFFINITIES) {
       const g = createGame({ seed: 3, affinity: aff });
       const known = g.player.known;
-      expect(known).toEqual([...STARTING_KNOWN[aff]]);
-      expect(known.filter((k) => k.startsWith('pocion:'))).toHaveLength(1);
+      expect(known).toEqual([...ALWAYS_KNOWN, ...STARTING_KNOWN[aff]]);
+      expect(known.filter((k) => k.startsWith('pocion:') && !ALWAYS_KNOWN.includes(k))).toHaveLength(1);
       expect(known.filter((k) => k.startsWith('pergamino:'))).toHaveLength(1);
-      known.forEach((k) => (k.startsWith('pocion:') ? seenP : seenS).add(k));
+      known.filter((k) => !ALWAYS_KNOWN.includes(k)).forEach((k) => (k.startsWith('pocion:') ? seenP : seenS).add(k));
     }
     expect(seenP.size).toBe(5);
     expect(seenS.size).toBe(5);
@@ -67,6 +67,7 @@ describe('equipo encantado y maldito', () => {
   it('una pieza normal tarda unas rondas en identificarse; mientras tanto se ve como «(?)»', () => {
     const s = makeGame(room, (g) => {
       g.player.weapons.push('hoja_afilada~filo_fino');
+      g.player.strength = 9;
       calm(g);
     });
     expect(s.player.identified).not.toContain('hoja_afilada~filo_fino');
@@ -84,6 +85,7 @@ describe('equipo encantado y maldito', () => {
   it('una pieza maldita se revela al instante al equiparla (y ya no se puede quitar)', () => {
     const s = makeGame(room, (g) => {
       g.player.weapons.push('hoja_afilada~oxido');
+      g.player.strength = 9;
       calm(g);
     });
     const r = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~oxido' });
@@ -95,11 +97,12 @@ describe('equipo encantado y maldito', () => {
   it('cambiar de pieza antes de identificarla no la identifica', () => {
     const s = makeGame(room, (g) => {
       g.player.weapons.push('hoja_afilada~filo_fino');
+      g.player.strength = 9;
       calm(g);
     });
     let st = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~filo_fino' }).state;
     for (let i = 0; i < 5; i++) st = applyCommand(st, { type: 'Wait' }).state;
-    st = applyCommand(st, { type: 'EquipWeapon', weaponId: 'tanto_gastado' }).state;
+    st = applyCommand(st, { type: 'EquipWeapon', weaponId: 'punos' }).state;
     for (let i = 0; i < BALANCE.identifyTurns; i++) st = applyCommand(st, { type: 'Wait' }).state;
     expect(st.player.identified).not.toContain('hoja_afilada~filo_fino');
   });
@@ -107,6 +110,7 @@ describe('equipo encantado y maldito', () => {
   it('una maldición se queda pegada: no puedes cambiar de arma hasta purificarla', () => {
     const s = makeGame(room, (g) => {
       g.player.weapons.push('hoja_afilada~oxido', 'kunai_de_hierro');
+      g.player.strength = 9;
       calm(g);
     });
     const cursed = applyCommand(s, { type: 'EquipWeapon', weaponId: 'hoja_afilada~oxido' }).state;
@@ -210,9 +214,9 @@ describe('pociones y pergaminos', () => {
     expect(c.player.statuses.some((x) => x.id === 'ceguera')).toBe(true);
   });
 
-  it('la píldora Akimichi sube el poder para siempre; el ojo blanco revela el mapa', () => {
-    const a = withItem('pocion:akimichi');
-    expect(applyCommand(a, use('pocion:akimichi')).state.player.power).toBe(a.player.power + 1);
+  it('la Poción de Fuerza sube la Fuerza para siempre; el ojo blanco revela el mapa', () => {
+    const a = withItem('pocion:fuerza');
+    expect(applyCommand(a, use('pocion:fuerza')).state.player.strength).toBe(a.player.strength + 1);
     const o = withItem('pocion:ojo_blanco');
     expect(applyCommand(o, use('pocion:ojo_blanco')).state.explored.every(Boolean)).toBe(true);
   });
@@ -255,8 +259,14 @@ describe('pociones y pergaminos', () => {
     const r = applyCommand(s, use('pergamino:purificacion')).state;
     expect(r.player.equipment.weapon).toBe('hoja_afilada');
     expect(r.player.equipment.armor).toBe('cota_de_laminas~roca'); // los encantamientos no se tocan
-    const u = withItem('pergamino:refuerzo');
-    expect(applyCommand(u, use('pergamino:refuerzo')).state.player.weaponLevels['tanto_gastado']).toBe(1);
+    const u = withItem('pergamino:refuerzo', (g) => {
+      g.player.weapons = ['kunai_de_hierro'];
+      g.player.equipment.weapon = 'kunai_de_hierro';
+    });
+    expect(applyCommand(u, use('pergamino:refuerzo')).state.player.weaponLevels['kunai_de_hierro']).toBe(1);
+    // A puños no hay nada que reforzar.
+    const fists = withItem('pergamino:refuerzo');
+    expect(applyCommand(fists, use('pergamino:refuerzo')).state.player.weaponLevels).toEqual({});
   });
 
   it('la revelación identifica el equipo; la sustitución te mueve lejos', () => {
