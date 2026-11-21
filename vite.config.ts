@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     include: ['src/tests/**/*.test.ts'],
     environment: 'node',
+    // Las pruebas que recorren cientos de semillas del generador tardan más en los servidores de CI.
+    testTimeout: 60_000,
   },
 });
