@@ -333,8 +333,8 @@ export class GameScene extends Phaser.Scene {
       this.moveOrAct(dir);
     } else if (key === ' ' || key === 'np5') {
       this.dispatch({ type: 'Wait' });
-    } else if (key === 'z') {
-      this.startSearch();
+    } else if (key === 'h') {
+      this.startSearch(); // H = hurgar/buscar (la Z ya es la diagonal ↙)
     } else if (key === 'x' || key === 'enter') {
       this.interact();
     } else if (key === 'f') {

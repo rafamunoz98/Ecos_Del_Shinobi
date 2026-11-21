@@ -6,6 +6,8 @@ Propuestas basadas en **Pixel Dungeon** (y su continuación Shattered Pixel Dung
 
 **Fecha de redacción:** 21-nov-2026, tras el Hito 6.8 (personajes por afinidad, controles de clic, confirmación de reinicio).
 
+**Actualización (21-nov-2026, Hito 6.9):** el equipo pidió y se implementó: **reacciones entre elementos en el terreno** (§1.2), **fusiones de afinidades** (§1.3, desbloqueo independiente con Manual de Fusión), **descansar/buscar** (§1.4, tecla **H**, con cámaras ocultas), **otros protagonistas como compañeros** (uno solo, el de la afinidad que cubre tu debilidad) y el **eco de la expedición anterior** como mini-jefe (la parte permanente queda para el Hito 7). Se añadieron además los **amuletos** (§3: «Varitas y anillos» → anillos y colgantes, con maldiciones), la **fuerza** para empuñar armas y los **minidesafíos** de sector. Lo demás sigue siendo sugerencia.
+
 ---
 
 ## 1. Lo más recomendable ahora (alto impacto, bajo coste)
@@ -13,9 +15,9 @@ Propuestas basadas en **Pixel Dungeon** (y su continuación Shattered Pixel Dung
 | # | Idea | Origen | Impacto | Coste | Encaja con |
 |---|------|--------|---------|-------|------------|
 | 1 | **Pasiva y equipo inicial propios de cada protagonista.** Hoy cada uno trae su afinidad (y con ella sus técnicas), pero ninguno tiene rasgos propios. En Shattered Pixel Dungeon cada clase arranca con un kit y una habilidad distintos; aquí bastaría una pasiva por personaje (ver §2). | Shattered PD | ★★★ | S–M | Personajes del Hito 6.8, `heroes.ts` |
-| 2 | **Reacciones entre elementos en el terreno.** El fuego quema arbustos (revela y destruye cobertura), el agua moja el suelo y el rayo la electrifica (daño en cadena), el viento dispersa humo y avanza las llamas, la piedra levanta muros. Cada afinidad deja de ser «solo daño» y pasa a cambiar el mapa. | Noita, Brogue | ★★★ | M | Arbustos, zonas persistentes, técnicas con área |
-| 3 | **Fusiones de afinidades.** Con la segunda afinidad (recompensa del primer jefe) se desbloquean técnicas que solo existen al combinar dos: Ascua+Piedra, Marea+Vendaval, Rayo+Vendaval, etc. Convierte la elección de afinidad en una decisión de *build*. | Géneros ninja, Hades | ★★★ | M | `affinity2`, `tier2` |
-| 4 | **Descansar / buscar varios turnos** (tecla `Z` o doble toque sobre uno mismo): espera hasta curarte o hasta que algo aparezca; además revela puertas ocultas cercanas. En Pixel Dungeon es la acción más usada. | Pixel Dungeon, Brogue | ★★ | S | `Wait`, interrupciones de `travel.ts` |
+| 2 | ✅ *(Hito 6.9)* **Reacciones entre elementos en el terreno.** El fuego quema arbustos (revela y destruye cobertura), el agua moja el suelo y el rayo la electrifica (daño en cadena), el viento dispersa humo y avanza las llamas, la piedra levanta muros. Cada afinidad deja de ser «solo daño» y pasa a cambiar el mapa. | Noita, Brogue | ★★★ | M | Arbustos, zonas persistentes, técnicas con área |
+| 3 | ✅ *(Hito 6.9)* **Fusiones de afinidades.** Con la segunda afinidad (recompensa del primer jefe) se desbloquean técnicas que solo existen al combinar dos: Ascua+Piedra, Marea+Vendaval, Rayo+Vendaval, etc. Convierte la elección de afinidad en una decisión de *build*. | Géneros ninja, Hades | ★★★ | M | `affinity2`, `tier2` |
+| 4 | ✅ *(Hito 6.9, tecla H)* **Descansar / buscar varios turnos** (tecla `Z` o doble toque sobre uno mismo): espera hasta curarte o hasta que algo aparezca; además revela puertas ocultas cercanas. En Pixel Dungeon es la acción más usada. | Pixel Dungeon, Brogue | ★★ | S | `Wait`, interrupciones de `travel.ts` |
 | 5 | **Pellizco para zoom y pulsación larga = Inspeccionar** en el móvil. Ahora que tocar actúa, falta un gesto para *mirar sin gastar turno* (enemigo, objeto, casilla). El zoom táctil sigue siendo solo rueda y +/−. | Shattered PD | ★★★ | S | Sistema de clics del Hito 6.8 |
 | 6 | **Diario / catálogo**: lista de enemigos vistos, pociones y pergaminos ya identificados, notas de lore. Ayuda a recordar entre partidas largas y alimenta el bestiario previsto. | Pixel Dungeon | ★★ | S–M | `appearance`, `notes`, menú de Notas |
 | 7 | **Ruido y señuelos**: lanzar un objeto (o un kunai) hace ruido y atrae a los enemigos a ese punto; permite rodearlos o tenderles una emboscada. Muy ninja y casi gratis con el sigilo actual. | Tenchu, Mystery Dungeon | ★★ | S–M | Alerta, `lureStep`, arrojadizas |

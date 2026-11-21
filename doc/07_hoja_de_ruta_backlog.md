@@ -2,7 +2,7 @@
 
 Los tiempos dependen de experiencia, disponibilidad y producción de arte. Priorizar hitos verificables sobre fechas rígidas.
 
-**Estado (21-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice), el **Hito 6.5** (botín, llaves y forja) el **Hito 6.6** (ampliación: 6 sectores, jefes shinobi, objetos sin identificar, tienda y nuevos controles) el **Hito 6.7** (ajustes tras probarlo: jefes rediseñados, segunda afinidad, 6 técnicas, tronco señuelo, identificación por tiempo) y el **Hito 6.8** (protagonista por afinidad, diagonal en un turno, clic/toque, confirmación al reiniciar). Siguiente: Hito 7 (progresión permanente).
+**Estado (21-nov-2026):** Hitos 0 a 5 completados en el prototipo (código en la raíz de este repositorio), más el **Hito 5.5** (sigilo, armas y arte), el Hito 6 (vertical slice), el **Hito 6.5** (botín, llaves y forja) el **Hito 6.6** (ampliación: 6 sectores, jefes shinobi, objetos sin identificar, tienda y nuevos controles) el **Hito 6.7** (ajustes tras probarlo: jefes rediseñados, segunda afinidad, 6 técnicas, tronco señuelo, identificación por tiempo) el **Hito 6.8** (protagonista por afinidad, diagonal en un turno, clic/toque, confirmación al reiniciar) y el **Hito 6.9** (fuerza y puños, pociones arrojables, ciclo de afinidades, terreno dinámico, precipicios, minidesafíos, buscar, joyas, fusiones, compañero y eco). Siguiente: Hito 7 (progresión permanente).
 
 ## Hito 0 — Preproducción
 - [x] Confirmar nombre provisional, resolución y tamaño de tile. *(Nombre provisional; el tile de pantalla no es fijo: zoom de cámara.)*
@@ -129,6 +129,26 @@ Los tiempos dependen de experiencia, disponibilidad y producción de arte. Prior
 - [x] Lista de ideas y mejoras basada en Pixel Dungeon, el género ninja y otros juegos: `12_ideas_y_mejoras.md`.
 **Aceptación:** una diagonal gasta un turno en teclado, clic y táctil; cada afinidad se reconoce a simple vista; no se pierde una partida por pulsar R sin querer. *(289 pruebas automáticas; comprobado en Chromium de escritorio y móvil.)*
 **Pendiente de decidir con el equipo:** si los protagonistas tendrán pasivas propias (ver `12_ideas_y_mejoras.md` §2), y falta un gesto para inspeccionar en el móvil (pulsación larga), ya que tocar ahora actúa.
+
+## Hito 6.9 — Fuerza, terreno vivo, joyas, fusiones, compañero y eco **[Completado]**
+Pedido el 21-nov-2026 (pociones arrojables y minidesafíos de nivel) más las ideas de `12_ideas_y_mejoras.md` que el equipo eligió. Se entregó en tres bloques.
+**Bloque 1 — Fuerza y afinidades**
+- [x] **Se empieza sin arma, a puños.** Cada arma exige **Fuerza** (base 3): kunai/látigo 3, lanza 4, hoja afilada 4, hoja de ceniza 5. La **Poción de Fuerza** (+1) es única por jefe y está asegurada en la fase, antes de llegar a él; **mejorar un arma en la forja baja 1 su requisito por nivel**. Sin Fuerza suficiente no se puede empuñar.
+- [x] **Las pociones se lanzan** (Tab → Objetos → Lanzar; alcance 5, radio 1): la Ígnea quema, la de Hiel envenena, la Niebla ciega, la Estridente atrae; las buenas se derraman sin efecto. Beberse una mala te daña a ti. Nueva **Poción de Levitación**.
+- [x] **Ciclo de afinidades** Marea > Ascua > Vendaval > Piedra > Rayo > Marea: todos los enemigos tienen afinidad; ×1,5 al vencerla y ×0,75 al perder. Gema y flecha sobre cada enemigo, y armas encantadas con afinidad.
+**Bloque 2 — Terreno vivo y minidesafíos**
+- [x] **Reacciones en el terreno** (idea §1.2): el fuego prende arbustos, zarzas y puertas y se propaga; el agua deja charcos; el rayo electrifica el agua conectada (también te daña si estás dentro y no levitas); el viento aviva las llamas; la roca y los Sellos Explosivos derriban **muros agrietados**.
+- [x] **Precipicios**: se puede saltar al sector de abajo (confirmación previa) a cambio de **la mitad de tu vida máxima** (nunca mata: deja al menos 1). Aterrizas lejos de los enemigos y estos no actúan esa ronda. La levitación permite cruzarlos (si caduca sobre el vacío, caes).
+- [x] **Minidesafío por sector** (zarzal que quemar, muro agrietado que derribar, isla de vacío que cruzar levitando) con **el objeto necesario asegurado y a la vista** en el mismo sector (brilla en el suelo) y un cofre de recompensa.
+- [x] **Buscar** (tecla **H**, botón 🔍): varias rondas tanteando las paredes; **cámaras ocultas** (cofre, alijo, santuario, tesoro, biblioteca, emboscada), casi siempre con algo bueno. Caminar junto a una pared secreta también puede revelarla.
+**Bloque 3 — Joyas, fusiones, compañero y eco**
+- [x] **Joyas**: ranuras de **anillo** y **colgante** con efectos pasivos (14 joyas, 5 malditas con precio oculto), identificadas al ponerlas y purificables (§11.8 de `02_sistemas_y_reglas.md`).
+- [x] **Técnicas de fusión** (idea §1.3): una por pareja de afinidades (10), solo para quien domina **ambas**, que se **desbloquean aparte** con un **Manual de Fusión** (mercader tras el primer jefe y bibliotecas ocultas desde el sector 4).
+- [x] **Compañero único**: un **prisionero** atado en el sector 2, de la afinidad que **cubre tu debilidad**; lo liberas y te sigue entre sectores (idea «otros protagonistas como compañeros»).
+- [x] **Eco de la expedición anterior** (parte del §4 de `12_ideas_y_mejoras.md`): al morir se guarda en el navegador y la siguiente expedición lo encuentra como mini-jefe en un sector sin jefe; al vencerlo suelta tu equipo, purificado.
+- [x] Corregido sobre la marcha: la tecla de Buscar chocaba con la diagonal Z (↙); ahora es **H**.
+**Aceptación:** una expedición ofrece decisiones nuevas en cada sector (qué quemar, qué cruzar, qué rescatar, qué joya llevarte) sin que nada obligatorio dependa de la suerte. *(386 pruebas automáticas; comprobado en Chromium de escritorio y móvil. Duelo contra el eco con un bot que no esquiva: ~90 % de victorias con hoja y cota, ~65 % a puños y sin armadura, y 72–100 % con compañero.)*
+**Pendiente de decidir con el equipo:** el legado **permanente** del eco (hoy solo suelta el equipo; el resto es del Hito 7); si el compañero debe poder equiparse o tener técnicas propias; cuántas técnicas de fusión por partida (hoy una, la de tu pareja de afinidades); equilibrio de precios de joyas, manual de fusión (60 monedas) y purificación con jugadores reales.
 
 ## Hito 7 — Progresión
 - [ ] Árbol de técnicas.

@@ -28,6 +28,14 @@ public/
     audio/
 ```
 
+### 3.1 Módulos añadidos en el Hito 6.9
+- `core/terrain.ts`: peligros del suelo, combustibles, agua conectada, muros agrietados y tirada por hash de las búsquedas (sin consumir el generador).
+- `content/trinkets.ts`: joyas (anillos y colgantes), efectos pasivos, aspectos por semilla y tirada de botín.
+- `content/echo.ts`: registro del eco, validación (`parseEcho`), estadísticas y sector del eco. `presentation/echoStore.ts` lo guarda en `localStorage` con `try/catch` (el core no toca el navegador: la escena lo pasa a `createGame({ echo })`).
+- `content/allies.ts` (compañeros por afinidad), `content/story.ts` (prisioneros: un `NpcDef` y un diálogo por afinidad), `presentation/art/companions.ts`.
+- El generador añade lo nuevo **después**, con semillas propias (`attempt + 9001` extras del sector, `+ 9101` prisionero, `+ 9201` eco): una semilla produce los mismos mapas, enemigos y botín que antes y solo se le suma lo nuevo.
+- `SCHEMA_VERSION` = 11 (`GameState` incorpora `hazards`, `hintedSecrets`, `companion` y `echo`; `Player` incorpora `trinkets`, `strength` e `identified`).
+
 ## 4. Modelo de datos
 Separar definiciones estáticas de instancias de partida. Estado serializable: runId, seed, floor, turn, map, player, enemies, summons, drops, effects y metaProgress. No guardar instancias Phaser.
 

@@ -145,7 +145,7 @@ export class Hud {
     log.scrollTop = log.scrollHeight;
 
     el('help').textContent =
-      'WASD/flechas: mover (dos flechas a la vez = diagonal) · Q E Z C (o teclado numérico): diagonales · Clic o toque: mover, atacar o interactuar; en una casilla lejana, viaje automático · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición (pide confirmación)';
+      'WASD/flechas: mover (dos flechas a la vez = diagonal) · Q E Z C (o teclado numérico): diagonales · Clic o toque: mover, atacar o interactuar; en una casilla lejana, viaje automático · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · H: buscar (puertas ocultas) · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición (pide confirmación)';
     this.drawMinimap(state);
 
     this.renderResult(state);
@@ -272,7 +272,7 @@ export class Hud {
       specs.push({ key: 'F', icon: w.id, name: 'Ataque de alcance', sub: `${w.name} · ${w.reach} casillas`, action: { type: 'reach' } });
     }
     if (p.weapons.length > 0) specs.push({ key: 'B', icon: w?.id ?? 'punos', name: 'Cambiar arma', sub: w?.name ?? 'Puños', action: { type: 'weapon' } });
-    specs.push({ key: 'Z', icon: 'lupa', name: 'Buscar', sub: 'varias rondas: puertas ocultas', action: { type: 'search' } });
+    specs.push({ key: 'H', icon: 'lupa', name: 'Buscar', sub: 'varias rondas: puertas ocultas', action: { type: 'search' } });
     specs.push({ key: 'X', icon: 'cofre', name: 'Interactuar', sub: 'cofre / puerta / forja / hablar', action: { type: 'interact' } });
     specs.push({ key: 'Tab', icon: 'pergamino', name: 'Menú', sub: 'inventario y técnicas', action: { type: 'menu' } });
 

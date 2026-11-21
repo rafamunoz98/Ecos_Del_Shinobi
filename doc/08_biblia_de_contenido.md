@@ -109,6 +109,22 @@ Fórmula de daño: `max(1, poder de la técnica + bonificación de nivel − def
 
 Contrajuego previsto: las técnicas de línea exigen alineación; las de área quedan bloqueadas por la línea de visión; la barrera sirve también como trampa para el propio jugador en pasillos. Los **manuales son raros**: ya no salen por el suelo ni los suelta el jefe; solo en cofres lacados, cámaras selladas (poco frecuentes, desde el sector 2) y en la tienda (40 monedas); la Maestra Sayoko y el Maestro Tobari enseñan una técnica que no se consigue por nivel.
 
+### 2.3 Técnicas de fusión **[Implementado]**
+Una por pareja de afinidades; solo la lanza quien domina **ambas**. Se aprenden únicamente con un **Manual de Fusión** (mercader, bibliotecas ocultas desde el sector 4). El daño cuenta como de las dos afinidades y las reacciones con el terreno se aplican por cada una (p. ej. la Tormenta Eléctrica moja *y* electrifica). Definidas en `src/content/techniques.ts`.
+
+| Fusión | Afinidades | Kiro | Forma | Efecto |
+|---|---|---|---|---|
+| Niebla de Vapor | Ascua + Marea | 5 | Ráfaga de radio 2 a tu alrededor | Daño 5, Ceguera 4 turnos |
+| Torbellino de Fuego | Ascua + Vendaval | 6 | Ráfaga cuadrada de radio 2 | Daño 7, Quemadura 3 turnos; aviva las llamas |
+| Lluvia de Magma | Ascua + Piedra | 6 | Área de radio 1 visible (alcance 5) | Daño 9 (ignora defensa), Quemadura 3 turnos |
+| Plasma | Ascua + Rayo | 6 | Línea de 6 | Daño 10 (ignora defensa) |
+| Tempestad de Hielo | Marea + Vendaval | 5 | Ráfaga de radio 2 | Daño 4, Ralentizado 4 turnos |
+| Pantano | Marea + Piedra | 5 | Área de radio 2 visible (alcance 5) | Daño 2, Atado 2 turnos |
+| Tormenta Eléctrica | Marea + Rayo | 6 | Área de radio 1 visible (alcance 5) | Daño 6, Aturdido 1 turno; moja y electrifica |
+| Tormenta de Arena | Vendaval + Piedra | 5 | Ráfaga de radio 3 | Daño 3, Ceguera 5 turnos |
+| Trueno Seco | Vendaval + Rayo | 6 | Línea de 8 | Daño 7, empuja 2 casillas |
+| Yunque del Trueno | Piedra + Rayo | 6 | Ráfaga cuadrada de radio 1 | Daño 11, Aturdido 1 turno; derriba muros agrietados |
+
 ### 2.2 Estados **[Implementado]**
 | Estado | Efecto | A quién |
 |---|---|---|
@@ -193,6 +209,19 @@ Objetos: **moneda**, **esquirla** (material de forja), **llave de hierro** (abre
 ## 5.5 Sigilo, arbustos y puertas **[Implementado]**
 Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan la visión; esconderse tiene un precio (ves menos); los enemigos solo actúan al verte; atacar a quien no te ha visto hace ×2.
 
+## 5.6 Compañeros y ecos **[Implementado]**
+**Compañeros.** Son los **otros cuatro protagonistas** (Hito 6.8), cada uno con su afinidad y su aspecto: un prisionero atado en el sector 2 se une a ti si lo liberas. Solo uno por expedición, siempre el de la afinidad que cubre tu debilidad (ver `02_sistemas_y_reglas.md` §13.2 y §13.8).
+
+| Tu protagonista | Su debilidad | Compañero | Afinidad |
+|---|---|---|---|
+| Jūrō Kurobane (Ascua) | Marea | Tōma Shirasagi | Rayo |
+| Mizuna Aoyagi (Marea) | Rayo | Momoka Iwase | Piedra |
+| Ren Sorae (Vendaval) | Ascua | Mizuna Aoyagi | Marea |
+| Momoka Iwase (Piedra) | Vendaval | Jūrō Kurobane | Ascua |
+| Tōma Shirasagi (Rayo) | Piedra | Ren Sorae | Vendaval |
+
+**Ecos.** Mini-jefes `eco_<afinidad>` («Eco de Jūrō Kurobane»...): el eco de la expedición caída, con la afinidad y habilidades de la afinidad inicial de quien fue (Ascua: Aliento de Brasa; Marea: Marea Ligadora; Vendaval: Paso del Viento y Corte de Aire; Piedra: Golpe Sísmico; Rayo: Relámpago en Cruz). Vida `16 + 6·nivel`, poder `5 + ⌊nivel/2⌋`, defensa `1 + ⌊nivel/4⌋`, con el nivel limitado a `sector + 1`. Se dibujan como el protagonista, desvaído y con un halo violeta.
+
 ## 6. Objetos y equipo **[Implementado]**
 ### 6.1 Consumibles
 - Ya no hay tónicos ni ungüentos: la vida y el kiro se recuperan con la **Poción de Sanación** (15 de vida, limpia quemadura y veneno), la **Poción de Kiro Mayor** (12 de kiro) y la **Poción de Savia** (regeneración). Hay **una Poción de Sanación asegurada en el suelo por fase** (los sectores previos a un jefe).
@@ -276,6 +305,38 @@ Inspirado en Pixel Dungeon, con motivos de ninjutsu (invocaciones, clones, sello
 Pendientes de la biblia original: Pergamino de Ceniza (ataque de área de un uso), Sello de Retorno (extracción bajo condición), Talismán de Piedra (talismán), Aguja de Resonancia (revela trampas), Máscara del Eco (modifica una técnica con coste). Cuando existan las ranuras de talismán y sello se incorporarán.
 
 Botín de cofres: tabla ponderada por sector. Ningún objeto raro es obligatorio para completar la expedición.
+
+### 6.4 Joyas **[Implementado]**
+Una ranura de **anillo** y otra de **colgante**. Se encuentran en cofres y cámaras (entrada `joya_azar` de la tabla de botín: 30 % malditas). Aspecto genérico hasta ponértelas.
+
+| Joya | Ranura | Efecto | Maldición |
+|---|---|---|---|
+| Anillo del Vigor | Anillo | +5 de vida máxima | — |
+| Anillo del Filo | Anillo | +1 de poder | — |
+| Anillo de la Guarda | Anillo | +1 de defensa | — |
+| Anillo de Savia | Anillo | Recuperas 1 de vida cada 8 rondas | — |
+| Anillo del Mercader | Anillo | +50 % de monedas al recogerlas | — |
+| Anillo del Hambre | Anillo | +2 de poder | Pierdes 1 de vida cada 6 rondas (sin matarte) |
+| Anillo Vacío | Anillo | +1 de defensa | −3 de kiro máximo |
+| Anillo de la Presa | Anillo | +4 de vida máxima | Cada golpe recibido duele 1 más |
+| Colgante del Toro | Colgante | +1 de Fuerza | — |
+| Colgante de Imán | Colgante | El que te vence por afinidad pega ×1,25 en vez de ×1,5 | — |
+| Colgante de Luz | Colgante | +1 casilla de visión | — |
+| Colgante de Rocío | Colgante | +1 de kiro extra al regenerarse con el tiempo | — |
+| Colgante de la Venda | Colgante | +4 de kiro máximo | Ves 2 casillas menos |
+| Colgante de Lastre | Colgante | +2 de poder | −1 de Fuerza |
+
+### 6.5 Armas y Fuerza **[Implementado]**
+| Arma | Bonificación | Alcance | Fuerza |
+|---|---|---|---|
+| Puños | +0 | 1 | 0 |
+| Kunai de hierro | +1 | 1 | 3 |
+| Látigo de cadena | +0 | 2 | 3 |
+| Lanza de bambú | +1 | 2 | 4 |
+| Hoja afilada | +2 | 1 | 4 |
+| Hoja de ceniza | +3 | 1 | 5 |
+
+La Fuerza inicial es 3 y sube con la **Poción de Fuerza** (una por jefe) y el Colgante del Toro; cada mejora de forja baja 1 el requisito del arma. La forja mejora hasta nivel 3 (+1 de poder por nivel).
 
 ## 7. Progresión durante la expedición **[Implementado]**
 - **Subida de nivel controlada:** como mucho **un nivel por sector**, y solo si se derrota a *todos* los enemigos de ese sector (los invocados no cuentan). El HUD muestra «enemigos x/y» y «sector despejado». Los enemigos dan XP y monedas pero ya no suben el nivel por sí solos.
