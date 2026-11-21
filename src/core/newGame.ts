@@ -9,10 +9,11 @@ import { levelFromRoom } from '../dungeon/ascii';
 import { computeVisible } from './grid';
 import { visionRadiusOf } from './sight';
 import { ALWAYS_KNOWN, shuffleAppearances, STARTING_KNOWN } from '../content/arcana';
+import { trinketAppearances } from '../content/trinkets';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -69,6 +70,7 @@ export function createGame(opts: NewGameOptions): GameState {
       grimoire: [],
       weapons: [],
       armors: [],
+      trinkets: [],
       identified: [],
       wear: {},
       known: [...ALWAYS_KNOWN, ...STARTING_KNOWN[affinity]],
@@ -79,11 +81,13 @@ export function createGame(opts: NewGameOptions): GameState {
       shards: 0,
       keys: [],
       weaponLevels: {},
-      equipment: { weapon: null, armor: null },
+      equipment: { weapon: null, armor: null, ring: null, pendant: null },
       statuses: [],
     },
     enemies: level.enemies,
     allies: [],
+    companion: null,
+    echo: opts.echo ?? null,
     chests: level.chests,
     barriers: [],
     hazards: [],
@@ -110,6 +114,7 @@ export function createGame(opts: NewGameOptions): GameState {
     state.rngState = r.state;
     return r.value;
   });
+  Object.assign(state.appearance, trinketAppearances(state.seed));
   for (const i of computeVisible(state.map, state.player.pos, visionRadiusOf(state))) {
     state.explored[i] = true;
   }

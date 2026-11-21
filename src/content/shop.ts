@@ -5,6 +5,8 @@ export const MERCHANT_NAME = 'Mercader de la Casa del Hilo Gris';
 /** Precios fijos de lo corriente; los de pociones y pergaminos salen de su definición. */
 export const SHOP_PRICES = {
   manual: 40,
+  /** Manual de fusión (la técnica de tus dos afinidades): caro, pero una sola vez por partida. */
+  fusion: 60,
   /** Equipo: base + por punto de bonificación (+10 si viene encantado). */
   weaponBase: 18,
   armorBase: 16,

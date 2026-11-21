@@ -1,4 +1,5 @@
-import type { Hero } from '../../content/heroes';
+import type { Affinity } from '../../core/types';
+import { HEROES, type Hero } from '../../content/heroes';
 import type { WeaponKind } from '../../content/weapons';
 import { echoWisp, explosiveDoll, hollowMonk, sealTablet } from './bosses';
 import { drawShinobiEnemy } from './shinobi';
@@ -380,8 +381,22 @@ export function drawEnemy(ctx: Ctx, kind: string, o: EnemyPose): void {
       sporeBloom(ctx, o);
       break;
     default:
-      if (!drawShinobiEnemy(ctx, kind, o)) stalker(ctx, o);
+      if (kind.startsWith('eco_') && Object.hasOwn(HEROES, kind.slice(4))) echoOfHero(ctx, kind.slice(4) as Affinity, o);
+      else if (!drawShinobiEnemy(ctx, kind, o)) stalker(ctx, o);
   }
+  ctx.restore();
+}
+
+/** El eco de una expedición caída: el protagonista de esa afinidad, transparente, desvaído y con un halo violeta que tiembla. */
+function echoOfHero(ctx: Ctx, a: Affinity, o: EnemyPose): void {
+  ctx.save();
+  const flick = 0.5 + Math.sin(o.t * 5) * 0.08;
+  ctx.fillStyle = radial(ctx, 0, 0.0, 0.05, 0.6, 'rgba(176,120,255,0.45)', 'rgba(176,120,255,0)');
+  circle(ctx, 0, 0.0, 0.6);
+  ctx.fill();
+  ctx.globalAlpha *= flick + 0.25;
+  ctx.filter = 'grayscale(0.7) brightness(0.85)';
+  drawNinja(ctx, { ...o, dir: o.face === 1 ? 'right' : 'left', hero: HEROES[a] });
   ctx.restore();
 }
 
@@ -732,6 +747,9 @@ export function drawAlly(ctx: Ctx, kind: string, o: EnemyPose): void {
   else if (kind === 'cuervo_aliado') {
     ctx.globalAlpha *= 0.9;
     crow(ctx, o);
+  } else if (kind.startsWith('companero_') && Object.hasOwn(HEROES, kind.slice(10))) {
+    // Tu compañero: el protagonista de otra casa, sin transparencia (no es una invocación).
+    drawNinja(ctx, { ...o, dir: o.face === 1 ? 'right' : 'left', hero: HEROES[kind.slice(10) as Affinity] });
   } else {
     ctx.globalAlpha *= 0.65;
     drawNinja(ctx, { ...o, dir: o.face === 1 ? 'right' : 'left' });

@@ -1,5 +1,7 @@
 // Tipos del núcleo. Todo el estado es serializable (JSON plano): sin Set, Map ni instancias de Phaser.
 
+import type { EchoRecord } from '../content/echo';
+
 export interface Vec {
   readonly x: number;
   readonly y: number;
@@ -46,7 +48,7 @@ export type StatusId =
   | 'sigilo'
   | 'ceguera'
   | 'levitando';
-export type EquipSlot = 'weapon' | 'armor';
+export type EquipSlot = 'weapon' | 'armor' | 'ring' | 'pendant';
 
 export interface StatusEffect {
   id: StatusId;
@@ -80,6 +82,8 @@ export interface Player {
   weapons: string[];
   /** Vestimentas que posee (la puesta es equipment.armor). */
   armors: string[];
+  /** Joyas (anillos y colgantes) que posee, puestas o no. Una maldita purificada lleva el sufijo «~limpio». */
+  trinkets: string[];
   /** Ids de equipo ya identificados (se equiparon alguna vez, o los reveló un pergamino). Los demás se ven como «(?)». */
   identified: string[];
   /** Rondas que llevas puesta cada pieza de equipo sin identificar (al llegar a BALANCE.identifyTurns se descubre). */
@@ -113,6 +117,17 @@ export interface Ally {
   power: number;
   /** Rondas que le quedan. */
   turns: number;
+  /** Tu compañero rescatado: no se agota con las rondas, y al caer solo queda fuera de combate hasta el siguiente sector. */
+  companion?: boolean;
+}
+
+/** El compañero de la expedición (el prisionero que liberaste): su afinidad y cómo está entre sectores. */
+export interface CompanionRecord {
+  affinity: Affinity;
+  /** Vida con la que dejó el último sector (la de reaparecer se calcula con tu nivel). */
+  hp: number;
+  /** Cayó en combate: vuelve al siguiente sector con la mitad de su vida. */
+  downed: boolean;
 }
 
 export interface Enemy {
@@ -249,6 +264,10 @@ export interface GameState {
   player: Player;
   enemies: Enemy[];
   allies: Ally[];
+  /** Compañero rescatado (solo uno por expedición), o null. */
+  companion: CompanionRecord | null;
+  /** Eco de la expedición anterior que te espera en un sector sin jefe (null si no hay o ya lo venciste). */
+  echo: EchoRecord | null;
   chests: Chest[];
   barriers: Barrier[];
   /** Fuego, charcos y descargas sobre el suelo. */
@@ -291,6 +310,9 @@ export type Command =
   | { type: 'Throw'; itemId: string; target: Vec }
   | { type: 'EquipWeapon'; weaponId: string }
   | { type: 'EquipArmor'; armorId: string }
+  /** Se pone un anillo o un colgante en su hueco (si el hueco tiene una joya maldita, no se puede). */
+  | { type: 'EquipTrinket'; trinketId: string }
+  | { type: 'UnequipTrinket'; slot: 'ring' | 'pendant' }
   /** Rompe la maldición de una pieza en una mesa de forja adyacente (cuesta monedas). */
   | { type: 'Purify'; npcId: string; itemId: string }
   /** Equipa una técnica del grimorio; si no hay ranura libre sustituye a `replace`. Gasta un turno. */
@@ -373,6 +395,8 @@ export type GameEvent =
   | { type: 'TechniqueLearned'; techniqueId: string; equipped: boolean }
   | { type: 'TechniqueEquipped'; techniqueId: string; replaced: string | null }
   | { type: 'AllySummoned'; allyId: string; pos: Vec }
+  | { type: 'CompanionJoined'; allyId: string; affinity: Affinity }
+  | { type: 'EchoDefeated' }
   | { type: 'AllyDefeated'; allyId: string }
   | { type: 'AllyMoved'; allyId: string; from: Vec; to: Vec }
   | { type: 'EnemyAlerted'; enemyId: string }
@@ -435,4 +459,6 @@ export interface NewGameOptions {
   room?: readonly string[];
   /** Número de sectores. Por defecto BALANCE.maxFloors (o 1 si se usa `room`). */
   floors?: number;
+  /** El eco de la expedición anterior (lo guarda el navegador al caer): aparece como mini-jefe en un sector sin jefe. */
+  echo?: EchoRecord | null;
 }

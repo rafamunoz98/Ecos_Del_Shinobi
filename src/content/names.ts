@@ -2,6 +2,7 @@ import { getArcana, POTION_PREFIX, RANDOM_POTION, RANDOM_SCROLL, SCROLL_PREFIX }
 import { getMod, splitGear } from './enchants';
 import { CURRENCY, KEYS, getEquipment } from './items';
 import { getTechnique } from './techniques';
+import { RANDOM_TRINKET, getTrinket, trinketTrueName } from './trinkets';
 import { getThrowable, getWeapon } from './weapons';
 
 /** Lo mínimo del estado que hace falta para saber qué conoce el jugador (pociones, pergaminos y equipo identificados). */
@@ -24,13 +25,19 @@ export function gearTrueName(id: string): string {
 export function itemName(id: string, ctx?: NameContext): string {
   if (id.startsWith('manual:')) return `Manual: ${getTechnique(id.slice(7))?.name ?? id.slice(7)}`;
   if (id === 'manual_tecnica') return 'Manual de técnica';
+  if (id === 'manual_fusion') return 'Manual de fusión';
   if (id === RANDOM_POTION) return 'Poción sin identificar';
+  if (id === RANDOM_TRINKET) return 'Joya sin identificar';
   if (id === RANDOM_SCROLL) return 'Pergamino sin identificar';
   if (id.startsWith(POTION_PREFIX) || id.startsWith(SCROLL_PREFIX)) {
     const def = getArcana(id);
     if (!def) return id;
     if (!ctx || ctx.player.known.includes(id)) return def.name;
     return ctx.appearance[id] ?? def.name;
+  }
+  if (getTrinket(id)) {
+    if (ctx && !ctx.player.identified.includes(id)) return `${ctx.appearance[`trinket:${getTrinket(id)?.id}`] ?? getTrinket(id)?.name} (?)`;
+    return trinketTrueName(id);
   }
   if (getWeapon(id) || getEquipment(id)) {
     if (ctx && !ctx.player.identified.includes(id)) return `${getWeapon(id)?.name ?? getEquipment(id)?.name} (?)`;
@@ -42,7 +49,7 @@ export function itemName(id: string, ctx?: NameContext): string {
 /** ¿Se sabe qué es este objeto? (las pociones y pergaminos sin identificar y el equipo sin probar, no.) */
 export function isIdentified(id: string, ctx: NameContext): boolean {
   if (id.startsWith(POTION_PREFIX) || id.startsWith(SCROLL_PREFIX)) return ctx.player.known.includes(id);
-  if (getWeapon(id) || getEquipment(id)) return ctx.player.identified.includes(id);
+  if (getWeapon(id) || getEquipment(id) || getTrinket(id)) return ctx.player.identified.includes(id);
   return true;
 }
 

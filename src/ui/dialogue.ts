@@ -1,6 +1,6 @@
 import { DIALOGUES, type DialogueDef } from '../content/story';
 import { drawEnemy } from '../presentation/art/actors';
-import { drawNpc } from '../presentation/art/bosses';
+import { drawNpcFigure } from '../presentation/art/companions';
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const n = document.createElement(tag);
@@ -22,7 +22,7 @@ function portrait(def: DialogueDef): HTMLElement | null {
   const scale = p.kind === 'enemy' ? 96 : 110;
   c.scale(scale, scale);
   if (p.kind === 'enemy') drawEnemy(c, p.id, { t: 0.4, walk: 0, phase: 0, face: 1, bossPhase: 1 });
-  else drawNpc(c, p.id, 0.4, false);
+  else drawNpcFigure(c, p.id, 0.4, false);
   return cv;
 }
 

@@ -2,12 +2,13 @@ import { AFFINITY_NAMES } from '../content/affinities';
 import { STATUS_NAMES } from '../content/describe';
 import { ENEMIES } from '../content/enemies';
 import { heroFor } from '../content/heroes';
+import { companionKind, getAllyDef } from '../content/allies';
 import { NOTES, getRelic } from '../content/story';
 import { KEYS, getEquipment } from '../content/items';
-import { getTechnique } from '../content/techniques';
+import { getTechnique, techniqueAffinity } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { getMod } from '../content/enchants';
-import { gearLabel } from '../content/names';
+import { gearLabel, itemName } from '../content/names';
 import { weaponLevel } from '../core/combat';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -97,6 +98,8 @@ export class Hud {
       `Sector ${state.floor}/${state.maxFloor} · Turno ${state.turn}`,
       `Arma: ${weapon && p.equipment.weapon ? `${gearLabel(p.equipment.weapon, weaponLevel(p, p.equipment.weapon), state)} (+${weapon.bonus + weaponLevel(p, p.equipment.weapon) + (getMod(p.equipment.weapon)?.power ?? 0)})` : 'Puños'} · Fuerza ${p.strength}`,
       `Vestimenta: ${armor && p.equipment.armor ? `${gearLabel(p.equipment.armor, 0, state)} (+${armor.bonus + (getMod(p.equipment.armor)?.defense ?? 0)})` : '—'}`,
+      `Joyas: ${p.equipment.ring ? itemName(p.equipment.ring, state) : '—'} · ${p.equipment.pendant ? itemName(p.equipment.pendant, state) : '—'}`,
+      ...(state.companion ? [companionLine(state)] : []),
       `Semilla ${state.seed}`,
     ].join('\n');
 
@@ -244,7 +247,7 @@ export class Hud {
       if (!d) return;
       specs.push({
         key: TECHNIQUE_KEYS[i],
-        icon: d.affinity ?? p.affinity,
+        icon: techniqueAffinity(d) ?? p.affinity,
         name: d.name,
         sub: `${d.kiroCost} kiro${p.kiro < d.kiroCost ? ' · sin kiro' : ''}`,
         disabled: p.kiro < d.kiroCost,
@@ -306,4 +309,13 @@ export class Hud {
   private drawMinimap(state: GameState): void {
     drawMinimap(el('minimap') as HTMLCanvasElement, state);
   }
+}
+
+/** «Compañero: Mizuna Aoyagi 12/18» (o «fuera de combate» hasta el siguiente sector). */
+function companionLine(state: GameState): string {
+  const rec = state.companion;
+  if (!rec) return '';
+  const name = getAllyDef(companionKind(rec.affinity))?.name ?? 'Compañero';
+  const ally = state.allies.find((a) => a.companion);
+  return `Compañero: ${name} · ${ally ? `${ally.hp}/${ally.maxHp}` : rec.downed ? 'fuera de combate' : 'te alcanza luego'}`;
 }

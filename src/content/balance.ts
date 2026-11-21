@@ -3,6 +3,10 @@ export const BALANCE = {
   player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1, strength: 3 },
   /** Alcance de las pociones lanzadas (distancia Manhattan) y radio de su efecto. */
   potionThrow: { range: 5, radius: 1 },
+  /** Botín del eco de la expedición anterior (además de su equipo purificado). */
+  echoLoot: { shards: 4, coins: 12 },
+  /** Compañero rescatable (uno solo por expedición): sector donde espera, vida y poder según tu nivel, y cómo se recupera. */
+  companion: { floor: 2, baseHp: 14, hpPerLevel: 2, basePower: 4, regenEvery: 6, reviveFraction: 0.5, nextFloorHeal: 0.25 },
   /** Caer por un precipicio: fracción de la vida máxima que cuesta (nunca mata: deja al menos 1 de vida). */
   fallDamageFraction: 0.5,
   /** Peligros del suelo: duración (rondas) del fuego sobre terreno que arde, sobre suelo desnudo y de un charco; y la descarga eléctrica. */

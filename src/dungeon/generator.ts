@@ -2,9 +2,10 @@ import { BALANCE } from '../content/balance';
 import { DIRS, fromIdx, idx, inBounds, isStandable, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
 import { BOSS_BY_FLOOR, BOSS_FLOORS, BOSS_ID, ENEMIES } from '../content/enemies';
-import { GROUND_LOOT, MANUAL_ITEM, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
-import { NPC_BY_FLOOR, notesForFloor } from '../content/story';
-import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import { GROUND_LOOT, MANUAL_FUSION, MANUAL_ITEM, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
+import { echoKind, echoStats, ECHO_FLOORS, type EchoRecord } from '../content/echo';
+import { NPC_BY_FLOOR, captiveKind, notesForFloor } from '../content/story';
+import type { Affinity, Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy, pickEnemyDef } from './spawn';
 
 export interface Room {
@@ -63,6 +64,10 @@ export interface LevelParams {
   height?: number;
   /** Sectores de jefe (3 y 6): la sala de la salida se convierte en la arena del jefe shinobi del sector. */
   boss?: boolean;
+  /** Afinidad del compañero cautivo que debe esperar en este sector (solo se pasa donde toca: el sector 2). */
+  companion?: Affinity;
+  /** Eco de la expedición anterior que espera en este sector (solo se pasa donde toca: ver `echoFloorOf`). */
+  echo?: EchoRecord;
 }
 
 const MAX_ATTEMPTS = 50;
@@ -640,6 +645,8 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
       } else if (roll < 92) {
         kind = 'biblioteca';
         drops.push({ pos: cells[4], itemId: floor >= 2 ? MANUAL_ITEM : 'esquirla', count: floor >= 2 ? 1 : 3 }, { pos: cells[1], itemId: extra.pick(SECRET_SCROLLS), count: 1 });
+        // Pasado el primer jefe, las bibliotecas guardan además un manual de fusión (solo sirve a quien domine la pareja de afinidades).
+        if (floor >= 4) drops.push({ pos: cells[7], itemId: MANUAL_FUSION, count: 1 });
       } else {
         kind = 'emboscada';
         chestAt(cells[4]);
@@ -710,6 +717,75 @@ function carveNook(rng: Rng, map: GameMap, rooms: Room[], bossRoom: Room | null,
  * Genera un sector completo. Determinista: misma semilla + mismo sector = mismo mapa.
  * Si un intento sale degenerado se reintenta con otra variante derivada de la misma semilla.
  */
+/**
+ * Deja al prisionero (el futuro compañero) atado en la sala más custodiada que no sea la de salida: sin tocar el
+ * resto del sector ni su aleatoriedad (usa su propia semilla). Nunca corta el camino: se comprueba la conectividad.
+ */
+function placeCaptive(level: GeneratedLevel, rng: Rng, affinity: Affinity): void {
+  const map = level.map;
+  const taken = new Set<number>();
+  for (const e of level.enemies) taken.add(idx(map, e.pos));
+  for (const c of level.chests) taken.add(idx(map, c.pos));
+  for (const n of level.npcs) taken.add(idx(map, n.pos));
+  for (const d of level.drops) taken.add(idx(map, d.pos));
+  for (const s of level.scrolls) taken.add(idx(map, s.pos));
+  taken.add(idx(map, level.exit));
+  taken.add(idx(map, level.playerStart));
+  const inRoom = (r: { x: number; y: number; w: number; h: number }, p: Vec): boolean => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+  const rooms = level.rooms
+    .filter((r) => !inRoom(r, level.playerStart) && !inRoom(r, level.exit) && r.w >= 3 && r.h >= 3)
+    .map((r) => ({ r, guards: level.enemies.filter((e) => inRoom(r, e.pos)).length, tie: rng.next() }))
+    .sort((a, b) => b.guards - a.guards || a.tie - b.tie);
+  const total = reachableCount(map, level.playerStart);
+  for (const { r } of rooms) {
+    const cells: Vec[] = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) cells.push({ x, y });
+    for (const c of rng.shuffle(cells)) {
+      const i = idx(map, c);
+      if (taken.has(i) || map.tiles[i] !== 'floor') continue;
+      if (reachableCount(map, level.playerStart, new Set([i])) !== total - 1) continue; // taparía un paso
+      level.npcs.push({ id: `npc-cautivo-${level.npcs.length}`, kind: captiveKind(affinity), pos: c, used: false });
+      return;
+    }
+  }
+}
+
+/** Sector sin jefe donde espera el eco de la expedición anterior (misma semilla = mismo sector). */
+export function echoFloorOf(seed: number): number {
+  return ECHO_FLOORS[mixSeed(seed, 31, 5151) % ECHO_FLOORS.length];
+}
+
+/** Deja al eco dormido en la sala más grande que no sea la de entrada ni la de salida, con su propia semilla (no toca el resto). */
+function placeEcho(level: GeneratedLevel, rng: Rng, rec: EchoRecord, floor: number): void {
+  const def = ENEMIES[echoKind(rec.affinity)];
+  if (!def) return;
+  const inRoom = (r: Room, p: Vec): boolean => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+  const map = level.map;
+  const taken = new Set<number>();
+  for (const e of level.enemies) taken.add(idx(map, e.pos));
+  for (const c of level.chests) taken.add(idx(map, c.pos));
+  for (const n of level.npcs) taken.add(idx(map, n.pos));
+  for (const d of level.drops) taken.add(idx(map, d.pos));
+  taken.add(idx(map, level.exit));
+  taken.add(idx(map, level.playerStart));
+  const rooms = level.rooms
+    .filter((r) => !inRoom(r, level.playerStart) && !inRoom(r, level.exit) && r.w >= 3 && r.h >= 3)
+    .map((r) => ({ r, tie: rng.next() }))
+    .sort((a, b) => b.r.w * b.r.h - a.r.w * a.r.h || a.tie - b.tie);
+  for (const { r } of rooms) {
+    const cells: Vec[] = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) cells.push({ x, y });
+    for (const c of rng.shuffle(cells)) {
+      const i = idx(map, c);
+      if (taken.has(i) || map.tiles[i] !== 'floor') continue;
+      const st = echoStats({ ...rec, level: Math.min(rec.level, floor + 1) }); // nunca más fuerte de lo que tú puedes ser en este sector
+      const echo = { ...createEnemy(def, 'enemy-eco', c, floor), maxHp: st.maxHp, hp: st.maxHp, power: st.power, defense: st.defense };
+      level.enemies.push(echo);
+      return;
+    }
+  }
+}
+
 export function generateLevel(params: LevelParams): GeneratedLevel {
   const width = params.width ?? BALANCE.level.width;
   const height = params.height ?? BALANCE.level.height;
@@ -717,7 +793,11 @@ export function generateLevel(params: LevelParams): GeneratedLevel {
     const heal = healFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
     const strength = strengthFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
     const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal, new Rng(mixSeed(params.seed, params.floor, attempt + 9001)), strength);
-    if (level) return level;
+    if (level) {
+      if (params.echo && !(params.boss ?? false)) placeEcho(level, new Rng(mixSeed(params.seed, params.floor, attempt + 9201)), params.echo, params.floor);
+      if (params.companion && !(params.boss ?? false)) placeCaptive(level, new Rng(mixSeed(params.seed, params.floor, attempt + 9101)), params.companion);
+      return level;
+    }
   }
   throw new Error(`No se pudo generar el sector ${params.floor} con la semilla ${params.seed}.`);
 }

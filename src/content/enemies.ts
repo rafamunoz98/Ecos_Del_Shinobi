@@ -1,4 +1,7 @@
 import type { Affinity } from '../core/types';
+import { AFFINITIES } from './affinities';
+import { echoKind } from './echo';
+import { HEROES } from './heroes';
 
 /*
  * Enemigos. Tres familias:
@@ -229,6 +232,27 @@ export const BOSS_BY_FLOOR: Record<number, string> = { 3: 'sokan_predicador', 6:
 export const BOSS_FLOORS: readonly number[] = Object.keys(BOSS_BY_FLOOR).map(Number);
 export const BOSS_ID = BOSS_BY_FLOOR[3];
 export const isBossFloor = (floor: number): boolean => Object.hasOwn(BOSS_BY_FLOOR, floor);
+
+// ---------- Ecos de la expedición anterior (mini-jefes de un solo sector; ver content/echo) ----------
+
+/** Cada eco pelea con la afinidad con la que cayó quien fue: una habilidad anunciada propia. Su vida y poder salen de su nivel (echoStats). */
+const ECHO_SKILLS: Record<Affinity, SkillDef[]> = {
+  ascua: [{ id: 'eco_aliento_de_brasa', name: 'Aliento de Brasa', shape: { kind: 'beam', length: 5 }, power: 6, delay: 1, cooldown: 4, inflict: { status: 'quemadura', turns: 2 } }],
+  marea: [{ id: 'eco_marea_ligadora', name: 'Marea Ligadora', shape: { kind: 'zone', radius: 1, range: 5 }, power: 4, delay: 2, cooldown: 4, inflict: { status: 'atado', turns: 2 } }],
+  vendaval: [
+    { id: 'eco_paso_del_viento', name: 'Paso del Viento', shape: { kind: 'dash', range: 5 }, power: 0, delay: 0, cooldown: 4, minDist: 3, flavor: 'se desvanece como una ráfaga y reaparece a tu lado' },
+    { id: 'eco_corte_de_aire', name: 'Corte de Aire', shape: { kind: 'shot', range: 5 }, power: 4, delay: 0, cooldown: 3, minDist: 2, flavor: 'lanza un filo de aire' },
+  ],
+  piedra: [{ id: 'eco_golpe_sismico', name: 'Golpe Sísmico', shape: { kind: 'burst', radius: 1 }, power: 7, delay: 1, cooldown: 3, pushPlayer: 2 }],
+  rayo: [{ id: 'eco_relampago_en_cruz', name: 'Relámpago en Cruz', shape: { kind: 'cross', length: 4, range: 6 }, power: 6, delay: 2, cooldown: 4 }],
+};
+
+for (const a of AFFINITIES) {
+  ENEMIES[echoKind(a)] = E({
+    id: echoKind(a), name: `Eco de ${HEROES[a].name}`, affinity: a, family: 'echo', maxHp: 30, power: 6, defense: 1, aggroRange: 11, xp: 25, behavior: 'melee', actionsPerTurn: 1, actEvery: 1, minFloor: 99, weight: 0,
+    skills: ECHO_SKILLS[a],
+  });
+}
 
 export function getEnemy(id: string): EnemyDef | undefined {
   return Object.hasOwn(ENEMIES, id) ? ENEMIES[id] : undefined;

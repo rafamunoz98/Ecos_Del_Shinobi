@@ -2,25 +2,28 @@ import { floorHints, terrainHints } from './hints';
 import { zoneName } from '../content/zones';
 import { BALANCE } from '../content/balance';
 import { ENEMIES, getEnemy, isBossFloor, type EnemyDef, type SkillDef } from '../content/enemies';
-import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_ITEM, coinAmount, getEquipment, isKey, lootTableFor, type LootEntry } from '../content/items';
+import { CHEST_LOOT, CURRENCY, KEYS, LACQUER_LOOT, MANUAL_FUSION, MANUAL_ITEM, coinAmount, getEquipment, isKey, lootTableFor, type LootEntry } from '../content/items';
 import { itemName } from '../content/names';
-import { AFFINITIES, AFFINITY_NAMES, affinityFactor, scaleDamage } from '../content/affinities';
-import { affinitiesOf, getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
-import { getAllyDef } from '../content/allies';
+import { AFFINITIES, AFFINITY_NAMES, affinityFactor, companionAffinityFor, scaleDamage } from '../content/affinities';
+import { affinitiesOf, fusionFor, getTechnique, learnableFor, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { companionKind, getAllyDef } from '../content/allies';
 import { MERCHANT_KIND, SHOP_PRICES } from '../content/shop';
 import { getArcana, getPotion, getScroll, isArcana, isPotion, POTIONS, RANDOM_POTION, RANDOM_SCROLL, rollArcana, SCROLLS, STARTING_KNOWN, type PotionEffect, type ScrollEffect } from '../content/arcana';
 import { baseGearId, getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
 import { getNpc, getNote, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
 import { FISTS, FISTS_ID, getThrowable, getWeapon, weaponLabel, type WeaponDef } from '../content/weapons';
-import { FORGE_KIND, generateLevel, type GeneratedLevel } from '../dungeon/generator';
+import { FORGE_KIND, echoFloorOf, generateLevel, type GeneratedLevel } from '../dungeon/generator';
+import { isEchoKind } from '../content/echo';
 import { createBoss, createEnemy } from '../dungeon/spawn';
 import { calcDamage, canWield, effectiveDefense, effectivePower, weaponLevel } from './combat';
 import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, idx, inBounds, isStandable, isWalkable, lineCells, manhattan, mutualSight, stepOk, terrainAt } from './grid';
+import { RANDOM_TRINKET, getTrinket, isCursedTrinket, isTrinket, purifiedTrinket, rollTrinket, trinketDescription, trinketSlotOf, trinketTrueName, wornEffects, type TrinketEffects } from '../content/trinkets';
 import { FLAMMABLE, addHazard, connectedWater, crackedNear, hashRoll, hazardAt, removeHazard } from './terrain';
 import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
+  Ally,
   Affinity,
   Chest,
   Command,
@@ -228,6 +231,7 @@ function validateTechnique(s: GameState, techniqueId: string, target: Vec): Inva
   const p = s.player;
   if (!p.techniques.includes(techniqueId)) return 'not_known';
   if (def.affinity && !affinitiesOf(p).includes(def.affinity)) return 'wrong_affinity';
+  if (def.fusion && !def.fusion.every((a) => affinitiesOf(p).includes(a))) return 'wrong_affinity'; // una fusión exige dominar sus dos afinidades
   if (p.kiro < def.kiroCost) return 'not_enough_kiro';
   const t = def.target;
   switch (t.kind) {
@@ -391,6 +395,7 @@ export function optionBlocker(state: GameState, opt: NpcOption): string | null {
   if (opt.gains.some((g) => g.kind === 'advancedTechnique') && !nextLearnable(p)) {
     return 'Ya conoces todas las técnicas que se pueden enseñar.';
   }
+  if (opt.gains.some((g) => g.kind === 'companion') && state.companion) return 'Ya llevas un compañero.';
   return null;
 }
 
@@ -471,6 +476,18 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       if (p.equipment.weapon === cmd.weaponId) return 'already_equipped';
       if (!canWield(p, cmd.weaponId)) return 'too_weak';
       return isCursedGear(p.equipment.weapon) ? 'cursed' : null;
+    case 'EquipTrinket': {
+      const slot = trinketSlotOf(cmd.trinketId);
+      if (!slot) return 'unknown_item';
+      if (!p.trinkets.includes(cmd.trinketId)) return 'no_item';
+      if (p.equipment[slot] === cmd.trinketId) return 'already_equipped';
+      return isCursedTrinket(p.equipment[slot]) ? 'cursed' : null;
+    }
+    case 'UnequipTrinket': {
+      const cur = p.equipment[cmd.slot];
+      if (!cur) return 'no_item';
+      return isCursedTrinket(cur) ? 'cursed' : null;
+    }
     case 'EquipArmor':
       if (!getEquipment(cmd.armorId)) return 'unknown_item';
       if (!p.armors.includes(cmd.armorId)) return 'no_item';
@@ -486,8 +503,8 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
     }
     case 'Purify': {
       if (!forgeNear(state, cmd.npcId)) return 'not_at_forge';
-      if (!p.weapons.includes(cmd.itemId) && !p.armors.includes(cmd.itemId)) return 'no_item';
-      if (!isCursedGear(cmd.itemId) || !p.identified.includes(cmd.itemId)) return 'nothing_to_interact';
+      if (!p.weapons.includes(cmd.itemId) && !p.armors.includes(cmd.itemId) && !p.trinkets.includes(cmd.itemId)) return 'no_item';
+      if (!(isCursedGear(cmd.itemId) || isCursedTrinket(cmd.itemId)) || !p.identified.includes(cmd.itemId)) return 'nothing_to_interact';
       return p.coins >= BALANCE.purifyCost ? null : 'cannot_afford';
     }
     case 'Interact': {
@@ -703,7 +720,8 @@ function defeatPlayer(ctx: Ctx): void {
 
 /** Multiplicador con que un enemigo te daña según su afinidad frente a tu afinidad de nacimiento (tu debilidad). */
 function incomingFactor(s: GameState, e: Enemy): number {
-  return affinityFactor([e.affinity], s.player.affinity);
+  const f = affinityFactor([e.affinity], s.player.affinity);
+  return f > 1 && wornEffects(s.player.equipment).weakCover ? 1 + (f - 1) / 2 : f;
 }
 
 /** Frase para el registro cuando la afinidad cambia el daño. */
@@ -715,7 +733,7 @@ function factorNote(factor: number, who: 'enemy' | 'you'): string {
 
 function damagePlayer(ctx: Ctx, rawAmount: number, source: string, mult = 1): void {
   const p = ctx.state.player;
-  const amount = rawAmount + (rawAmount > 0 ? (getMod(p.equipment.armor)?.damageTaken ?? 0) : 0);
+  const amount = rawAmount + (rawAmount > 0 ? (getMod(p.equipment.armor)?.damageTaken ?? 0) + (wornEffects(p.equipment).damageTaken ?? 0) : 0);
   p.hp = Math.max(0, p.hp - amount);
   ctx.state.stats.damageTaken += amount;
   ctx.events.push(mult === 1 ? { type: 'DamageApplied', targetId: 'player', amount, source } : { type: 'DamageApplied', targetId: 'player', amount, source, mult });
@@ -934,6 +952,10 @@ function readScroll(ctx: Ctx, fx: ScrollEffect): void {
         const cur = p.equipment[slot];
         if (cur && isCursedGear(cur)) cleaned.push(itemName(purifyGear(ctx, cur), s));
       }
+      for (const slot of ['ring', 'pendant'] as const) {
+        const cur = p.equipment[slot];
+        if (cur && isCursedTrinket(cur)) cleaned.push(itemName(purifyTrinket(ctx, cur), s));
+      }
       say(ctx, cleaned.length ? `Los sellos malditos se desvanecen: ${cleaned.join(' y ')}.` : 'No hay ninguna maldición que romper en lo que llevas puesto.');
       return;
     }
@@ -1036,6 +1058,13 @@ function learnTechnique(ctx: Ctx, id: string): boolean {
   return true;
 }
 
+/** Manual de la técnica de fusión de tus dos afinidades, si aún no la conoces ni la llevas como manual. */
+function fusionManualFor(p: Player): string | undefined {
+  const f = fusionFor(p.affinity, p.affinity2);
+  if (!f || p.techniques.includes(f.id) || p.grimoire.includes(f.id) || p.inventory[MANUAL_PREFIX + f.id] > 0) return undefined;
+  return MANUAL_PREFIX + f.id;
+}
+
 /** Primera técnica aprendible de tu afinidad (o común) que todavía no conoces ni llevas como manual. */
 function nextLearnable(p: Player): string | undefined {
   return learnableFor(affinitiesOf(p)).find((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
@@ -1090,6 +1119,8 @@ function makeStock(ctx: Ctx): Offer[] {
   // Un manual de técnica que aún no conozcas.
   const pool2 = learnableFor(affinitiesOf(p)).filter((id) => !p.techniques.includes(id) && !p.grimoire.includes(id) && !(p.inventory[MANUAL_PREFIX + id] > 0));
   if (pool2.length > 0) add(MANUAL_PREFIX + pool2[Math.floor(rand(ctx) * pool2.length)], SHOP_PRICES.manual);
+  const fm = fusionManualFor(p);
+  if (fm) add(fm, SHOP_PRICES.fusion);
   return stock;
 }
 
@@ -1157,6 +1188,12 @@ function learnAffinity(ctx: Ctx, affinity: Affinity): void {
   ctx.events.push({ type: 'AffinityLearned', affinity });
   say(ctx, `Aprendes la afinidad ${AFFINITY_NAMES[affinity]}.`);
   for (const id of techniquesFor(affinity, 1)) learnTechnique(ctx, id);
+  // El mercader del jefe ya estaba abierto cuando aún no se conocía la pareja: ahora puede ofrecer su fusión.
+  const fm = fusionManualFor(p);
+  const merchant = s.npcs.find((n) => n.kind === MERCHANT_KIND && n.stock);
+  if (fm && merchant?.stock && !merchant.stock.some((o) => o.itemId === fm)) {
+    merchant.stock.push({ id: `of-${merchant.stock.length}`, itemId: fm, count: 1, price: SHOP_PRICES.fusion, sold: false });
+  }
 }
 
 function reapDead(ctx: Ctx): void {
@@ -1192,11 +1229,38 @@ function releaseStuck(s: GameState, e: Enemy): void {
 
 const hashId = (id: string): number => [...id].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
 
+/** El eco cae: libera el equipo con el que murió quien fue (purificado) y la cripta deja de recordarlo. */
+function releaseEcho(ctx: Ctx, e: Enemy): void {
+  const s = ctx.state;
+  const rec = s.echo;
+  if (!rec) return;
+  const clean = (id: string | null, slot: GearSlot): string | null => {
+    if (!id) return null;
+    const base = baseGearId(id);
+    const known = slot === 'weapon' ? getWeapon(base) : getEquipment(base);
+    return known ? purified(id) : null;
+  };
+  const weapon = clean(rec.weapon, 'weapon');
+  const armor = clean(rec.armor, 'armor');
+  if (weapon) placeDrop(s, e.pos, weapon, 1);
+  if (armor) placeDrop(s, e.pos, armor, 1);
+  placeDrop(s, e.pos, 'esquirla', BALANCE.echoLoot.shards);
+  placeDrop(s, e.pos, 'moneda', BALANCE.echoLoot.coins);
+  s.echo = null;
+  ctx.events.push({ type: 'EchoDefeated' });
+  dialogueOnce(ctx, 'eco_derrota');
+  say(ctx, 'El eco se deshace en humo y deja caer lo que llevaba: tu propia sombra descansa por fin.');
+}
+
 /** Monedas que suelta un enemigo al caer (determinista: no consume el generador de la partida). El jefe da un botín fijo. */
 function dropEnemyLoot(ctx: Ctx, e: Enemy): void {
   const s = ctx.state;
   const def = getEnemy(e.kind);
   if (!def || def.noLoot) return;
+  if (isEchoKind(e.kind) && s.echo) {
+    releaseEcho(ctx, e);
+    return;
+  }
   if (isBoss(e)) {
     placeDrop(s, e.pos, 'moneda', BALANCE.bossLoot.coins);
     placeDrop(s, e.pos, 'esquirla', BALANCE.bossLoot.shards);
@@ -1404,7 +1468,32 @@ function tickWear(ctx: Ctx): void {
 }
 
 /** Rompe la maldición de una pieza concreta; traslada su sitio, su mejora de forja y su identificación. Devuelve el id nuevo. */
+/** Ajusta vida y kiro máximos cuando cambian las joyas puestas (al ganar máximo se gana también ese tanto; al perderlo, se recorta). */
+function shiftMax(p: Player, before: TrinketEffects, after: TrinketEffects): void {
+  const dHp = (after.maxHp ?? 0) - (before.maxHp ?? 0);
+  const dKiro = (after.maxKiro ?? 0) - (before.maxKiro ?? 0);
+  p.maxHp += dHp;
+  p.hp = Math.max(1, dHp > 0 ? p.hp + dHp : Math.min(p.hp, p.maxHp));
+  p.maxKiro += dKiro;
+  p.kiro = Math.max(0, dKiro > 0 ? p.kiro + dKiro : Math.min(p.kiro, p.maxKiro));
+}
+
+function purifyTrinket(ctx: Ctx, id: string): string {
+  const p = ctx.state.player;
+  const clean = purifiedTrinket(id);
+  if (clean === id) return id;
+  const before = wornEffects(p.equipment);
+  const i = p.trinkets.indexOf(id);
+  if (i >= 0) p.trinkets[i] = clean;
+  for (const slot of ['ring', 'pendant'] as const) if (p.equipment[slot] === id) p.equipment[slot] = clean;
+  shiftMax(p, before, wornEffects(p.equipment));
+  markIdentified(p, clean);
+  ctx.events.push({ type: 'GearPurified', itemId: clean });
+  return clean;
+}
+
 function purifyGear(ctx: Ctx, id: string): string {
+  if (isTrinket(id)) return purifyTrinket(ctx, id);
   const p = ctx.state.player;
   const clean = purified(id);
   if (clean === id) return id;
@@ -1485,11 +1574,21 @@ function collect(ctx: Ctx, rawId: string, count: number, verb: string, fixed = f
   const p = ctx.state.player;
   let itemId = rawId;
   // Los ids «al azar» se resuelven al recoger (tirada determinista con el generador de la partida).
-  if (rawId === RANDOM_POTION) itemId = rollArcana('potion', rand(ctx));
+  if (rawId === RANDOM_TRINKET) {
+    const rolled = rollTrinket(rand(ctx), p.trinkets);
+    if (!rolled) {
+      p.shards += 2;
+      say(ctx, `${verb} una joya, pero ya tienes todas las que existen: la desmontas (+2 esquirlas).`);
+      return;
+    }
+    itemId = rolled;
+  } else if (rawId === RANDOM_POTION) itemId = rollArcana('potion', rand(ctx));
   else if (rawId === RANDOM_SCROLL) itemId = rollArcana('scroll', rand(ctx));
   else if (!fixed && !rawId.includes('~') && (getWeapon(rawId) || getEquipment(rawId))) itemId = makeGearId(rawId, rollGearMod(ctx, rawId));
   ctx.events.push({ type: 'ItemPickedUp', itemId, count });
   if (itemId === 'moneda') {
+    const bonus = wornEffects(p.equipment).coinBonus ?? 0;
+    if (bonus > 0) count = Math.round(count * (1 + bonus));
     p.coins += count;
     ctx.state.stats.coinsFound += count;
     say(ctx, `${verb} ${count} ${CURRENCY.moneda.name.toLowerCase()}.`);
@@ -1516,6 +1615,28 @@ function collect(ctx: Ctx, rawId: string, count: number, verb: string, fixed = f
     const id = pool[Math.floor(rand(ctx) * pool.length)];
     p.inventory[MANUAL_PREFIX + id] = 1;
     say(ctx, `${verb} un manual: «${getTechnique(id)?.name ?? id}». Léelo desde el menú (Tab → Objetos) para aprenderla.`);
+    return;
+  }
+  if (itemId === MANUAL_FUSION) {
+    const fm = fusionManualFor(p);
+    if (!fm) {
+      p.shards += 3;
+      say(ctx, `${verb} un manual de fusión, pero no te sirve (ya la dominas o aún te falta la segunda afinidad): lo desmontas (+3 esquirlas).`);
+      return;
+    }
+    p.inventory[fm] = 1;
+    say(ctx, `${verb} un manual de fusión: «${getTechnique(fm.slice(MANUAL_PREFIX.length))?.name}». Estúdialo desde el menú (Tab → Objetos) para aprenderla.`);
+    return;
+  }
+  if (getTrinket(itemId)) {
+    if (!p.trinkets.includes(itemId)) {
+      p.trinkets.push(itemId);
+      if (fixed) markIdentified(p, itemId);
+      say(ctx, `${verb} ${itemName(itemId, ctx.state)}. Póntelo desde el menú (Tab) para saber qué esconde.`);
+    } else {
+      p.shards += 1;
+      say(ctx, `${verb} ${trinketTrueName(itemId)}, pero ya la tienes: la desmontas (+1 esquirla).`);
+    }
     return;
   }
   const weapon = getWeapon(itemId);
@@ -1771,13 +1892,18 @@ function passiveDiscovery(ctx: Ctx): void {
 function descend(ctx: Ctx, fall = false): void {
   const s = ctx.state;
   const bossFloor = isBossFloor(s.floor + 1) || s.floor + 1 >= s.maxFloor;
-  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: bossFloor });
+  // El prisionero del sector 2 es de la afinidad que cubre tu debilidad (si aún no llevas compañero).
+  const companion = s.floor + 1 === BALANCE.companion.floor && !s.companion ? companionAffinityFor(s.player.affinity) : undefined;
+  const echo = s.echo && s.floor + 1 === echoFloorOf(s.seed) ? s.echo : undefined;
+  const level = generateLevel({ seed: s.seed, floor: s.floor + 1, boss: bossFloor, companion, echo });
   s.floor += 1;
   s.map = level.map;
   s.player.pos = fall && !bossFloor ? landingSpot(ctx, level) : level.playerStart;
   s.hazards = [];
   s.hintedSecrets = [];
   s.enemies = level.enemies;
+  const mate = s.allies.find((a) => a.companion);
+  if (mate && s.companion) s.companion.hp = mate.hp;
   s.allies = [];
   s.chests = level.chests;
   s.barriers = [];
@@ -1789,6 +1915,7 @@ function descend(ctx: Ctx, fall = false): void {
   s.floorEnemies = level.enemies.length;
   s.floorKilled = 0;
   s.floorCleared = false;
+  carryCompanion(ctx);
   if (s.player.keys.length > 0) {
     s.player.keys = [];
     say(ctx, 'Las llaves que no usaste se deshacen en polvo al cruzar.');
@@ -1900,6 +2027,30 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       p.equipment.weapon = cmd.weaponId;
       say(ctx, `Equipas: ${itemName(cmd.weaponId, s)}.`);
       wearGear(ctx, cmd.weaponId);
+      return;
+    }
+    case 'EquipTrinket': {
+      const slot = trinketSlotOf(cmd.trinketId) as 'ring' | 'pendant';
+      const before = wornEffects(p.equipment);
+      p.equipment[slot] = cmd.trinketId;
+      shiftMax(p, before, wornEffects(p.equipment));
+      ctx.events.push({ type: 'EquipmentEquipped', slot, itemId: cmd.trinketId });
+      say(ctx, `Te pones: ${itemName(cmd.trinketId, s)}.`);
+      if (!p.identified.includes(cmd.trinketId)) {
+        markIdentified(p, cmd.trinketId);
+        ctx.events.push({ type: 'GearIdentified', itemId: cmd.trinketId });
+        say(ctx, `Lo reconoces: ${trinketTrueName(cmd.trinketId)}. ${trinketDescription(cmd.trinketId)}`);
+        if (isCursedTrinket(cmd.trinketId)) say(ctx, '¡Está maldito! No podrás quitártelo hasta purificarlo (Sello de Purificación o forja).');
+      }
+      return;
+    }
+    case 'UnequipTrinket': {
+      const before = wornEffects(p.equipment);
+      const was = p.equipment[cmd.slot];
+      p.equipment[cmd.slot] = null;
+      shiftMax(p, before, wornEffects(p.equipment));
+      ctx.events.push({ type: 'EquipmentEquipped', slot: cmd.slot, itemId: '' });
+      say(ctx, `Te quitas: ${was ? itemName(was, s) : 'la joya'}.`);
       return;
     }
     case 'EquipArmor': {
@@ -2040,6 +2191,9 @@ function applyOption(ctx: Ctx, npc: Npc, opt: NpcOption): void {
         if (id) learnTechnique(ctx, id);
         break;
       }
+      case 'companion':
+        rescueCompanion(ctx, npc);
+        break;
     }
   }
   npc.used = true;
@@ -2064,6 +2218,63 @@ function enemyCanEnter(s: GameState, self: Enemy, p: Vec): boolean {
     !barrierAt(s, p) &&
     !equals(s.player.pos, p)
   );
+}
+
+// ---------- Compañero ----------
+
+/** Vida máxima y poder del compañero a tu nivel actual. */
+function companionStats(level: number): { maxHp: number; power: number } {
+  const c = BALANCE.companion;
+  return { maxHp: c.baseHp + c.hpPerLevel * level, power: c.basePower + Math.floor((level - 1) / 2) };
+}
+
+/** Pone al compañero junto al jugador (si hay sitio) con la vida indicada. */
+function placeCompanion(ctx: Ctx, hp: number): boolean {
+  const s = ctx.state;
+  const rec = s.companion;
+  if (!rec) return false;
+  const cells = freeCellsAround(s, s.player.pos, 2);
+  if (cells.length === 0) return false;
+  const st = companionStats(s.player.level);
+  const ally: Ally = {
+    id: `ally-companion`,
+    kind: companionKind(rec.affinity),
+    pos: cells[0],
+    hp: Math.max(1, Math.min(st.maxHp, hp)),
+    maxHp: st.maxHp,
+    power: st.power,
+    turns: 999999,
+    companion: true,
+  };
+  s.allies.push(ally);
+  rec.downed = false;
+  ctx.events.push({ type: 'CompanionJoined', allyId: ally.id, affinity: rec.affinity });
+  return true;
+}
+
+/** Libera al prisionero: pasa a ser tu compañero y su PNJ desaparece de la sala. */
+function rescueCompanion(ctx: Ctx, npc: Npc): void {
+  const s = ctx.state;
+  const a = npc.kind.slice('cautivo_'.length) as Affinity;
+  s.companion = { affinity: a, hp: companionStats(s.player.level).maxHp, downed: false };
+  s.npcs = s.npcs.filter((n) => n.id !== npc.id);
+  const name = getAllyDef(companionKind(a))?.name ?? 'Tu compañero';
+  if (placeCompanion(ctx, s.companion.hp)) say(ctx, `${name} se une a ti. Lucha con ${AFFINITY_NAMES[a]} y te seguirá de sector en sector.`);
+  else say(ctx, `${name} se une a ti, pero aquí no hay sitio: te alcanzará en el siguiente sector.`);
+}
+
+/** Al cambiar de sector: guarda cómo estaba el compañero y lo hace reaparecer a tu lado (recuperado en parte). */
+function carryCompanion(ctx: Ctx): void {
+  const s = ctx.state;
+  const rec = s.companion;
+  if (!rec) return;
+  const c = BALANCE.companion;
+  const maxHp = companionStats(s.player.level).maxHp;
+  const base = rec.downed ? Math.ceil(maxHp * c.reviveFraction) : Math.max(rec.hp, 1);
+  const hp = Math.min(maxHp, base + (rec.downed ? 0 : Math.ceil(maxHp * c.nextFloorHeal)));
+  s.allies = s.allies.filter((a) => !a.companion);
+  const name = getAllyDef(companionKind(rec.affinity))?.name ?? 'Tu compañero';
+  if (placeCompanion(ctx, hp)) say(ctx, rec.downed ? `${name} se ha recuperado y vuelve a tu lado.` : `${name} sigue contigo.`);
 }
 
 // ---------- Aliados invocados ----------
@@ -2138,13 +2349,15 @@ function runAllies(ctx: Ctx): void {
   for (const ally of s.allies) {
     const def = getAllyDef(ally.kind);
     if (!def || ally.hp <= 0) continue;
+    if (ally.companion && ally.hp < ally.maxHp && s.turn % BALANCE.companion.regenEvery === 0) ally.hp += 1;
     for (let a = 0; a < def.actions; a++) {
       const foes = s.enemies.filter((e) => e.hp > 0 && chebyshev(e.pos, ally.pos) <= 8).sort((x, y) => chebyshev(x.pos, ally.pos) - chebyshev(y.pos, ally.pos));
       const foe = foes[0];
       if (foe && adjacent(s.map, ally.pos, foe.pos)) {
-        const dmg = calcDamage(ally.power, 0, defenseOf(foe));
+        const factor = def.companion ? affinityFactor([def.companion], foe.affinity) : 1;
+        const dmg = scaleDamage(calcDamage(ally.power, 0, defenseOf(foe)), factor);
         damageEnemy(ctx, foe, dmg, 'aliado');
-        say(ctx, `${def.name} golpea a ${enemyName(foe)} (${dmg} de daño).`);
+        say(ctx, `${def.name} golpea a ${enemyName(foe)} (${dmg} de daño${factor > 1 ? ', ¡su punto débil!' : factor < 1 ? ', resiste' : ''}).`);
         break;
       }
       const goal = foe ? foe.pos : chebyshev(ally.pos, s.player.pos) > 2 ? s.player.pos : null;
@@ -2178,9 +2391,15 @@ function reapAllies(ctx: Ctx, countDown: boolean): void {
   const s = ctx.state;
   const keep = [];
   for (const a of s.allies) {
-    if (countDown) a.turns -= 1;
+    if (countDown && !a.companion) a.turns -= 1;
     if (a.hp > 0 && a.turns > 0) keep.push(a);
-    else {
+    else if (a.companion && s.companion) {
+      // Tu compañero no muere: queda fuera de combate hasta que cruces la escalera.
+      s.companion.hp = 0;
+      s.companion.downed = true;
+      ctx.events.push({ type: 'AllyDefeated', allyId: a.id });
+      say(ctx, `${getAllyDef(a.kind)?.name ?? 'Tu compañero'} cae, pero no está muerto: se recuperará al cambiar de sector.`);
+    } else {
       ctx.events.push({ type: 'AllyDefeated', allyId: a.id });
       say(ctx, a.hp > 0 ? `${getAllyDef(a.kind)?.name ?? 'Tu aliado'} se desvanece.` : `${getAllyDef(a.kind)?.name ?? 'Tu aliado'} cae.`);
       if (isDecoy(a.kind)) loseTrack(ctx, a.pos);
@@ -2621,10 +2840,21 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       s.player.hp += 1;
       ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
     }
+    const worn = wornEffects(s.player.equipment);
+    if (s.status === 'playing' && worn.regenEvery && (s.turn + 1) % worn.regenEvery === 0 && s.player.hp < s.player.maxHp) {
+      s.player.hp += 1;
+      ctx.events.push({ type: 'HealApplied', amount: 1, resource: 'hp' });
+    }
+    if (s.status === 'playing' && worn.drainEvery && (s.turn + 1) % worn.drainEvery === 0 && s.player.hp > 1) {
+      s.player.hp -= 1;
+      s.stats.damageTaken += 1;
+      ctx.events.push({ type: 'DamageApplied', targetId: 'player', amount: 1, source: 'maldicion' });
+      say(ctx, 'La maldición de tu joya te drena 1 de vida.');
+    }
     tickWear(ctx);
     // El kiro también vuelve solo, más deprisa que la vida.
     if (s.status === 'playing' && !armorMod?.noKiroRegen && (s.turn + 1) % BALANCE.kiroRegenEvery === 0 && s.player.kiro < s.player.maxKiro) {
-      const gain = Math.min(1 + (armorMod?.kiroRegenBonus ?? 0), s.player.maxKiro - s.player.kiro);
+      const gain = Math.min(1 + (armorMod?.kiroRegenBonus ?? 0) + (worn.kiroRegenBonus ?? 0), s.player.maxKiro - s.player.kiro);
       s.player.kiro += gain;
       ctx.events.push({ type: 'HealApplied', amount: gain, resource: 'kiro' });
     }

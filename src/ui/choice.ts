@@ -1,4 +1,4 @@
-import { getNpc } from '../content/story';
+import { getNpc, isCaptiveKind } from '../content/story';
 import { optionBlocker } from '../core/engine';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -79,7 +79,7 @@ export class ChoiceBox {
     const panel = h('div', 'choice-panel');
     const head = h('div', 'choice-head');
     const ico = h('img', 'ico');
-    ico.src = iconDataUrl(npc.kind === 'altar_eco_roto' ? 'campana' : 'pergamino', 48);
+    ico.src = iconDataUrl(npc.kind === 'altar_eco_roto' ? 'campana' : isCaptiveKind(npc.kind) ? npc.kind.slice('cautivo_'.length) : 'pergamino', 48);
     ico.alt = '';
     const t = h('div');
     t.append(h('b', undefined, def.name), h('span', 'muted', `${def.kindLabel} · elige una sola opción`));

@@ -331,6 +331,89 @@ define([
   },
 ]);
 
+/*
+ * Técnicas de fusión: una por cada pareja de afinidades (10). Solo las usa quien domina AMBAS afinidades (la de partida y la que
+ * da el primer jefe) y se desbloquean aparte de las demás: no salen por nivel ni en los manuales corrientes, sino en un
+ * Manual de Fusión (tienda del mercader, cámaras con tesoro, bibliotecas ocultas). Mezclan el efecto de las dos afinidades, y el
+ * daño cuenta como de AMBAS contra la debilidad del enemigo (si cualquiera de las dos lo vence, ×1,5).
+ */
+define([
+  {
+    id: 'niebla_de_vapor', name: 'Niebla de Vapor', affinity: null, fusion: ['ascua', 'marea'], minLevel: L, kiroCost: 5,
+    target: { kind: 'burst', radius: 2 },
+    damage: { power: 5 }, inflict: { status: 'ceguera', turns: 4 },
+    description: 'Fuego y agua: una nube de vapor abrasador a tu alrededor (radio 2) hiere y ciega a los alcanzados.',
+  },
+  {
+    id: 'torbellino_de_fuego', name: 'Torbellino de Fuego', affinity: null, fusion: ['ascua', 'vendaval'], minLevel: L, kiroCost: 6,
+    target: { kind: 'burst', radius: 2, shape: 'square' },
+    damage: { power: 7 }, inflict: { status: 'quemadura', turns: 3 },
+    description: 'Fuego y viento: un torbellino de llamas (radio 2) que además atiza las hogueras de alrededor.',
+  },
+  {
+    id: 'lluvia_de_magma', name: 'Lluvia de Magma', affinity: null, fusion: ['ascua', 'piedra'], minLevel: L, kiroCost: 6,
+    target: { kind: 'area', range: 5, areaRadius: 1, lineOfSight: true },
+    damage: { power: 9, ignoreDefense: true }, inflict: { status: 'quemadura', turns: 3 },
+    description: 'Fuego y roca: bolas de magma caen sobre una zona de radio 1; el daño ignora la defensa.',
+  },
+  {
+    id: 'plasma', name: 'Plasma', affinity: null, fusion: ['ascua', 'rayo'], minLevel: L, kiroCost: 6,
+    target: { kind: 'line', length: 6 },
+    damage: { power: 10, ignoreDefense: true },
+    description: 'Fuego y rayo: un haz de plasma recorre una línea y atraviesa cualquier armadura.',
+  },
+  {
+    id: 'tempestad_de_hielo', name: 'Tempestad de Hielo', affinity: null, fusion: ['marea', 'vendaval'], minLevel: L, kiroCost: 5,
+    target: { kind: 'burst', radius: 2 },
+    damage: { power: 4 }, inflict: { status: 'ralentizado', turns: 4 },
+    description: 'Agua y viento: una ventisca helada (radio 2) que hiere y ralentiza a todos los alcanzados.',
+  },
+  {
+    id: 'pantano', name: 'Pantano', affinity: null, fusion: ['marea', 'piedra'], minLevel: L, kiroCost: 5,
+    target: { kind: 'area', range: 5, areaRadius: 2, lineOfSight: true },
+    damage: { power: 2 }, inflict: { status: 'atado', turns: 2 },
+    description: 'Agua y roca: el suelo se vuelve fango (radio 2) y atrapa a los alcanzados un par de rondas.',
+  },
+  {
+    id: 'tormenta_electrica', name: 'Tormenta Eléctrica', affinity: null, fusion: ['marea', 'rayo'], minLevel: L, kiroCost: 6,
+    target: { kind: 'area', range: 5, areaRadius: 1, lineOfSight: true },
+    damage: { power: 6 }, inflict: { status: 'aturdido', turns: 1 },
+    description: 'Agua y rayo: una nube descarga sobre una zona de radio 1, deja charcos... y los electrifica.',
+  },
+  {
+    id: 'tormenta_de_arena', name: 'Tormenta de Arena', affinity: null, fusion: ['vendaval', 'piedra'], minLevel: L, kiroCost: 5,
+    target: { kind: 'burst', radius: 3 },
+    damage: { power: 3 }, inflict: { status: 'ceguera', turns: 5 },
+    description: 'Viento y roca: una tormenta de arena (radio 3) que cega a los alcanzados durante 5 rondas.',
+  },
+  {
+    id: 'trueno_seco', name: 'Trueno Seco', affinity: null, fusion: ['vendaval', 'rayo'], minLevel: L, kiroCost: 6,
+    target: { kind: 'line', length: 8 },
+    damage: { power: 7 }, push: 2,
+    description: 'Viento y rayo: un trueno sin lluvia recorre 8 casillas y lanza hacia atrás a los alcanzados.',
+  },
+  {
+    id: 'yunque_del_trueno', name: 'Yunque del Trueno', affinity: null, fusion: ['piedra', 'rayo'], minLevel: L, breaksWalls: true, kiroCost: 6,
+    target: { kind: 'burst', radius: 1, shape: 'square' },
+    damage: { power: 11 }, inflict: { status: 'aturdido', turns: 1 },
+    description: 'Roca y rayo: un golpe de yunque cargado de electricidad a tu alrededor; mucho daño y aturde.',
+  },
+]);
+
+/** Las 10 técnicas de fusión, en el orden en que se definen. */
+export const FUSION_IDS: readonly string[] = Object.values(TECHNIQUES).filter((t) => t.fusion).map((t) => t.id);
+
+/** Afinidad cuyo icono y color representan a una técnica (la propia o, en las fusiones, la primera de las dos). */
+export function techniqueAffinity(def: TechniqueDef | undefined): Affinity | null {
+  return def?.affinity ?? def?.fusion?.[0] ?? null;
+}
+
+/** La fusión de la pareja de afinidades dada (en cualquier orden), si existe. */
+export function fusionFor(a: Affinity, b: Affinity | null): TechniqueDef | undefined {
+  if (!b || a === b) return undefined;
+  return Object.values(TECHNIQUES).find((t) => t.fusion && t.fusion.includes(a) && t.fusion.includes(b));
+}
+
 export function getTechnique(id: string): TechniqueDef | undefined {
   return Object.hasOwn(TECHNIQUES, id) ? TECHNIQUES[id] : undefined;
 }

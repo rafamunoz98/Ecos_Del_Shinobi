@@ -4,6 +4,10 @@
  * Custodios del Umbral, Círculo de la Campana Hueca, Peregrinos del Pulso). Los diálogos son cortos a propósito.
  */
 
+import type { Affinity } from '../core/types';
+import { AFFINITIES, AFFINITY_NAMES } from './affinities';
+import { HEROES } from './heroes';
+
 export interface DialogueDef {
   id: string;
   speaker: string;
@@ -21,6 +25,11 @@ export const DIALOGUES: Record<string, DialogueDef> = {
       'Los Custodios te han enviado a reparar un sello roto. Nadie ha vuelto de la última campana.',
       'Avanza con cuidado: lo que no te ve, no te persigue.',
     ],
+  },
+  eco_derrota: {
+    id: 'eco_derrota',
+    speaker: 'Un eco que se apaga',
+    lines: ['Tenía tu paso y tu mirada. Cayó en el sector donde tú caerías.', 'Se deshace sin rencor: lo que llevaba ya es tuyo.', 'La cripta ya no lo recuerda.'],
   },
   altar_intro: {
     id: 'altar_intro',
@@ -148,7 +157,9 @@ export type Gain =
   | { kind: 'maxKiro'; amount: number }
   | { kind: 'maxHp'; amount: number }
   | { kind: 'healFull' }
-  | { kind: 'advancedTechnique' };
+  | { kind: 'advancedTechnique' }
+  /** Libera al prisionero: se une a ti como compañero (solo uno por expedición). */
+  | { kind: 'companion' };
 
 /** Coste de una opción. `kiro: 'all'` gasta todo el kiro actual (exige al menos `minKiro`). */
 export interface Cost {
@@ -260,6 +271,52 @@ export const NPCS: Record<string, NpcDef> = {
     ],
   },
 };
+
+// ---------- Compañeros: los otros protagonistas, cautivos en el sector 2 ----------
+
+/** Tipo de PNJ del prisionero cuya afinidad es `a` (el compañero que cubre tu debilidad). */
+export const captiveKind = (a: Affinity): string => `cautivo_${a}`;
+export const isCaptiveKind = (kind: string): boolean => kind.startsWith('cautivo_');
+
+const CAPTIVE_LINES: Record<Affinity, string[]> = {
+  ascua: ['«Los Ecos me ataron mientras dormía. No suelo pedir favores...»', '«...pero si me sueltas, mi fuego arderá a tu lado. Callado, como siempre.»'],
+  marea: ['«Tranquilo, tranquila: llevo horas oyendo gotear esta cripta y ya no me asusta nada.»', '«Suéltame y te cubro la espalda. El agua sabe esperar, pero también sabe cortar.»'],
+  vendaval: ['«¡Por fin alguien! Llevo una eternidad aquí atado y ni siquiera hay una ventana por la que escaparme.»', '«Suéltame y corro por los dos. ¡Prometo no salir volando sin avisar!»'],
+  piedra: ['«Me dejaron aquí como una piedra más. Qué poco entienden a las piedras.»', '«Suéltame. Aguanto lo que a ti te tumba, y lo que no, lo rompo.»'],
+  rayo: ['«Un golpe seco y me ataron. Fue rápido... pero yo soy más rápido.»', '«Desátame y me verás. Y si algo te cae encima, ya me encargo yo.»'],
+};
+
+for (const a of AFFINITIES) {
+  const hero = HEROES[a];
+  const kind = captiveKind(a);
+  DIALOGUES[`${kind}_intro`] = {
+    id: `${kind}_intro`,
+    speaker: `${hero.name}, ${hero.epithet}`,
+    portrait: { kind: 'npc', id: kind },
+    lines: [`Atado a una columna hay un shinobi de otra casa. Domina ${AFFINITY_NAMES[a]}.`, ...CAPTIVE_LINES[a], 'Solo puedes llevar a un compañero en la expedición: piénsalo.'],
+  };
+  DIALOGUES[`${kind}_after`] = {
+    id: `${kind}_after`,
+    speaker: hero.name,
+    portrait: { kind: 'npc', id: kind },
+    lines: ['«Ya estoy contigo. Sigamos.»'],
+  };
+  NPCS[kind] = {
+    id: kind,
+    name: hero.name,
+    kindLabel: 'Prisionero',
+    introId: `${kind}_intro`,
+    afterId: `${kind}_after`,
+    options: [
+      {
+        id: 'liberar',
+        label: 'Cortar las ataduras',
+        description: `${hero.name} se une a ti: lucha a tu lado con ${AFFINITY_NAMES[a]} (más fuerte contra quien es débil a ella), te sigue de sector en sector y, si cae, se recupera al cruzar la escalera.`,
+        gains: [{ kind: 'companion' }],
+      },
+    ],
+  };
+}
 
 export function getNpc(kind: string): NpcDef | undefined {
   return Object.hasOwn(NPCS, kind) ? NPCS[kind] : undefined;

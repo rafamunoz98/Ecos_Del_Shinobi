@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { getTechnique, needsAim } from '../content/techniques';
+import { getTechnique, needsAim, techniqueAffinity } from '../content/techniques';
+import { echoFromState } from '../content/echo';
+import { clearEcho, loadEcho, saveEcho } from './echoStore';
 import { isPotion } from '../content/arcana';
 import { BALANCE } from '../content/balance';
 import { itemName } from '../content/names';
@@ -107,6 +109,8 @@ export class GameScene extends Phaser.Scene {
     throwItem: (itemId) => this.startThrow(itemId),
     equipWeapon: (weaponId) => void this.dispatch({ type: 'EquipWeapon', weaponId }),
     equipArmor: (armorId) => void this.dispatch({ type: 'EquipArmor', armorId }),
+    equipTrinket: (trinketId) => void this.dispatch({ type: 'EquipTrinket', trinketId }),
+    unequipTrinket: (slot) => void this.dispatch({ type: 'UnequipTrinket', slot }),
     equipTechnique: (techniqueId, replace) => void this.dispatch({ type: 'EquipTechnique', techniqueId, replace }),
   });
   private readonly dialogue = new DialogueBox();
@@ -229,7 +233,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRun(seed: number): void {
-    this.state = createGame({ seed });
+    this.state = createGame({ seed, echo: loadEcho() });
     this.aim = null;
     this.travel = null;
     this.hoverFor = null;
@@ -559,6 +563,9 @@ export class GameScene extends Phaser.Scene {
     }
     this.state = result.state;
     this.lastEvents = result.events as GameEvent[];
+    // La cripta recuerda a quien cae (será el eco de la próxima expedición) y olvida al eco vencido.
+    if (result.events.some((e) => e.type === 'PlayerDefeated')) saveEcho(echoFromState(this.state));
+    if (result.events.some((e) => e.type === 'EchoDefeated')) clearEcho();
     this.world.resetPan();
     this.hud.notice('');
     this.world.setState(this.state, result.events as GameEvent[], now());
@@ -754,7 +761,7 @@ export class GameScene extends Phaser.Scene {
     if (!a) return null;
     if (a.kind === 'technique') {
       const pv = previewTechnique(this.state, a.techniqueId, a.cursor);
-      return { cells: pv.cells, cursor: a.cursor, valid: pv.valid, color: affinityColor(getTechnique(a.techniqueId)?.affinity) };
+      return { cells: pv.cells, cursor: a.cursor, valid: pv.valid, color: affinityColor(techniqueAffinity(getTechnique(a.techniqueId))) };
     }
     if (a.kind === 'throw') {
       const pv = previewThrow(this.state, a.itemId, a.cursor);

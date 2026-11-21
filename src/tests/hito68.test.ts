@@ -26,7 +26,7 @@ describe('apariencias y conocimiento por afinidad', () => {
     expect(a.appearance).toEqual(b.appearance);
     const keys = [...Object.keys(POTIONS).map((k) => `pocion:${k}`), ...Object.keys(SCROLLS).map((k) => `pergamino:${k}`)];
     for (const k of keys) expect(a.appearance[k], k).toBeTruthy();
-    expect(new Set(Object.values(a.appearance)).size).toBe(keys.length);
+    expect(new Set(keys.map((k) => a.appearance[k])).size).toBe(keys.length);
     const c = createGame({ seed: 8, affinity: 'ascua' });
     expect(c.appearance).not.toEqual(a.appearance);
   });

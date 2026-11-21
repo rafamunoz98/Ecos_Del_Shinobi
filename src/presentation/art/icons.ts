@@ -849,6 +849,44 @@ function feather(ctx: Ctx): void {
   ctx.stroke();
 }
 
+/** Anillo: aro de oro con una gema. */
+function ring(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.ellipse(0, 0.08, 0.26, 0.28, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = '#d9a441';
+  ctx.lineWidth = 0.11;
+  ctx.stroke();
+  outline(ctx, 0.03);
+  ctx.beginPath();
+  ctx.moveTo(0, -0.34);
+  ctx.lineTo(0.12, -0.2);
+  ctx.lineTo(0, -0.08);
+  ctx.lineTo(-0.12, -0.2);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, -0.34, -0.08, '#9ff0ff', '#3aa0d8');
+  ctx.fill();
+  outline(ctx, 0.04);
+}
+
+/** Colgante: cadena y una piedra colgando. */
+function pendant(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(-0.3, -0.34);
+  ctx.quadraticCurveTo(0, 0.1, 0.3, -0.34);
+  ctx.strokeStyle = '#d9a441';
+  ctx.lineWidth = 0.06;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 0.0);
+  ctx.lineTo(0.14, 0.18);
+  ctx.lineTo(0, 0.38);
+  ctx.lineTo(-0.14, 0.18);
+  ctx.closePath();
+  ctx.fillStyle = vGrad(ctx, 0, 0.38, '#ffb0e0', '#b04aa8');
+  ctx.fill();
+  outline(ctx, 0.045);
+}
+
 /** Buscar: una lupa. */
 function magnifier(ctx: Ctx): void {
   ctx.beginPath();
@@ -946,6 +984,9 @@ const ICONS: Record<string, (ctx: Ctx) => void> = {
   senbon,
   punos: fist,
   lupa: magnifier,
+  anillo: ring,
+  colgante: pendant,
+  joya_azar: ring,
   kunai_de_hierro: (c) => blade(c, 0.46, 0.085, '#e4e8f2', '#8a92a6', '#3d3f52'),
   hoja_afilada: (c) => blade(c, 0.58, 0.075, '#f5f8ff', '#97a0b8'),
   hoja_de_ceniza: (c) => blade(c, 0.58, 0.085, '#8a7d9a', '#2e2438', '#2a2230'),

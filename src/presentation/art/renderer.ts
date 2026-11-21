@@ -1,5 +1,5 @@
 import { getEnemy } from '../../content/enemies';
-import { getTechnique } from '../../content/techniques';
+import { getTechnique, techniqueAffinity } from '../../content/techniques';
 import { getWeapon } from '../../content/weapons';
 import { beats } from '../../content/affinities';
 import { affinitiesOf } from '../../content/techniques';
@@ -12,7 +12,7 @@ import type { Affinity, GameEvent, GameState, Vec } from '../../core/types';
 import { heroFor } from '../../content/heroes';
 import { type Dir, drawAlly, drawEnemy, drawNinja } from './actors';
 import { SHINOBI_STYLES } from './shinobi';
-import { drawNpc } from './bosses';
+import { drawNpcFigure } from './companions';
 import { type Ctx, circle, makeCanvas, radial, roundRectPath } from './draw';
 import {
   type Fx,
@@ -471,7 +471,7 @@ export class WorldRenderer {
         }
         case 'TechniqueCast': {
           const def = getTechnique(ev.techniqueId);
-          const aff: Affinity = def?.affinity ?? 'ascua';
+          const aff: Affinity = techniqueAffinity(def) ?? 'ascua';
           const kind = def?.target.kind;
           const toward = ev.cells[0] ?? ev.target;
           const dir = { x: Math.sign(toward.x - pPos.x), y: Math.sign(toward.y - pPos.y) };
@@ -910,7 +910,7 @@ export class WorldRenderer {
       ents.push({
         y: n.pos.y,
         draw: () => {
-          this.drawActor(ctx, n.pos.x + 0.5, n.pos.y + 0.5, 0, (c) => drawNpc(c, n.kind, now, n.used));
+          this.drawActor(ctx, n.pos.x + 0.5, n.pos.y + 0.5, 0, (c) => drawNpcFigure(c, n.kind, now, n.used));
           if (!n.used && manhattan(n.pos, s.player.pos) <= 2 && this.visible.has(i)) this.speechBubble(ctx, n.pos.x + 0.5, n.pos.y - 0.12, now);
         },
       });

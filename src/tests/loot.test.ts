@@ -214,7 +214,7 @@ describe('cofres: madera y laca', () => {
       expect(r.ok).toBe(true);
       expect(r.state.player.keys).toEqual(['llave_hierro']);
       expect(r.state.chests[0].opened).toBe(true);
-      const gotGear = r.state.player.weapons.length > t.player.weapons.length || r.state.player.armors.length > t.player.armors.length;
+      const gotGear = r.state.player.weapons.length > t.player.weapons.length || r.state.player.armors.length > t.player.armors.length || r.state.player.trinkets.length > t.player.trinkets.length;
       expect(gotGear, `semilla ${seed}`).toBe(true);
       expect(r.state.player.coins).toBeGreaterThan(0);
       expect(r.state.player.shards).toBeGreaterThanOrEqual(2);

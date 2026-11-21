@@ -5,8 +5,9 @@ import { STATUS_HELP, STATUS_NAMES, WEAPON_KIND_NAMES, describeEffects, describe
 import { getMod, isCursedGear } from '../content/enchants';
 import { CURRENCY, KEYS, getEquipment } from '../content/items';
 import { gearLabel, iconIdFor, itemName } from '../content/names';
+import { getTrinket, isCursedTrinket, trinketDescription } from '../content/trinkets';
 import { NOTES, getNote, getRelic } from '../content/story';
-import { TECHNIQUES, affinitiesOf, getTechnique, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { TECHNIQUES, affinitiesOf, fusionFor, getTechnique, techniqueAffinity, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { FISTS, FISTS_ID, THROWABLES, getWeapon } from '../content/weapons';
 import { canWield, effectiveDefense, effectivePower, strengthOf, weaponLevel, weaponReq } from '../core/combat';
 import type { GameState } from '../core/types';
@@ -33,6 +34,8 @@ export interface MenuActions {
   throwItem(itemId: string): void;
   equipWeapon(weaponId: string): void;
   equipArmor(armorId: string): void;
+  equipTrinket(trinketId: string): void;
+  unequipTrinket(slot: 'ring' | 'pendant'): void;
   /** Cambia una técnica del grimorio por otra equipada (o la equipa si hay ranura libre). No cierra el menú. */
   equipTechnique(techniqueId: string, replace?: string): void;
 }
@@ -269,9 +272,11 @@ export class Menu {
     const { slot = -1, kiro, level, locked = false } = opts;
     const c = h('div', `card${locked ? ' locked' : ''}${opts.pick ? ' pick' : ''}`);
     const top = h('div', 'ctop');
-    top.append(icon(def.affinity ?? 'ascua', 52));
+    top.append(icon(techniqueAffinity(def) ?? 'ascua', 52));
     const t = h('div', 'rt');
-    const origin = def.learnable ? 'se aprende (manual o maestro)' : `se desbloquea en el nivel ${def.minLevel}`;
+    const origin = def.fusion
+      ? `fusión ${def.fusion.map((a) => AFFINITY_NAMES[a]).join(' + ')}: se aprende con un Manual de Fusión`
+      : def.learnable ? 'se aprende (manual o maestro)' : `se desbloquea en el nivel ${def.minLevel}`;
     t.append(h('b', undefined, def.name), h('span', undefined, `${def.kiroCost} de kiro${locked ? ` · ${origin}` : ''}`));
     top.append(t);
     c.append(top, h('p', undefined, def.description), h('div', 'shape', describeShape(def)));
@@ -288,7 +293,7 @@ export class Menu {
         this.actions.cast(slot);
       });
       c.append(b);
-    } else if (locked && !def.learnable) {
+    } else if (locked && !def.learnable && !def.fusion) {
       c.append(h('div', 'muted', `Nivel actual: ${level}`));
     }
     for (const x of opts.extra ?? []) c.append(x);
@@ -354,6 +359,14 @@ export class Menu {
       out.push(h('h4', undefined, 'Por desbloquear con el nivel'));
       const g = h('div', 'cards');
       for (const def of byLevel) g.append(this.card(def, { kiro: p.kiro, level: p.level, locked: true }));
+      out.push(g);
+    }
+    const fusion = fusionFor(p.affinity, p.affinity2);
+    if (fusion && !known.has(fusion.id)) {
+      out.push(h('h4', undefined, 'Técnica de fusión'));
+      out.push(h('div', 'muted', 'Mezcla tus dos afinidades. Se desbloquea aparte: busca un Manual de Fusión (a la venta tras el primer jefe, o en bibliotecas ocultas).'));
+      const g = h('div', 'cards');
+      g.append(this.card(fusion, { kiro: p.kiro, level: p.level, locked: true }));
       out.push(g);
     }
     const toLearn = Object.values(TECHNIQUES).filter((t) => t.learnable && (t.affinity === null || mine.includes(t.affinity)) && !known.has(t.id));
@@ -587,6 +600,38 @@ export class Menu {
       agrid.append(c);
     }
     out.push(agrid);
+
+    out.push(h('h4', undefined, 'Joyas (un anillo y un colgante)'));
+    const jgrid = h('div', 'cards');
+    if (p.trinkets.length === 0) jgrid.append(h('div', 'muted', 'Aún no tienes joyas: aparecen en cofres, cámaras y escondites.'));
+    for (const id of p.trinkets) {
+      const def = getTrinket(id);
+      if (!def) continue;
+      const slot = def.slot;
+      const on = p.equipment[slot] === id;
+      const slotCursed = isCursedTrinket(p.equipment[slot]);
+      const known = p.identified.includes(id);
+      const cursed = known && isCursedTrinket(id);
+      const c = h('div', `card${on ? ' equipped' : ''}`);
+      const top = h('div', 'ctop');
+      const t = h('div', 'rt');
+      t.append(h('b', cursed ? 'cursed' : undefined, itemName(id, s)), h('span', undefined, `${slot === 'ring' ? 'Anillo' : 'Colgante'}${on ? ' · puesto' : ''}`));
+      top.append(icon(slot === 'ring' ? 'anillo' : 'colgante', 52), t);
+      c.append(top);
+      if (known) c.append(h('p', undefined, trinketDescription(id)));
+      else c.append(h('p', undefined, 'Sin identificar: póntelo para saber qué hace. ¿Será una joya maldita? (Si lo está, no podrás quitártelo hasta purificarla.)'));
+      const b = h('button', 'use', on ? (isCursedTrinket(id) ? 'Maldito: no se puede quitar' : 'Quitarse (gasta un turno)') : slotCursed ? 'Tu joya de ese hueco está maldita' : 'Ponerse (gasta un turno)');
+      b.type = 'button';
+      b.disabled = (on && isCursedTrinket(id)) || (!on && slotCursed);
+      b.addEventListener('click', () => {
+        this.close();
+        if (on) this.actions.unequipTrinket(slot);
+        else this.actions.equipTrinket(id);
+      });
+      c.append(b);
+      jgrid.append(c);
+    }
+    out.push(jgrid);
     out.push(h('div', 'muted', 'Las mesas de forja mejoran las armas con monedas o esquirlas y purifican lo maldito. El mercader que aparece tras cada jefe vende equipo ya identificado.'));
     return out;
   }

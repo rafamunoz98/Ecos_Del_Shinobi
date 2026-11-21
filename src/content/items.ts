@@ -1,5 +1,6 @@
 import type { EquipSlot } from '../core/types';
 import { RANDOM_POTION, RANDOM_SCROLL } from './arcana';
+import { RANDOM_TRINKET } from './trinkets';
 import { baseGearId } from './enchants';
 
 /*
@@ -47,6 +48,9 @@ export const KEYS: Record<string, { id: string; name: string; description: strin
 /** Manual sin abrir (en el suelo o un cofre): al recogerlo se convierte en el manual de una técnica que aún no conoces. */
 export const MANUAL_ITEM = 'manual_tecnica';
 
+/** Manual de fusión sin abrir: al recogerlo se convierte en el manual de la técnica de fusión de tus DOS afinidades (si la tienes). */
+export const MANUAL_FUSION = 'manual_fusion';
+
 export const isKey = (id: string): boolean => Object.hasOwn(KEYS, id);
 export const isCurrency = (id: string): boolean => Object.hasOwn(CURRENCY, id);
 
@@ -86,6 +90,7 @@ export const CHEST_LOOT: readonly LootEntry[] = [
   { kind: 'equipment', id: 'chaleco_acolchado', weight: 1, minFloor: 1 },
   { kind: 'equipment', id: 'cota_de_laminas', weight: 2, minFloor: 2 },
   { kind: 'equipment', id: 'coraza_de_pizarra', weight: 1, minFloor: 3 },
+  { kind: 'item', id: RANDOM_TRINKET, weight: 2, minFloor: 1 },
   { kind: 'item', id: RANDOM_POTION, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'item', id: RANDOM_SCROLL, weight: 3, minFloor: 1, amount: 2 },
   { kind: 'throwable', id: 'shuriken', weight: 1, minFloor: 1, amount: 3 },
@@ -100,6 +105,7 @@ export const LACQUER_LOOT: readonly LootEntry[] = [
   { kind: 'weapon', id: 'hoja_de_ceniza', weight: 3, minFloor: 2 },
   { kind: 'equipment', id: 'cota_de_laminas', weight: 3, minFloor: 1 },
   { kind: 'equipment', id: 'coraza_de_pizarra', weight: 3, minFloor: 2 },
+  { kind: 'item', id: RANDOM_TRINKET, weight: 4, minFloor: 1 },
 ];
 
 /** Cámara sellada (exige llave de hierro): una pieza de equipo y varias reservas. */

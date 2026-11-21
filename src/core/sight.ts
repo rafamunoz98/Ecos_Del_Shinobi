@@ -1,4 +1,5 @@
 import { BALANCE } from '../content/balance';
+import { wornEffects } from '../content/trinkets';
 import { chebyshev, computeVisible, equals, idx, manhattan, mutualSight, stepOk, terrainAt } from './grid';
 import type { Enemy, GameState, Vec } from './types';
 
@@ -21,7 +22,7 @@ export function openDoors(s: GameState): Set<number> {
 }
 
 export function visionRadiusOf(s: GameState): number {
-  const base = terrainAt(s.map, s.player.pos) === 'bush' ? BALANCE.bushVision : BALANCE.visionRadius;
+  const base = Math.max(1, (terrainAt(s.map, s.player.pos) === 'bush' ? BALANCE.bushVision : BALANCE.visionRadius) + (wornEffects(s.player.equipment).vision ?? 0));
   return s.player.statuses.some((st) => st.id === 'ceguera') ? Math.min(base, 2) : base;
 }
 

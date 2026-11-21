@@ -1,3 +1,5 @@
+import { isEchoKind } from '../content/echo';
+import { isCaptiveKind } from '../content/story';
 import type { GameState } from './types';
 
 /** Pistas al entrar en un sector sobre las llaves y lo que abren (el jugador no las encontraba). */
@@ -8,6 +10,8 @@ export function floorHints(s: GameState): string[] {
   if (hasLockedDoor && ironKey) out.push('Hay una cámara sellada con candado: su llave de hierro (brilla en el suelo) está en una sala con guardianes.');
   const lacquerKey = s.drops.some((d) => d.itemId === 'llave_laca') && !s.player.keys.includes('llave_laca');
   if (s.chests.some((c) => c.locked && !c.opened) && lacquerKey) out.push('Hay un cofre lacado: su llave de laca (brilla en el suelo) está en la sala más alejada de la entrada.');
+  if (s.enemies.some((e) => isEchoKind(e.kind))) out.push('Sientes un eco de ti mismo en este sector: la cripta recuerda a quien cayó antes. Vencerlo libera lo que llevaba.');
+  if (s.npcs.some((n) => isCaptiveKind(n.kind))) out.push('Hay un prisionero atado en este sector. Si lo liberas, te acompañará (solo puedes llevar a un compañero).');
   return out;
 }
 
