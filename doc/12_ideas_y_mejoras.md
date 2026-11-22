@@ -8,6 +8,8 @@ Propuestas basadas en **Pixel Dungeon** (y su continuación Shattered Pixel Dung
 
 **Actualización (21-nov-2026, Hito 6.9):** el equipo pidió y se implementó: **reacciones entre elementos en el terreno** (§1.2), **fusiones de afinidades** (§1.3, desbloqueo independiente con Manual de Fusión), **descansar/buscar** (§1.4, tecla **H**, con cámaras ocultas), **otros protagonistas como compañeros** (uno solo, el de la afinidad que cubre tu debilidad) y el **eco de la expedición anterior** como mini-jefe (la parte permanente queda para el Hito 7). Se añadieron además los **amuletos** (§3: «Varitas y anillos» → anillos y colgantes, con maldiciones), la **fuerza** para empuñar armas y los **minidesafíos** de sector. Lo demás sigue siendo sugerencia.
 
+**Actualización (22-nov-2026, Hito 6.10):** el equipo pidió y se implementó el **audio** (efectos por evento y música generativa, §5 de `05_direccion_artistica_audio.md`), la **animación de Buscar**, la **identificación por uso** (el tiempo baja a 150 rondas, pero cada golpe lo acelera: es una pequeña idea de «aprender usando»), el **altar con ofrendas variables** y la técnica de Rayo de corto alcance con carrera (**Garra de Relámpago**). Ideas que salen de ello y siguen abiertas: **control de volumen** (hoy solo activar/desactivar), **música distinta por zona** (hoy solo cambia la tónica y el ánimo), **sonido espacial** (pan según la posición del enemigo o del impacto), una **pasada de oído** con jugadores reales antes de decidir si se compone música de verdad, y que **más técnicas aprendibles** tengan variante de «carrera» (Ascua, Vendaval...) para dar identidad al corto alcance.
+
 ---
 
 ## 1. Lo más recomendable ahora (alto impacto, bajo coste)

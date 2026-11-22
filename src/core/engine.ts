@@ -1997,6 +1997,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       p.kiro += gained;
       ctx.events.push({ type: 'PlayerWaited', kiroRecovered: gained });
       const found = searchAround(ctx);
+      ctx.events.push({ type: 'PlayerSearched', found });
       if (found === 0) say(ctx, 'Tanteas las paredes cercanas: no encuentras nada.');
       return;
     }

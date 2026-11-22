@@ -10,7 +10,7 @@ import type { GameEvent, GameState, Vec } from './types';
  */
 
 /** Eventos que no interrumpen un viaje: moverse tú, tus aliados o enemigos que se mueven sin haberte notado. */
-const CALM_EVENTS: ReadonlySet<GameEvent['type']> = new Set(['PlayerMoved', 'AllyMoved', 'EnemyMoved', 'EnemyLostTrack', 'XpGained']);
+const CALM_EVENTS: ReadonlySet<GameEvent['type']> = new Set(['PlayerMoved', 'PlayerSearched', 'AllyMoved', 'EnemyMoved', 'EnemyLostTrack', 'XpGained']);
 
 /** ¿Hay algo en `p` que impida pisarla? (enemigo a la vista, cofre, PNJ, señuelo o barrera). Los enemigos que no ves no cuentan. */
 function occupied(s: GameState, p: Vec, visible: ReadonlySet<number>): boolean {

@@ -36,6 +36,18 @@ public/
 - El generador añade lo nuevo **después**, con semillas propias (`attempt + 9001` extras del sector, `+ 9101` prisionero, `+ 9201` eco): una semilla produce los mismos mapas, enemigos y botín que antes y solo se le suma lo nuevo.
 - `SCHEMA_VERSION` = 11 (`GameState` incorpora `hazards`, `hintedSecrets`, `companion` y `echo`; `Player` incorpora `trinkets`, `strength` e `identified`).
 
+### 3.2 Módulos añadidos en el Hito 6.10
+- `presentation/audio/`: **sonido sin archivos** sobre Web Audio, separado en piezas que se pueden probar por separado.
+  - `soundMap.ts` (puro): traduce eventos del núcleo en efectos (`cuesFor`) y el estado de la partida en un ánimo de música (`moodFor`: explorar / tensión / jefe / apagada) con una tónica por sector.
+  - `synth.ts`: tonos con envolvente y ruido filtrado sobre cualquier `BaseAudioContext` (sirve igual con `OfflineAudioContext`, que se usa para medir niveles sin altavoces). Ruido reproducible, sin `Math.random`.
+  - `cues.ts`: los 48 efectos. `music.ts`: compositor generativo con su propio generador (`Composer`, jamás el del juego) y la síntesis de cada capa (koto, bajo, shakuhachi, taiko).
+  - `engine.ts`: `AudioEngine` (singleton `audio`): crea el contexto con el primer gesto, mezcla con compresor y una reverberación barata, programa la música por adelantado, se suspende con la pestaña oculta y guarda `{music, sfx}` en `localStorage` (`ecos.audio.v1`, con `try/catch`).
+  - `GameScene.dispatch` llama a `audio.play(cuesFor(eventos))` y `audio.setMusic(moodFor(estado))`; si una orden es inválida suena `error`. El núcleo no sabe que existe el audio.
+- `presentation/art/motion.ts` (`isTeleport`) decide si un cambio de casilla se anima o se dibuja al instante; `art/fx.ts` añade `searchFx` y `secretFx`.
+- Núcleo: evento `PlayerSearched { found }` (en `CALM_EVENTS` de `travel.ts`), `Npc.offer`, `Cost.coins/shards`, `Gain.identify/item`, `Hazard` permanente (`PERMANENT_HAZARD`), `Player.wear` ampliado a joyas, `GameState.challenge`.
+- El generador sigue sumando lo nuevo con semillas propias (`attempt + 9301` para las ofrendas del altar), de modo que no cambia el resto del mapa.
+- `SCHEMA_VERSION` = 12.
+
 ## 4. Modelo de datos
 Separar definiciones estáticas de instancias de partida. Estado serializable: runId, seed, floor, turn, map, player, enemies, summons, drops, effects y metaProgress. No guardar instancias Phaser.
 

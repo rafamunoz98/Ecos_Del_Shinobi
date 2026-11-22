@@ -64,7 +64,7 @@ export class Hud {
   constructor() {
     (el('hp-icon') as HTMLImageElement).src = iconDataUrl('hp', 40);
     (el('kiro-icon') as HTMLImageElement).src = iconDataUrl('kiro', 40);
-    for (const id of ['dpad', 'padr']) {
+    for (const id of ['dpad', 'padr', 'audio']) {
       el(id).addEventListener('click', (ev) => {
         const btn = (ev.target as HTMLElement).closest('button[data-key]') as HTMLElement | null;
         if (btn?.dataset.key) this.onAction({ type: 'key', key: btn.dataset.key });
@@ -145,7 +145,7 @@ export class Hud {
     log.scrollTop = log.scrollHeight;
 
     el('help').textContent =
-      'WASD/flechas: mover (dos flechas a la vez = diagonal) · Q E Z C (o teclado numérico): diagonales · Clic o toque: mover, atacar o interactuar; en una casilla lejana, viaje automático · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · H: buscar (puertas ocultas) · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición (pide confirmación)';
+      'WASD/flechas: mover (dos flechas a la vez = diagonal) · Q E Z C (o teclado numérico): diagonales · Clic o toque: mover, atacar o interactuar; en una casilla lejana, viaje automático · 1-6: técnicas · Tab → Objetos: pociones y pergaminos · X o Enter: interactuar (o camina contra cofres, puertas y mesas) · F: ataque de alcance · G: lanzar · V: cambiar de arrojadiza · B: cambiar arma · H: buscar (puertas ocultas) · M: música · N: efectos de sonido · Tab: menú · Arrastra con el ratón para mirar lo ya explorado · Rueda o +/−: zoom · R: nueva expedición (pide confirmación)';
     this.drawMinimap(state);
 
     this.renderResult(state);

@@ -382,6 +382,8 @@ export type InvalidReason =
 export type GameEvent =
   | { type: 'PlayerMoved'; from: Vec; to: Vec }
   | { type: 'PlayerWaited'; kiroRecovered: number }
+  /** Buscar: una ronda tanteando las paredes cercanas; `found` = paredes secretas descubiertas en ella. */
+  | { type: 'PlayerSearched'; found: number }
   | { type: 'TechniqueCast'; techniqueId: string; target: Vec; cells: Vec[] }
   | { type: 'KiroSpent'; amount: number }
   /** `mult` solo aparece cuando la afinidad cambia el daño (1,5 = débil a ello; 0,75 = lo resiste). */

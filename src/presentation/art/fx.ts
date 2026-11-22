@@ -417,3 +417,45 @@ export function deathFx(start: number, at: Vec, drawBody: (ctx: Ctx) => void): F
     },
   };
 }
+
+/**
+ * Buscar: dos ondas de sondeo que se expanden desde el ninja (con las "ondas" cuadradas de las paredes tanteadas) y una
+ * lupa que gira a su alrededor. `found` la hace más brillante (destello dorado al final).
+ */
+export function searchFx(start: number, at: Vec, found: boolean): Fx {
+  const p0 = c(at);
+  const color = found ? '#ffe08a' : '#cfe8ff';
+  return {
+    start,
+    dur: 0.95,
+    draw(ctx, p) {
+      ctx.save();
+      for (let k = 0; k < 2; k++) {
+        const q = clamp((p - k * 0.22) / 0.78, 0, 1);
+        if (q <= 0 || q >= 1) continue;
+        const e = easeOut(q);
+        ctx.globalAlpha = (1 - q) * 0.75;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.05 * (1 - q) + 0.01;
+        ctx.setLineDash([0.16, 0.12]);
+        ellipse(ctx, p0.x, p0.y, 2.6 * e, 2.6 * e * 0.7);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      // La lupa describe media vuelta en torno al ninja y se desvanece.
+      const ang = -Math.PI / 2 + p * Math.PI * 1.6;
+      const rx = 0.62;
+      const ry = 0.42;
+      const lx = p0.x + Math.cos(ang) * rx;
+      const ly = p0.y - 0.18 + Math.sin(ang) * ry;
+      ctx.globalAlpha = Math.min(1, p * 6) * (1 - clamp((p - 0.75) / 0.25, 0, 1));
+      drawIcon(ctx, 'lupa', lx, ly, 0.5, Math.sin(p * 9) * 0.18);
+      ctx.restore();
+    },
+  };
+}
+
+/** Una pared secreta cede: polvo, destellos dorados y una onda en la casilla de la puerta recién hallada. */
+export function secretFx(start: number, at: Vec): Fx[] {
+  return [puffFx(start, at, '#c9b88a', 12, 0.7), sparkleFx(start, at, '#ffe08a', 16), ringFx(start, at, '#ffe08a', 1.6, 0.8)];
+}

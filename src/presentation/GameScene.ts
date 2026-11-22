@@ -24,6 +24,8 @@ import { Hud, TECHNIQUE_KEYS, type AimInfo, type UiAction } from '../ui/hud';
 import { Menu } from '../ui/menu';
 import { type Overlay, WorldRenderer, affinityColor } from './art/renderer';
 import { DirectionChords, isCardinal } from './chords';
+import { audio } from './audio/engine';
+import { cuesFor, moodFor } from './audio/soundMap';
 
 const N: Vec = { x: 0, y: -1 };
 const E: Vec = { x: 1, y: 0 };
@@ -146,6 +148,10 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => this.onKey(e));
     this.input.keyboard?.on('keyup', (e: KeyboardEvent) => this.chords.release(this.keyOf(e)));
     window.addEventListener('blur', () => this.chords.clear());
+    // Los navegadores solo dejan sonar tras un gesto del jugador: el primero (tecla, clic o toque) enciende el audio.
+    for (const ev of ['keydown', 'pointerdown', 'touchend'] as const) window.addEventListener(ev, () => audio.unlock(), { capture: true });
+    audio.onChange(() => this.syncAudioButtons());
+    this.syncAudioButtons();
     this.input.on('wheel', (_pointer: unknown, _objects: unknown, _dx: number, dy: number) => {
       this.world.zoomBy(dy > 0 ? 0.9 : 1.1);
     });
@@ -250,6 +256,7 @@ export class GameScene extends Phaser.Scene {
     this.world.resetPan();
     this.dialogue.clear();
     this.refreshHud();
+    audio.setMusic(moodFor(this.state));
     if (!this.introShown) {
       this.introShown = true;
       this.dialogue.show('prologo');
@@ -301,6 +308,9 @@ export class GameScene extends Phaser.Scene {
   /** Una tecla (física o de la cruceta táctil) ya en minúsculas. */
   private handleKey(key: string): void {
     if (this.confirm.onKey(key)) return;
+    // Música (M) y efectos (N) se pueden activar en cualquier momento, sin interrumpir un viaje ni una ventana.
+    if (key === 'm') return void audio.toggleMusic();
+    if (key === 'n') return void audio.toggleSfx();
     this.cancelTravel();
     if (this.dialogue.onKey(key)) return;
     if (this.affinityBox.onKey(key)) return;
@@ -554,15 +564,30 @@ export class GameScene extends Phaser.Scene {
     this.dispatch({ type: 'Interact', target });
   }
 
+  /** Pinta los botones 🎵/🔊 según lo que el jugador haya silenciado. */
+  private syncAudioButtons(): void {
+    const { music, sfx } = audio.preferences;
+    const m = document.getElementById('btn-music');
+    const f = document.getElementById('btn-sfx');
+    m?.classList.toggle('off', !music);
+    m?.setAttribute('aria-pressed', String(music));
+    f?.classList.toggle('off', !sfx);
+    f?.setAttribute('aria-pressed', String(sfx));
+    if (f) f.textContent = sfx ? '🔊' : '🔇';
+  }
+
   /** Aplica una orden (también la usa el menú). Devuelve si fue válida. */
   dispatch(cmd: Command): boolean {
     const result = applyCommand(this.state, cmd);
     if (!result.ok) {
       this.hud.notice(result.message ?? 'Acción no válida.');
+      audio.cue('error');
       return false;
     }
     this.state = result.state;
     this.lastEvents = result.events as GameEvent[];
+    audio.play(cuesFor(this.lastEvents));
+    audio.setMusic(moodFor(this.state));
     // La cripta recuerda a quien cae (será el eco de la próxima expedición) y olvida al eco vencido.
     if (result.events.some((e) => e.type === 'PlayerDefeated')) saveEcho(echoFromState(this.state));
     if (result.events.some((e) => e.type === 'EchoDefeated')) clearEcho();

@@ -130,7 +130,7 @@ Inspirado en Pixel Dungeon: lo normal es encontrar objetos *por el suelo*; los c
 Hay mesa de forja en los sectores 2, 3 y 5. Hablar con ella (X o caminar contra ella) es gratis y abre el menú. Cada arma cuerpo a cuerpo se mejora hasta **+3**; cada nivel da +1 de poder. El coste por nivel es de **12 / 20 / 30 monedas** o de **2 / 3 / 4 esquirlas**; mejorar gasta un turno. También **purifica** piezas malditas ya identificadas por **10 monedas**.
 
 ### 11.3 Equipo sin identificar, encantamientos y maldiciones **[Implementado]**
-Las armas y vestimentas encontradas se ven como «Nombre (?)». Pueden ser corrientes, encantadas (efecto positivo) o malditas (efecto negativo y **pegadas al cuerpo** hasta purificarlas). Una pieza normal o encantada **tarda 20 rondas puestas** en identificarse (`BALANCE.identifyTurns`; el progreso se guarda por pieza y no se pierde si la cambias); una **maldita se revela al instante al equiparla**. No se puede cambiar una ranura mientras lo puesto esté maldito; se rompe con un Sello de Purificación o en la forja. Tabla en `08_biblia_de_contenido.md` §6.2.
+Las armas y vestimentas encontradas se ven como «Nombre (?)». Pueden ser corrientes, encantadas (efecto positivo) o malditas (efecto negativo y **pegadas al cuerpo** hasta purificarlas). Una pieza normal o encantada **tarda 150 rondas puestas** en identificarse (`BALANCE.identifyTurns`; el progreso se guarda por pieza y no se pierde si la cambias) y **el uso lo acorta** (§14.1); una **maldita se revela al instante al equiparla**. No se puede cambiar una ranura mientras lo puesto esté maldito; se rompe con un Sello de Purificación o en la forja. Tabla en `08_biblia_de_contenido.md` §6.2.
 
 ### 11.4 Pociones y pergaminos sin identificar **[Implementado]**
 11 pociones y 12 pergaminos con apariencias al azar por partida; se identifican al usarlos. Hay **Poción de Sanación** (15 de vida y limpia estados) y **Poción de Kiro Mayor** (12 de kiro) para recuperarse; se empieza solo con 5 shuriken. Cada afinidad reconoce de entrada una poción y un pergamino. Muchos son invocaciones (sapo, cuervos, clones de sombra) y sellos al estilo ninja. Tabla en `08_biblia_de_contenido.md` §6.3.
@@ -167,7 +167,7 @@ Se empieza **sin arma** (puños: sin bonificación, alcance 1). Cada arma tiene 
 Marea > Ascua > Vendaval > Piedra > Rayo > Marea (cada una vence a la siguiente). **×1,5** de daño al vencer a la afinidad del objetivo y **×0,75** al perder; neutral en cualquier otro caso. Las técnicas de fusión cuentan como de **ambas** afinidades (se queda con lo mejor). Los enemigos hacen lo mismo contra ti con tu afinidad inicial. **El compañero rescatable es de la afinidad que cubre tu debilidad** (`companionAffinityFor(a) = vence al que te vence`): Ascua→Rayo, Marea→Piedra, Vendaval→Marea, Piedra→Ascua, Rayo→Vendaval. El Colgante de Imán reduce a ×1,25 el golpe del que te vence.
 
 ### 13.3 Pociones arrojables
-Cualquier poción se puede lanzar a una casilla visible (alcance 5, radio 1). Las **malas** hacen su efecto sobre la zona (Ígnea: fuego; Hiel: veneno; Niebla: ceguera; Estridente: atrae a los enemigos); las **buenas** se derraman sin efecto. Beber una mala te daña a ti. La **Poción de Levitación** permite flotar unas rondas sobre el vacío, el agua electrificada y las trampas.
+Cualquier poción se puede lanzar a una casilla visible (alcance 9 desde el Hito 6.10, radio 1). Las **malas** hacen su efecto sobre la zona (Ígnea: fuego; Hiel: veneno; Niebla: ceguera; Estridente: atrae a los enemigos); las **buenas** se derraman sin efecto. Beber una mala te daña a ti. La **Poción de Levitación** permite flotar unas rondas sobre el vacío, el agua electrificada y las trampas.
 
 ### 13.4 Terreno dinámico
 - **Peligros del suelo** (`state.hazards`): fuego (arde 3 rondas sobre combustible, 2 sobre suelo), charcos (10 rondas) y descargas (2 rondas). Quien esté en el fuego arde; los enemigos lo evitan.
@@ -191,3 +191,27 @@ En el sector 2 espera un **prisionero** atado (la sala más custodiada que no se
 
 ### 13.9 Eco de la expedición anterior
 Al **morir**, la partida se guarda en el navegador (`localStorage`, clave `ecos_del_shinobi.eco.v1`: afinidades, nivel, sector, arma y vestimenta; un solo registro). La siguiente expedición coloca **un eco** (mini-jefe `eco_<afinidad>`, con las habilidades de esa afinidad) dormido en la sala más grande de **uno de los sectores 2, 4 o 5** (según la semilla, nunca de jefe). Su vida y poder salen del nivel con que cayó quien fue, con tope según el sector (nunca más fuerte de lo que puedes ser allí). Al vencerlo **suelta el arma y la vestimenta que llevaba, purificadas**, más 4 esquirlas y 12 monedas, dice su despedida y **la cripta deja de recordarlo** (se borra el registro). Si el almacenamiento no está disponible, simplemente no hay eco.
+
+## 14. Reglas del Hito 6.10 **[Implementado]**
+
+### 14.1 Identificación por tiempo y por uso
+- Armas, vestimentas y joyas (anillos y colgantes) llevan un contador de **rondas puestas** (`player.wear[id]`, que no se pierde al cambiar de pieza). Al llegar a `BALANCE.identifyTurns` (**150**) se revelan.
+- El **uso lo acorta** (`BALANCE.identifyUse`): cada golpe cuerpo a cuerpo dado suma +3 al arma empuñada; cada golpe recibido, +3 a la vestimenta; y cada golpe dado o recibido, +2 a cada joya puesta. El menú muestra «identificación X/150».
+- Lo **maldito** se revela al instante al equiparlo (y no se quita sin purificar). Las joyas ya **no** se identifican al ponerlas (salvo las malditas). Con la **Visión del eco** del altar se identifica todo de golpe.
+- Las pociones y pergaminos siguen identificándose al **usarlos**; ninguna se conoce de entrada (ni siquiera la Poción de Fuerza ni los objetos de los minidesafíos). Los objetos de minidesafío aparecen en **pila de 2**, sin identificar, y el mensaje del sector solo dice dónde buscar.
+
+### 14.2 Terreno y secretos
+- **Charcos naturales:** en cada sector sin jefe, 1–2 manchas de 3–7 casillas (`BALANCE.puddles`) con `Hazard.turns = PERMANENT_HAZARD` (no caducan); el fuego los evapora y conducen el rayo (§13.4). Se colocan al final de `addExtras` con el generador de extras, a ≥ 2 casillas de la entrada y la salida.
+- **Precipicios:** parche en todos los sectores sin jefe salvo el que asegura la Poción de Fuerza (`BALANCE.chasmChance = 1`); la colocación comprueba que no deja zonas sin alcanzar (se compara el alcanzable antes y después, para no contar cámaras selladas).
+- **Sala secreta:** **una por fase** (`secretFloorOfPhase`: sector 1 o 2, y 4 o 5, según la semilla; nunca el del jefe). Al entrar, el registro dice: «Este sector se siente misterioso: algo se esconde tras estas paredes. Busca con calma (tecla H) por los rincones.» (`floorHints`).
+- **Botín:** 3–5 objetos por sector, cámaras selladas en el 50 % y cofres lacados en el 40 %.
+- **Lanzar pociones:** alcance 9, radio 1 (`BALANCE.potionThrow`).
+
+### 14.3 Altar del Eco Roto variado
+Reserva de 9 ofrendas (`NPCS[ALTAR_KIND].options` en `content/story.ts`): sangre, plegaria de kiro, acero, temple, ayuno, moneda al pozo (15 monedas → +5 vida máx. y curación total), esquirlas al fuego (3 → +1 poder), visión del eco (−3 vida → identifica todo) y limosna al santuario (10 monedas → 2 Pociones de Sanación). Cada altar guarda en `Npc.offer` las **3** que ofrece, sorteadas con un generador propio (`attempt + 9301`) para no alterar los mapas ya conocidos. Un coste imposible de pagar se muestra bloqueado con su motivo (`optionBlocker`).
+
+### 14.4 Garra de Relámpago
+Técnica **aprendible** de Rayo (kiro 4, objetivo `dash` de 3 casillas): el ninja se lanza en línea recta hasta el primer enemigo y le asesta **8 de daño que ignora defensa** y **Aturdido 1 turno**. Es la primera técnica de Rayo que ofrecen los maestros, y el Rayo pasa a tener 9 técnicas (5 por nivel, 4 aprendibles).
+
+### 14.5 Presentación (sin efecto en las reglas)
+Los eventos nuevos o usados por la presentación son `PlayerSearched { found }` (cada ronda de Buscar; no interrumpe el viaje) y los ya existentes `SecretFound`, etc. El **sonido** y la **música** (§5 de `05_direccion_artistica_audio.md`) escuchan esos eventos y el estado, pero el núcleo no sabe que existen: no consumen el generador ni cambian el guardado.

@@ -22,6 +22,8 @@ import {
   projectileFx,
   puffFx,
   ringFx,
+  searchFx,
+  secretFx,
   slashFx,
   sparkleFx,
   thrustFx,
@@ -29,6 +31,7 @@ import {
   whipFx,
 } from './fx';
 import { drawIcon } from './icons';
+import { isTeleport } from './motion';
 import { clamp, easeOut, hash2, rgba } from './noise';
 import { type Theme, themeFor } from './themes';
 import { E, N, NE, NW, S, SE, SW, W, barrierTile, bushTile, chasmTile, chestTile, crackOverlay, doorTile, floorTile, lockedDoorTile, stairsTile, thornsTile, wallTile } from './tileart';
@@ -333,7 +336,9 @@ export class WorldRenderer {
       if (d.tx === pos.x && d.ty === pos.y) return;
       const cur = this.pos(id, now);
       const sliding = slide.get(id);
-      const jump = sliding === undefined && Math.abs(pos.x - cur.x) + Math.abs(pos.y - cur.y) > 1.6;
+      // Salto = teletransporte real (más de una casilla en línea recta respecto a la casilla lógica anterior, no a la posición
+      // a medio animar). Un paso diagonal mide √2 ≈ 1,41: se anima como cualquier otro.
+      const jump = sliding === undefined && isTeleport(pos.x - d.tx, pos.y - d.ty);
       d.fx = snap || jump ? pos.x : cur.x;
       d.fy = snap || jump ? pos.y : cur.y;
       d.tx = pos.x;
@@ -418,6 +423,12 @@ export class WorldRenderer {
       switch (ev.type) {
         case 'PlayerMoved':
           add(puffFx(now, ev.from, '#a6a39a', 3, 0.18));
+          break;
+        case 'PlayerSearched':
+          add(searchFx(now, pPos, ev.found > 0));
+          break;
+        case 'SecretFound':
+          for (const f of secretFx(now + 0.35, ev.pos)) add(f);
           break;
         case 'PlayerAttacked': {
           const first = ev.cells[0] ?? ev.targets[0];

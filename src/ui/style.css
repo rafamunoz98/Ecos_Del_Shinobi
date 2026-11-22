@@ -1263,3 +1263,40 @@ button.note-item .ico {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* ---------- Sonido ---------- */
+
+#audio {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+}
+
+#audio button {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--text);
+  border: 1px solid #4a4670;
+  border-radius: 10px;
+  background: rgba(26, 24, 44, 0.72);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#audio button:hover {
+  border-color: var(--accent);
+}
+
+#audio button.off {
+  opacity: 0.5;
+  background: rgba(26, 24, 44, 0.45);
+  text-decoration: line-through;
+}

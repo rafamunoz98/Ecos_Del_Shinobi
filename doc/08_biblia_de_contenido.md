@@ -97,6 +97,7 @@ Fórmula de daño: `max(1, poder de la técnica + bonificación de nivel − def
 | Descarga Estática | Nivel 3 | 4 | Ráfaga de radio 2 a tu alrededor. | Daño 4 (ignora defensa) |
 | Relámpago | Nivel 4 | 5 | Línea recta de 8 casillas; se detiene en obstáculos. | Daño 7 (ignora defensa) |
 | Tormenta Cercana | Nivel 5 | 7 | Ráfaga de radio 3 a tu alrededor. | Daño 6 (ignora defensa), Aturdido 1 turno |
+| Garra de Relámpago | Se aprende (manual, maestro o jefe) | 4 | Carrera en línea recta de hasta 3 casillas contra el primer enemigo. | Daño 8 (ignora defensa), Aturdido 1 turno |
 | Paso Relámpago | Se aprende (manual, maestro o jefe) | 3 | Te desplazas al instante a una casilla libre visible (alcance 5). | Tú: Potenciado 3 turnos |
 | Red de Rayos | Se aprende (manual, maestro o jefe) | 4 | Área de radio 1 sobre una casilla visible (alcance 5). | Daño 4 (ignora defensa), Atado 3 turnos |
 | Carga Interior | Se aprende (manual, maestro o jefe) | 0 | Se aplica sobre ti. | Recuperas 6 de kiro, Pagas 3 de vida |
@@ -197,7 +198,7 @@ Hay un jefe cada tres sectores; la sala de salida es su arena (sin arbustos) y l
 - No hay un monstruo-campana: el Campanero fue sustituido por Sōkan, líder del Círculo de la Campana Hueca.
 
 ## 5.1 Eventos y maestros **[Implementado]**
-- **Altar del Eco Roto** (sectores 1 y 4): *Ofrenda de sangre* (−6 vida → +1 poder, +2 kiro máx.), *Plegaria de kiro* (todo el kiro, mín. 3 → curación total), *Ofrenda de acero* (3 shuriken → +1 defensa).
+- **Altar del Eco Roto** (sectores 1 y 4): cada altar muestra **3 de estas 9 ofrendas**, distintas según la semilla: *Ofrenda de sangre* (−6 vida → +1 poder, +2 kiro máx.), *Plegaria de kiro* (todo el kiro, mín. 3 → curación total), *Ofrenda de acero* (3 shuriken → +1 defensa), *Temple a fuego lento* (−8 vida → +1 poder y +1 defensa), *Ayuno ritual* (−4 vida → +4 kiro máx.), *Moneda al pozo del eco* (15 monedas → +5 vida máx. y curación total), *Esquirlas al fuego* (3 esquirlas → +1 poder), *Visión del eco* (−3 vida → identifica todo tu equipo y tus joyas) y *Limosna al santuario* (10 monedas → 2 Pociones de Sanación).
 - **Maestro Tobari** (sector 5): *Técnica oculta* (aprendes una técnica de tu afinidad que no sale por nivel), *Temple de raíz* (+6 de vida máx. y curación total), *Aliento del bosque* (+6 de kiro máx.), *Filo y piel* (−5 de vida → +1 poder y +1 defensa).
 - **Maestra Sayoko** (sector 2): *Filo del Maestro* (+1 poder), *Respiración profunda* (+4 kiro máx.), *Piel de corteza* (+1 def., +4 vida máx.), *Lección adelantada* (técnica avanzada de tu afinidad).
 - **Mercader de la Casa del Hilo Gris**: aparece tras cada jefe (ver §5.4).
@@ -228,7 +229,7 @@ Ver `02_sistemas_y_reglas.md` §10.1. Resumen: arbustos y puertas cerradas tapan
 - Pociones y pergaminos de ninjutsu (§6.3); se recogen sin revelar lo que son. Manuales de técnica (se estudian desde Tab → Objetos). Se empieza solo con 5 shuriken.
 
 ### 6.2 Equipo
-Equipo con **dos ranuras** (arma y vestimenta). Se llevan varias armas y varias vestimentas, pero se usa una de cada. **Nada se equipa solo**: lo encontrado viene **sin identificar** («Hoja afilada (?)») y puede ser corriente, estar **encantado** (20–28 % de probabilidad) o **maldito** (20 %). Una pieza normal o encantada se identifica tras **20 rondas puestas**; una **maldita se revela al instante** al equiparla. Lo maldito queda pegado al cuerpo (no se puede cambiar esa ranura) hasta purificarlo con un Sello de Purificación o en la forja. Lo vendido por el mercader siempre viene identificado y limpio.
+Equipo con **dos ranuras** (arma y vestimenta). Se llevan varias armas y varias vestimentas, pero se usa una de cada. **Nada se equipa solo**: lo encontrado viene **sin identificar** («Hoja afilada (?)») y puede ser corriente, estar **encantado** (20–28 % de probabilidad) o **maldito** (20 %). Una pieza normal o encantada se identifica tras **150 rondas puestas** (menos si la usas: +3 por golpe dado con el arma o recibido con la vestimenta, +2 por golpe con una joya puesta); una **maldita se revela al instante** al equiparla. Las **joyas** (anillos y colgantes) siguen la misma regla. Lo maldito queda pegado al cuerpo (no se puede cambiar esa ranura) hasta purificarlo con un Sello de Purificación o en la forja. Lo vendido por el mercader siempre viene identificado y limpio.
 
 **Armas cuerpo a cuerpo** (B cambia a la siguiente; gasta un turno):
 | Arma | Tipo | Poder | Alcance | Aparece desde | Nota |
