@@ -4,6 +4,9 @@ import type { GameState, Hazard, TerrainKind, Vec } from './types';
 /** Terrenos que arden: arbustos, zarzales y puertas de madera (las de candado no). */
 export const FLAMMABLE: ReadonlySet<TerrainKind> = new Set<TerrainKind>(['bush', 'thorns', 'door']);
 
+/** Duración de un peligro que no se acaba solo (los charcos naturales del sector): el paso de las rondas no lo acorta. */
+export const PERMANENT_HAZARD = 999;
+
 export const hazardAt = (s: GameState, p: Vec, kind?: Hazard['kind']): Hazard | undefined =>
   s.hazards.find((h) => equals(h.pos, p) && (kind === undefined || h.kind === kind));
 

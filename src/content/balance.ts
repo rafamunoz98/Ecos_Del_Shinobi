@@ -2,7 +2,7 @@
 export const BALANCE = {
   player: { maxHp: 20, maxKiro: 10, power: 4, defense: 1, strength: 3 },
   /** Alcance de las pociones lanzadas (distancia Manhattan) y radio de su efecto. */
-  potionThrow: { range: 5, radius: 1 },
+  potionThrow: { range: 9, radius: 1 },
   /** Botín del eco de la expedición anterior (además de su equipo purificado). */
   echoLoot: { shards: 4, coins: 12 },
   /** Compañero rescatable (uno solo por expedición): sector donde espera, vida y poder según tu nivel, y cómo se recupera. */
@@ -14,9 +14,13 @@ export const BALANCE = {
   shock: { enemy: 6, player: 3, stunTurns: 2 },
   /** Buscar: alcance seguro y alcance con probabilidad; probabilidad de dar con una puerta secreta pegada al caminar. */
   search: { sure: 2, far: 3, farChance: 0.5, passiveChance: 0.2, hintRange: 3, turns: 5 },
-  /** Probabilidad por sector de cámara oculta, de parche de precipicio y de minidesafío (los sectores de jefe no tienen). */
-  secretRoomChance: 0.65,
-  chasmChance: 0.7,
+  /**
+   * Cámara oculta: UNA por fase (el sector se sortea con la semilla, nunca el del jefe) y al entrar el registro avisa de que el
+   * sector «se siente misterioso». Precipicios: parches en todos los sectores sin jefe salvo el de la Poción de Fuerza asegurada
+   * (saltar allí te haría saltarte la poción). Charcos naturales: parches de agua que apagan el fuego y conducen el rayo.
+   */
+  chasmChance: 1,
+  puddles: { patches: [1, 2], size: [3, 7] },
   /** Kiro que se recupera al esperar (el documento lo deja "si se aprueba en balance"). */
   waitKiro: 2,
   /** El kiro vuelve solo: 1 cada N rondas (la vida, más despacio). */
@@ -51,8 +55,10 @@ export const BALANCE = {
   levelUp: { hp: 4, kiro: 1, powerEvery: 2 },
   /** Técnicas que se pueden llevar equipadas a la vez (el resto queda en el grimorio). Hasta llenarlas no hay que sustituir ninguna. */
   techniqueSlots: 6,
-  /** Rondas con una pieza de equipo puesta hasta descubrir qué esconde (las malditas se revelan al instante). */
-  identifyTurns: 20,
+  /** Rondas con una pieza de equipo o una joya puesta hasta descubrir qué esconde (las malditas se revelan al instante). */
+  identifyTurns: 150,
+  /** Lo que acorta el uso: cada golpe dado con el arma, cada golpe recibido con la vestimenta y cada combate con una joya suman estas rondas extra. */
+  identifyUse: { weapon: 3, armor: 3, trinket: 2 },
   /** Mapas grandes al estilo Pixel Dungeon; el tamaño de casilla en pantalla es independiente. */
   level: {
     width: 64,
@@ -70,10 +76,10 @@ export const BALANCE = {
     corridorBushes: 7,
     maxDoors: 8,
     /** Objetos sueltos por el suelo (monedas, esquirlas, consumibles, arrojadizas). */
-    groundItems: { min: 6, max: 9 },
+    groundItems: { min: 3, max: 5 },
     /** Probabilidad de cámara sellada (llave de hierro) y de cofre lacado (llave de laca) en cada sector. */
-    vaultChance: 0.75,
-    lacquerChance: 0.6,
+    vaultChance: 0.5,
+    lacquerChance: 0.4,
   },
   /** Mesas de forja: solo aparecen en estos sectores. */
   forgeFloors: [2, 3, 5],

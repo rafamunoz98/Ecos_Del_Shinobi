@@ -158,12 +158,18 @@ export type Gain =
   | { kind: 'maxHp'; amount: number }
   | { kind: 'healFull' }
   | { kind: 'advancedTechnique' }
+  /** Revela qué esconde todo tu equipo y tus joyas sin identificar. */
+  | { kind: 'identify' }
+  /** Te da objetos (ya los reconoces). */
+  | { kind: 'item'; id: string; count: number }
   /** Libera al prisionero: se une a ti como compañero (solo uno por expedición). */
   | { kind: 'companion' };
 
 /** Coste de una opción. `kiro: 'all'` gasta todo el kiro actual (exige al menos `minKiro`). */
 export interface Cost {
   hp?: number;
+  coins?: number;
+  shards?: number;
   kiro?: 'all';
   minKiro?: number;
   item?: { id: string; count: number };
@@ -194,6 +200,7 @@ export const NPCS: Record<string, NpcDef> = {
     kindLabel: 'Evento',
     introId: 'altar_intro',
     afterId: 'altar_after',
+    // El altar muestra solo ALTAR_OFFERS de estas opciones (distintas en cada altar y en cada partida): ver `altarOffer`.
     options: [
       {
         id: 'sangre',
@@ -218,6 +225,54 @@ export const NPCS: Record<string, NpcDef> = {
         description: 'Dejas 3 shuriken sobre la piedra. Ganas +1 de defensa.',
         cost: { item: { id: 'shuriken', count: 3 } },
         gains: [{ kind: 'defense', amount: 1 }],
+      },
+      {
+        id: 'temple',
+        label: 'Temple a fuego lento',
+        description: 'Pierdes 8 de vida. Ganas +1 de poder y +1 de defensa.',
+        cost: { hp: 8 },
+        gains: [
+          { kind: 'power', amount: 1 },
+          { kind: 'defense', amount: 1 },
+        ],
+      },
+      {
+        id: 'ayuno',
+        label: 'Ayuno ritual',
+        description: 'Pierdes 4 de vida. Ganas +4 de kiro máximo.',
+        cost: { hp: 4 },
+        gains: [{ kind: 'maxKiro', amount: 4 }],
+      },
+      {
+        id: 'pozo',
+        label: 'Moneda al pozo del eco',
+        description: 'Arrojas 15 monedas. Ganas +5 de vida máxima y te curas del todo.',
+        cost: { coins: 15 },
+        gains: [
+          { kind: 'maxHp', amount: 5 },
+          { kind: 'healFull' },
+        ],
+      },
+      {
+        id: 'fundicion',
+        label: 'Esquirlas al fuego',
+        description: 'Fundes 3 esquirlas en el altar. Ganas +1 de poder.',
+        cost: { shards: 3 },
+        gains: [{ kind: 'power', amount: 1 }],
+      },
+      {
+        id: 'vision',
+        label: 'Visión del eco',
+        description: 'Pierdes 3 de vida. El eco te muestra qué esconde todo tu equipo y tus joyas sin identificar.',
+        cost: { hp: 3 },
+        gains: [{ kind: 'identify' }],
+      },
+      {
+        id: 'limosna',
+        label: 'Limosna al santuario',
+        description: 'Dejas 10 monedas. Recibes dos Pociones de Sanación.',
+        cost: { coins: 10 },
+        gains: [{ kind: 'item', id: 'pocion:sanacion', count: 2 }],
       },
     ],
   },
@@ -320,6 +375,23 @@ for (const a of AFFINITIES) {
 
 export function getNpc(kind: string): NpcDef | undefined {
   return Object.hasOwn(NPCS, kind) ? NPCS[kind] : undefined;
+}
+
+/** Identificador del altar y cuántas opciones ofrece cada uno (de las de su lista). */
+export const ALTAR_KIND = 'altar_eco_roto';
+export const ALTAR_OFFERS = 3;
+
+/** Sortea las opciones que ofrecerá un altar: ALTAR_OFFERS de las de su lista, distintas entre sí. */
+export function altarOffer(rng: { shuffle<T>(items: T[]): T[] }): string[] {
+  return rng.shuffle(NPCS[ALTAR_KIND].options.map((o) => o.id)).slice(0, ALTAR_OFFERS);
+}
+
+/** Las opciones que de verdad ofrece un PNJ concreto (todas, salvo los altares, que solo muestran las suyas). */
+export function npcOptions(npc: { kind: string; offer?: readonly string[] }): NpcOption[] {
+  const def = getNpc(npc.kind);
+  if (!def) return [];
+  if (!npc.offer) return def.options;
+  return npc.offer.map((id) => def.options.find((o) => o.id === id)).filter((o): o is NpcOption => o !== undefined);
 }
 
 /** Eventos/maestros que aparecen en cada sector (uno por sector, por ahora). */

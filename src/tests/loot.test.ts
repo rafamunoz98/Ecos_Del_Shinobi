@@ -87,8 +87,8 @@ describe('generador: objetos sueltos, llaves, cámaras selladas y forja', () => 
         expect(lv.chests.filter((c) => !c.locked && !ownCells.has(at(map, c.pos))).length, ctx).toBeLessThanOrEqual(BALANCE.level.maxChests);
       }
     }
-    expect(vaults).toBeGreaterThan(SEEDS * 3 * 0.6);
-    expect(lacquers).toBeGreaterThan(SEEDS * 3 * 0.45);
+    expect(vaults).toBeGreaterThan(SEEDS * 3 * 0.4);
+    expect(lacquers).toBeGreaterThan(SEEDS * 3 * 0.3);
   });
 
   it('el suelo trae monedas, consumibles y arrojadizas; el equipo se reserva a cofres y cámaras', () => {

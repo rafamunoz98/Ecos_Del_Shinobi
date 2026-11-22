@@ -25,7 +25,8 @@ describe('pistas de llaves y ritmo de los sectores', () => {
       const hints = floorHints(g);
       const hasDoor = g.map.tiles.includes('locked') && g.drops.some((d) => d.itemId === 'llave_hierro');
       const hasLacquer = g.chests.some((c) => c.locked) && g.drops.some((d) => d.itemId === 'llave_laca');
-      expect(hints.length).toBe((hasDoor ? 1 : 0) + (hasLacquer ? 1 : 0));
+      const hasSecret = g.map.tiles.includes('secret');
+      expect(hints.length).toBe((hasDoor ? 1 : 0) + (hasLacquer ? 1 : 0) + (hasSecret ? 1 : 0));
       for (const h of hints) expect(g.log).toContain(h);
       seen += hints.length;
     }

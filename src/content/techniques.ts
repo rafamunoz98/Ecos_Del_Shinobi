@@ -302,6 +302,12 @@ define([
     description: 'Una tormenta eléctrica de radio 3: daña, ignora la defensa y aturde a todos.',
   },
   {
+    id: 'garra_de_relampago', name: 'Garra de Relámpago', affinity: 'rayo', minLevel: L, learnable: true, kiroCost: 4,
+    target: { kind: 'dash', length: 3 },
+    damage: { power: 8, ignoreDefense: true }, inflict: { status: 'aturdido', turns: 1 },
+    description: 'Cargas tu mano de rayos y te lanzas hasta 3 casillas en línea recta: golpeas al primer enemigo con un zarpazo que ignora la defensa y lo aturde. Corto alcance, mucho daño.',
+  },
+  {
     id: 'paso_relampago', name: 'Paso Relámpago', affinity: 'rayo', minLevel: L, learnable: true, kiroCost: 3,
     target: { kind: 'blink', range: 5 }, selfStatus: { status: 'potenciado', turns: 3 },
     description: 'Te desplazas como un rayo hasta 5 casillas y tu siguiente golpe (3 rondas) llega con +2 de poder.',
@@ -402,6 +408,12 @@ define([
 
 /** Las 10 técnicas de fusión, en el orden en que se definen. */
 export const FUSION_IDS: readonly string[] = Object.values(TECHNIQUES).filter((t) => t.fusion).map((t) => t.id);
+
+/** Icono de una técnica: el de su afinidad o, en las fusiones, uno propio que mezcla las dos (`fusion:ascua+marea`). */
+export function techniqueIconId(def: TechniqueDef | undefined, fallback: Affinity): string {
+  if (def?.fusion) return `fusion:${def.fusion[0]}+${def.fusion[1]}`;
+  return techniqueAffinity(def) ?? fallback;
+}
 
 /** Afinidad cuyo icono y color representan a una técnica (la propia o, en las fusiones, la primera de las dos). */
 export function techniqueAffinity(def: TechniqueDef | undefined): Affinity | null {

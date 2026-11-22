@@ -7,7 +7,7 @@ import { CURRENCY, KEYS, getEquipment } from '../content/items';
 import { gearLabel, iconIdFor, itemName } from '../content/names';
 import { getTrinket, isCursedTrinket, trinketDescription } from '../content/trinkets';
 import { NOTES, getNote, getRelic } from '../content/story';
-import { TECHNIQUES, affinitiesOf, fusionFor, getTechnique, techniqueAffinity, techniquesFor, type TechniqueDef } from '../content/techniques';
+import { TECHNIQUES, affinitiesOf, fusionFor, getTechnique, techniqueIconId, techniquesFor, type TechniqueDef } from '../content/techniques';
 import { FISTS, FISTS_ID, THROWABLES, getWeapon } from '../content/weapons';
 import { canWield, effectiveDefense, effectivePower, strengthOf, weaponLevel, weaponReq } from '../core/combat';
 import type { GameState } from '../core/types';
@@ -45,6 +45,11 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: s
   if (cls) n.className = cls;
   if (text !== undefined) n.textContent = text;
   return n;
+}
+
+/** «Identificación 23/150»: lo que lleva ya de las rondas (y usos) que hacen falta para saber qué esconde una pieza. */
+function wearProgress(p: { wear: Record<string, number> }, id: string): string {
+  return `identificación ${Math.min(p.wear[id] ?? 0, BALANCE.identifyTurns)}/${BALANCE.identifyTurns}`;
 }
 
 function icon(id: string, px = 48): HTMLImageElement {
@@ -272,7 +277,7 @@ export class Menu {
     const { slot = -1, kiro, level, locked = false } = opts;
     const c = h('div', `card${locked ? ' locked' : ''}${opts.pick ? ' pick' : ''}`);
     const top = h('div', 'ctop');
-    top.append(icon(techniqueAffinity(def) ?? 'ascua', 52));
+    top.append(icon(techniqueIconId(def, 'ascua'), 52));
     const t = h('div', 'rt');
     const origin = def.fusion
       ? `fusión ${def.fusion.map((a) => AFFINITY_NAMES[a]).join(' + ')}: se aprende con un Manual de Fusión`
@@ -556,7 +561,7 @@ export class Menu {
       const strong = canWield(p, id);
       tags.append(h('span', 'tag', `+${w.bonus + lvl + (mod?.power ?? 0)} de poder${lvl > 0 ? ` (mejora +${lvl})` : ''}`), h('span', 'tag', `Alcance ${w.reach}`), h('span', `tag${strong ? '' : ' cursed'}`, `Fuerza ${req}${strong ? '' : ` (te faltan ${req - strengthOf(p)})`}`));
       if (mod) tags.append(h('span', `tag${mod.kind === 'curse' ? ' cursed' : ''}`, mod.description));
-      else if (!known) tags.append(h('span', 'tag', 'Sin identificar: ¿encantada? ¿maldita?'));
+      else if (!known) tags.append(h('span', 'tag', `Sin identificar: ¿encantada? ¿maldita? · ${wearProgress(p, id)}`));
       c.append(tags);
       const b = h('button', 'use', on ? 'Equipada' : weaponCursed ? 'Tu arma está maldita' : !strong ? `Muy pesada (Fuerza ${req})` : 'Equipar (gasta un turno)');
       b.type = 'button';
@@ -587,7 +592,7 @@ export class Menu {
       const tags = h('div', 'tags');
       tags.append(h('span', 'tag', `+${a.bonus + (mod?.defense ?? 0)} de defensa`));
       if (mod) tags.append(h('span', `tag${mod.kind === 'curse' ? ' cursed' : ''}`, mod.description));
-      else if (!known) tags.append(h('span', 'tag', 'Sin identificar: ¿encantada? ¿maldita?'));
+      else if (!known) tags.append(h('span', 'tag', `Sin identificar: ¿encantada? ¿maldita? · ${wearProgress(p, id)}`));
       c.append(tags);
       const b = h('button', 'use', on ? 'Puesta' : armorCursed ? 'Tu vestimenta está maldita' : 'Ponerse (gasta un turno)');
       b.type = 'button';
@@ -619,7 +624,7 @@ export class Menu {
       top.append(icon(slot === 'ring' ? 'anillo' : 'colgante', 52), t);
       c.append(top);
       if (known) c.append(h('p', undefined, trinketDescription(id)));
-      else c.append(h('p', undefined, 'Sin identificar: póntelo para saber qué hace. ¿Será una joya maldita? (Si lo está, no podrás quitártelo hasta purificarla.)'));
+      else c.append(h('p', undefined, `Sin identificar: llévalo puesto (y úsalo) para descubrir qué hace · ${wearProgress(p, id)}. ¿Será una joya maldita? (Si lo está, se delata al ponértelo y no podrás quitártelo hasta purificarla.)`));
       const b = h('button', 'use', on ? (isCursedTrinket(id) ? 'Maldito: no se puede quitar' : 'Quitarse (gasta un turno)') : slotCursed ? 'Tu joya de ese hueco está maldita' : 'Ponerse (gasta un turno)');
       b.type = 'button';
       b.disabled = (on && isCursedTrinket(id)) || (!on && slotCursed);

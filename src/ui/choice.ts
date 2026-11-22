@@ -1,4 +1,4 @@
-import { getNpc, isCaptiveKind } from '../content/story';
+import { getNpc, isCaptiveKind, npcOptions } from '../content/story';
 import { optionBlocker } from '../core/engine';
 import type { GameState } from '../core/types';
 import { iconDataUrl } from '../presentation/art/icons';
@@ -61,7 +61,7 @@ export class ChoiceBox {
     const s = this.state;
     const npc = s?.npcs.find((x) => x.id === this.npcId);
     const def = npc ? getNpc(npc.kind) : undefined;
-    const opt = def?.options[index];
+    const opt = npc && def ? npcOptions(npc)[index] : undefined;
     if (!s || !npc || !opt || npc.used || optionBlocker(s, opt)) return;
     const id = npc.id;
     this.close();
@@ -91,7 +91,7 @@ export class ChoiceBox {
     panel.append(head);
 
     const list = h('div', 'choice-list');
-    def.options.forEach((opt, i) => {
+    npcOptions(npc).forEach((opt, i) => {
       const blocker = npc.used ? 'Ya elegiste aquí.' : optionBlocker(s, opt);
       const b = h('button', 'choice-opt');
       b.type = 'button';

@@ -943,12 +943,79 @@ function mercantile(ctx: Ctx): void {
   ctx.fill();
 }
 
+/** Resplandor de cada afinidad (fondo del icono de fusión). */
+const AFFINITY_GLOW: Record<string, string> = { ascua: '#ff7a3c', marea: '#3fa9e6', vendaval: '#7fe0b8', piedra: '#c9a063', rayo: '#ffd93d' };
+
+/**
+ * Icono de una técnica de fusión: un medallón dorado partido en diagonal con las dos afinidades enfrentadas (cada una en su color)
+ * y una chispa en la esquina, para distinguirlas de un vistazo de las técnicas de una sola afinidad.
+ */
+function fusionIcon(ctx: Ctx, a: string, b: string): void {
+  const fa = ICONS[a];
+  const fb = ICONS[b];
+  if (!fa || !fb) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.46, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#17121f';
+  ctx.fillRect(-0.5, -0.5, 1, 1);
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = AFFINITY_GLOW[a] ?? '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(-0.5, -0.5);
+  ctx.lineTo(0.5, -0.5);
+  ctx.lineTo(-0.5, 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = AFFINITY_GLOW[b] ?? '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(0.5, 0.5);
+  ctx.lineTo(0.5, -0.5);
+  ctx.lineTo(-0.5, 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  for (const [fn, x, y] of [
+    [fa, -0.16, -0.16],
+    [fb, 0.16, 0.16],
+  ] as const) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(0.56, 0.56);
+    fn(ctx);
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.46, 0, Math.PI * 2);
+  ctx.strokeStyle = '#f2c14e';
+  ctx.lineWidth = 0.055;
+  ctx.stroke();
+  // Chispa de cuatro puntas.
+  ctx.save();
+  ctx.translate(0.3, -0.3);
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const r = i % 2 === 0 ? 0.14 : 0.04;
+    const ang = (i * Math.PI) / 4 - Math.PI / 2;
+    ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#fff6c8';
+  ctx.fill();
+  ctx.restore();
+}
+
 /** Resuelve ids dinámicos: equipo con modificador, pociones/pergaminos y sus aspectos («look:Poción ámbar»). */
 function resolveIcon(id: string): ((ctx: Ctx) => void) | undefined {
   if (Object.hasOwn(ICONS, id)) return ICONS[id];
   const base = id.split('~')[0];
   if (base !== id && Object.hasOwn(ICONS, base)) return ICONS[base];
   if (id.startsWith('manual')) return manualBook;
+  if (id.startsWith('fusion:')) {
+    const [a, b] = id.slice(7).split('+');
+    return (c) => fusionIcon(c, a, b);
+  }
   if (id === 'pocion_azar') return (c) => vial(c, '#8a6aa8', '#e0d0f0');
   if (id === 'pergamino_azar') return (c) => sealedScroll(c, 'azar');
   if (id.startsWith('pocion:')) {

@@ -182,6 +182,8 @@ export interface Npc {
   used: boolean;
   /** Solo el mercader: lo que vende. */
   stock?: Offer[];
+  /** Solo los altares: ids de las opciones que ofrece (un subconjunto sorteado de su lista). */
+  offer?: string[];
 }
 
 /** Artículo de la tienda. El equipo y los objetos de la tienda se entregan ya identificados. */
@@ -243,6 +245,9 @@ export interface Drop {
 
 export type RunStatus = 'playing' | 'won' | 'lost';
 
+/** Minidesafío de un sector: una recompensa tras un obstáculo que se resuelve con un objeto asegurado del propio sector. */
+export type ChallengeKind = 'zarzal' | 'grieta' | 'isla';
+
 /** Peligro temporal sobre una casilla: fuego (quema), agua (charco) o descarga (rayo que recorre el agua). */
 export interface Hazard {
   pos: Vec;
@@ -272,6 +277,8 @@ export interface GameState {
   barriers: Barrier[];
   /** Fuego, charcos y descargas sobre el suelo. */
   hazards: Hazard[];
+  /** Minidesafío del sector actual (null si no hay). */
+  challenge: ChallengeKind | null;
   /** Índices de paredes secretas de las que ya te avisó el instinto («aquí hay algo»). */
   hintedSecrets: number[];
   drops: Drop[];

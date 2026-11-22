@@ -5,7 +5,7 @@ import { heroFor } from '../content/heroes';
 import { companionKind, getAllyDef } from '../content/allies';
 import { NOTES, getRelic } from '../content/story';
 import { KEYS, getEquipment } from '../content/items';
-import { getTechnique, techniqueAffinity } from '../content/techniques';
+import { getTechnique, techniqueIconId } from '../content/techniques';
 import { THROWABLES, getWeapon } from '../content/weapons';
 import { getMod } from '../content/enchants';
 import { gearLabel, itemName } from '../content/names';
@@ -247,7 +247,7 @@ export class Hud {
       if (!d) return;
       specs.push({
         key: TECHNIQUE_KEYS[i],
-        icon: techniqueAffinity(d) ?? p.affinity,
+        icon: techniqueIconId(d, p.affinity),
         name: d.name,
         sub: `${d.kiroCost} kiro${p.kiro < d.kiroCost ? ' · sin kiro' : ''}`,
         disabled: p.kiro < d.kiroCost,

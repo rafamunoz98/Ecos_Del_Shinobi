@@ -1,6 +1,6 @@
 import { BALANCE } from '../content/balance';
 import { BOSS_ID, ENEMIES } from '../content/enemies';
-import type { Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import type { ChallengeKind, Chest, Drop, Enemy, GameMap, Hazard, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy } from './spawn';
 
 export interface ParsedRoom {
@@ -122,7 +122,7 @@ export function parseRoom(rows: readonly string[]): ParsedRoom {
 }
 
 /** Sala ASCII → nivel jugable (las 'E' son Acechadores de Hollín del sector 1). */
-export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerStart: Vec; enemies: Enemy[]; chests: Chest[]; npcs: Npc[]; scrolls: Scroll[]; drops: Drop[] } {
+export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerStart: Vec; enemies: Enemy[]; chests: Chest[]; npcs: Npc[]; scrolls: Scroll[]; drops: Drop[]; hazards: Hazard[]; challenge: ChallengeKind | null } {
   const room = parseRoom(rows);
   const def = ENEMIES.acechador_hollin;
   return {
@@ -141,5 +141,7 @@ export function levelFromRoom(rows: readonly string[]): { map: GameMap; playerSt
     npcs: room.npcStarts.map((n, i) => ({ id: `npc-${i}`, kind: n.kind, pos: n.pos, used: false })),
     scrolls: room.scrollStarts.map((pos, i) => ({ id: `scroll-${i}`, pos, noteId: 'diario_cartografo' })),
     drops: room.keyStarts.map((k) => ({ pos: k.pos, itemId: k.id, count: 1 })),
+    hazards: [],
+    challenge: null,
   };
 }

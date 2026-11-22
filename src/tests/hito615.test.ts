@@ -58,13 +58,20 @@ describe('joyas: contenido y aspecto', () => {
 });
 
 describe('joyas: equipar y efectos pasivos', () => {
-  it('sin identificar se ve su aspecto con (?), y al ponerla se identifica', () => {
+  it('sin identificar se ve su aspecto con (?): ponértela no la revela, hacen falta muchas rondas (como al resto del equipo)', () => {
     const g = withTrinkets('anillo_vigor');
     expect(itemName('anillo_vigor', g)).toBe(`${g.appearance['trinket:anillo_vigor']} (?)`);
-    const s = run(g, equip('anillo_vigor'));
+    let s = run(g, equip('anillo_vigor'));
+    expect(s.player.equipment.ring).toBe('anillo_vigor');
+    expect(s.player.identified).not.toContain('anillo_vigor');
+    expect(itemName('anillo_vigor', s)).toContain('(?)');
+    // Sus efectos funcionan aunque no sepas qué es: el vigor ya suma vida máxima.
+    expect(s.player.maxHp).toBe(g.player.maxHp + 5);
+    for (let i = 0; i < BALANCE.identifyTurns - 2; i++) s = run(s, wait()); // ponértela ya fue la primera ronda
+    expect(s.player.identified).not.toContain('anillo_vigor');
+    s = run(s, wait());
     expect(s.player.identified).toContain('anillo_vigor');
     expect(itemName('anillo_vigor', s)).toBe('Anillo del Vigor');
-    expect(s.player.equipment.ring).toBe('anillo_vigor');
   });
 
   it('vida y kiro máximos suben al ponerla y vuelven al quitarla', () => {

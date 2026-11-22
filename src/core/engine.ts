@@ -10,7 +10,7 @@ import { companionKind, getAllyDef } from '../content/allies';
 import { MERCHANT_KIND, SHOP_PRICES } from '../content/shop';
 import { getArcana, getPotion, getScroll, isArcana, isPotion, POTIONS, RANDOM_POTION, RANDOM_SCROLL, rollArcana, SCROLLS, STARTING_KNOWN, type PotionEffect, type ScrollEffect } from '../content/arcana';
 import { baseGearId, getMod, isCursedGear, makeGearId, modsFor, purified, type GearSlot } from '../content/enchants';
-import { getNpc, getNote, type NpcOption } from '../content/story';
+import { getNpc, getNote, npcOptions, type NpcOption } from '../content/story';
 import { STATUS_NAMES } from '../content/describe';
 import { FISTS, FISTS_ID, getThrowable, getWeapon, weaponLabel, type WeaponDef } from '../content/weapons';
 import { FORGE_KIND, echoFloorOf, generateLevel, type GeneratedLevel } from '../dungeon/generator';
@@ -19,7 +19,7 @@ import { createBoss, createEnemy } from '../dungeon/spawn';
 import { calcDamage, canWield, effectiveDefense, effectivePower, weaponLevel } from './combat';
 import { DIRS, DIRS8, adjacent, chebyshev, equals, findPath, hasLineOfSight, idx, inBounds, isStandable, isWalkable, lineCells, manhattan, mutualSight, stepOk, terrainAt } from './grid';
 import { RANDOM_TRINKET, getTrinket, isCursedTrinket, isTrinket, purifiedTrinket, rollTrinket, trinketDescription, trinketSlotOf, trinketTrueName, wornEffects, type TrinketEffects } from '../content/trinkets';
-import { FLAMMABLE, addHazard, connectedWater, crackedNear, hashRoll, hazardAt, removeHazard } from './terrain';
+import { FLAMMABLE, PERMANENT_HAZARD, addHazard, connectedWater, crackedNear, hashRoll, hazardAt, removeHazard } from './terrain';
 import { mixSeed, nextRandom, Rng } from './rng';
 import { canSeeEntity, enemySees, openDoors, visibleCells } from './sight';
 import type {
@@ -388,6 +388,8 @@ export function optionBlocker(state: GameState, opt: NpcOption): string | null {
   const p = state.player;
   const c = opt.cost;
   if (c?.hp !== undefined && p.hp <= c.hp) return `Necesitas más de ${c.hp} de vida.`;
+  if (c?.coins !== undefined && p.coins < c.coins) return `Necesitas ${c.coins} monedas.`;
+  if (c?.shards !== undefined && p.shards < c.shards) return `Necesitas ${c.shards} esquirlas.`;
   if (c?.kiro === 'all' && p.kiro < (c.minKiro ?? 1)) return `Necesitas al menos ${c.minKiro ?? 1} de kiro.`;
   if (c?.item && (p.inventory[c.item.id] ?? 0) < c.item.count) {
     return `Necesitas ${c.item.count} × ${getThrowable(c.item.id)?.name ?? c.item.id}.`;
@@ -396,6 +398,7 @@ export function optionBlocker(state: GameState, opt: NpcOption): string | null {
     return 'Ya conoces todas las técnicas que se pueden enseñar.';
   }
   if (opt.gains.some((g) => g.kind === 'companion') && state.companion) return 'Ya llevas un compañero.';
+  if (opt.gains.some((g) => g.kind === 'identify') && !hasUnidentified(p)) return 'No llevas nada sin identificar.';
   return null;
 }
 
@@ -533,7 +536,7 @@ export function validateCommand(state: GameState, cmd: Command): InvalidReason |
       if (!npc || !def) return 'no_target';
       if (chebyshev(p.pos, npc.pos) > 1) return 'not_adjacent';
       if (npc.used) return 'already_used';
-      const opt = def.options.find((o) => o.id === cmd.optionId);
+      const opt = npcOptions(npc).find((o) => o.id === cmd.optionId);
       if (!opt) return 'unknown_option';
       return optionBlocker(state, opt) ? 'option_unavailable' : null;
     }
@@ -737,6 +740,12 @@ function damagePlayer(ctx: Ctx, rawAmount: number, source: string, mult = 1): vo
   p.hp = Math.max(0, p.hp - amount);
   ctx.state.stats.damageTaken += amount;
   ctx.events.push(mult === 1 ? { type: 'DamageApplied', targetId: 'player', amount, source } : { type: 'DamageApplied', targetId: 'player', amount, source, mult });
+  if (amount > 0 && p.hp > 0) {
+    // Usar la vestimenta (aguantar golpes) y las joyas (pelear con ellas) las acerca a revelarse.
+    addWear(ctx, p.equipment.armor, BALANCE.identifyUse.armor);
+    addWear(ctx, p.equipment.ring, BALANCE.identifyUse.trinket);
+    addWear(ctx, p.equipment.pendant, BALANCE.identifyUse.trinket);
+  }
   if (p.hp <= 0) {
     ctx.state.stats.defeatedBy = ctx.state.enemies.find((e) => e.id === source)?.kind ?? source;
     defeatPlayer(ctx);
@@ -1442,7 +1451,7 @@ function identifyGear(ctx: Ctx, id: string): void {
 
 /**
  * Ponerse una pieza sin identificar: las malditas se revelan al instante (y ya no se las puede quitar sin purificarlas);
- * las demás tardan BALANCE.identifyTurns rondas puestas en revelar su secreto.
+ * las demás tardan BALANCE.identifyTurns rondas puestas en revelar su secreto, menos lo que acorte usarlas (`useWear`).
  */
 function wearGear(ctx: Ctx, id: string): void {
   const p = ctx.state.player;
@@ -1451,19 +1460,55 @@ function wearGear(ctx: Ctx, id: string): void {
     identifyGear(ctx, id);
     return;
   }
-  say(ctx, `Aún no sabes qué esconde: lo notarás tras unas ${BALANCE.identifyTurns} rondas con ella puesta.`);
+  say(ctx, `Aún no sabes qué esconde: lo notarás tras unas ${BALANCE.identifyTurns} rondas con ella puesta (usarla acorta la espera).`);
 }
 
-/** Cada ronda que acaba, las piezas puestas sin identificar se acercan a revelarse. */
-function tickWear(ctx: Ctx): void {
+/** Una joya sin identificar se reconoce al fin: se sabe qué es, qué hace y si estaba maldita. */
+function identifyTrinket(ctx: Ctx, id: string): void {
   const p = ctx.state.player;
-  for (const id of [p.equipment.weapon, p.equipment.armor]) {
-    if (!id || p.identified.includes(id)) continue;
-    p.wear[id] = (p.wear[id] ?? 0) + 1;
-    if (p.wear[id] >= BALANCE.identifyTurns) {
-      delete p.wear[id];
-      identifyGear(ctx, id);
-    }
+  if (p.identified.includes(id)) return;
+  markIdentified(p, id);
+  delete p.wear[id];
+  ctx.events.push({ type: 'GearIdentified', itemId: id });
+  say(ctx, `Lo reconoces: ${trinketTrueName(id)}. ${trinketDescription(id)}`);
+  if (isCursedTrinket(id)) say(ctx, '¡Está maldito! No podrás quitártelo hasta purificarlo (Sello de Purificación o forja).');
+}
+
+/** Revela una pieza concreta, sea equipo o joya. */
+function revealPiece(ctx: Ctx, id: string): void {
+  if (getTrinket(id)) identifyTrinket(ctx, id);
+  else identifyGear(ctx, id);
+}
+
+/** Suma rondas de «desgaste» a una pieza sin identificar (al llegar a BALANCE.identifyTurns se revela). */
+function addWear(ctx: Ctx, id: string | null | undefined, amount: number): void {
+  const p = ctx.state.player;
+  if (!id || p.identified.includes(id)) return;
+  p.wear[id] = (p.wear[id] ?? 0) + amount;
+  if (p.wear[id] >= BALANCE.identifyTurns) {
+    delete p.wear[id];
+    revealPiece(ctx, id);
+  }
+}
+
+/** Cada ronda que acaba, las piezas y joyas puestas sin identificar se acercan a revelarse. */
+function tickWear(ctx: Ctx): void {
+  const eq = ctx.state.player.equipment;
+  for (const id of [eq.weapon, eq.armor, eq.ring, eq.pendant]) addWear(ctx, id, 1);
+}
+
+/** ¿Lleva algo (armas, vestimentas, joyas) sin identificar? */
+function hasUnidentified(p: Player): boolean {
+  return [...p.weapons, ...p.armors, ...p.trinkets].some((id) => !p.identified.includes(id));
+}
+
+/** Revela de golpe todo lo que llevas sin identificar. */
+function identifyEverything(ctx: Ctx): void {
+  const p = ctx.state.player;
+  for (const id of [...p.weapons, ...p.armors, ...p.trinkets]) {
+    if (p.identified.includes(id)) continue;
+    delete p.wear[id];
+    revealPiece(ctx, id);
   }
 }
 
@@ -1519,6 +1564,9 @@ function purifyGear(ctx: Ctx, id: string): string {
 /** Efectos del arma encantada o maldita tras un golpe cuerpo a cuerpo. */
 function applyWeaponMod(ctx: Ctx, enemy: Enemy): void {
   const p = ctx.state.player;
+  addWear(ctx, p.equipment.weapon, BALANCE.identifyUse.weapon);
+  addWear(ctx, p.equipment.ring, BALANCE.identifyUse.trinket);
+  addWear(ctx, p.equipment.pendant, BALANCE.identifyUse.trinket);
   const mod = getMod(p.equipment.weapon);
   if (!mod) return;
   if (mod.onHitStatus && enemy.hp > 0 && !(isBoss(enemy) && BOSS_IMMUNE.includes(mod.onHitStatus.status)) && rand(ctx) < mod.onHitStatus.chance) {
@@ -1837,7 +1885,7 @@ function tickHazards(ctx: Ctx): void {
       if (inBounds(s.map, n) && FLAMMABLE.has(terrainAt(s.map, n)) && !hazardAt(s, n, 'water')) igniteCell(ctx, n);
     }
   }
-  for (const h of current) h.turns -= 1;
+  for (const h of current) if (h.turns < PERMANENT_HAZARD) h.turns -= 1;
   const before = s.hazards.length;
   s.hazards = s.hazards.filter((h) => h.turns > 0);
   if (s.hazards.length !== before) ctx.events.push({ type: 'HazardsChanged' });
@@ -1899,7 +1947,8 @@ function descend(ctx: Ctx, fall = false): void {
   s.floor += 1;
   s.map = level.map;
   s.player.pos = fall && !bossFloor ? landingSpot(ctx, level) : level.playerStart;
-  s.hazards = [];
+  s.hazards = level.hazards.map((h) => ({ ...h, pos: { ...h.pos } }));
+  s.challenge = level.challenge;
   s.hintedSecrets = [];
   s.enemies = level.enemies;
   const mate = s.allies.find((a) => a.companion);
@@ -2037,10 +2086,9 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
       ctx.events.push({ type: 'EquipmentEquipped', slot, itemId: cmd.trinketId });
       say(ctx, `Te pones: ${itemName(cmd.trinketId, s)}.`);
       if (!p.identified.includes(cmd.trinketId)) {
-        markIdentified(p, cmd.trinketId);
-        ctx.events.push({ type: 'GearIdentified', itemId: cmd.trinketId });
-        say(ctx, `Lo reconoces: ${trinketTrueName(cmd.trinketId)}. ${trinketDescription(cmd.trinketId)}`);
-        if (isCursedTrinket(cmd.trinketId)) say(ctx, '¡Está maldito! No podrás quitártelo hasta purificarlo (Sello de Purificación o forja).');
+        // Una joya maldita se delata al ponértela; las demás tardan en reconocerse, como el resto del equipo.
+        if (isCursedTrinket(cmd.trinketId)) identifyTrinket(ctx, cmd.trinketId);
+        else say(ctx, `Aún no sabes qué esconde: lo notarás tras unas ${BALANCE.identifyTurns} rondas con ella puesta (usarla acorta la espera).`);
       }
       return;
     }
@@ -2133,7 +2181,7 @@ function resolvePlayerAction(ctx: Ctx, cmd: Command): void {
     }
     case 'Choose': {
       const npc = s.npcs.find((n) => n.id === cmd.npcId) as Npc;
-      const opt = (getNpc(npc.kind)?.options.find((o) => o.id === cmd.optionId)) as NpcOption;
+      const opt = npcOptions(npc).find((o) => o.id === cmd.optionId) as NpcOption;
       applyOption(ctx, npc, opt);
       return;
     }
@@ -2161,6 +2209,8 @@ function applyOption(ctx: Ctx, npc: Npc, opt: NpcOption): void {
     p.hp -= c.hp;
     ctx.state.stats.damageTaken += c.hp;
   }
+  if (c?.coins !== undefined) p.coins -= c.coins;
+  if (c?.shards !== undefined) p.shards -= c.shards;
   if (c?.kiro === 'all') p.kiro = 0;
   if (c?.item) {
     const left = (p.inventory[c.item.id] ?? 0) - c.item.count;
@@ -2193,6 +2243,13 @@ function applyOption(ctx: Ctx, npc: Npc, opt: NpcOption): void {
       }
       case 'companion':
         rescueCompanion(ctx, npc);
+        break;
+      case 'identify':
+        identifyEverything(ctx);
+        break;
+      case 'item':
+        if (isArcana(g.id) && !p.known.includes(g.id)) p.known.push(g.id);
+        collect(ctx, g.id, g.count, 'Recibes', true);
         break;
     }
   }

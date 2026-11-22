@@ -13,7 +13,7 @@ import { trinketAppearances } from '../content/trinkets';
 import { nextRandom } from './rng';
 import type { GameState, NewGameOptions, RunStats } from './types';
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const emptyStats = (): RunStats => ({
   kills: 0,
@@ -90,7 +90,8 @@ export function createGame(opts: NewGameOptions): GameState {
     echo: opts.echo ?? null,
     chests: level.chests,
     barriers: [],
-    hazards: [],
+    hazards: level.hazards,
+    challenge: level.challenge,
     hintedSecrets: [],
     drops: level.drops,
     telegraphs: [],

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../content/balance';
 import { applyCommand } from '../core/engine';
 import { findPath, isStandable } from '../core/grid';
-import { addHazard, connectedWater, hazardAt } from '../core/terrain';
+import { PERMANENT_HAZARD, addHazard, connectedWater, hazardAt } from '../core/terrain';
 import type { Command, GameState, TerrainKind, Vec } from '../core/types';
-import { CHALLENGE_ITEM, distancesFrom, generateLevel } from '../dungeon/generator';
-import { terrainHints } from '../core/hints';
+import { CHALLENGE_ITEM, distancesFrom, generateLevel, secretFloorOfPhase } from '../dungeon/generator';
+import { floorHints, terrainHints } from '../core/hints';
 import { createGame } from '../core/newGame';
 import { makeGame, move, wait } from './helpers';
 
@@ -43,7 +43,8 @@ describe('precipicios', () => {
     expect(r.state.floor).toBe(2);
     expect(r.state.player.hp).toBe(g.player.maxHp - Math.ceil(g.player.maxHp * BALANCE.fallDamageFraction));
     expect(r.events.some((e) => e.type === 'PlayerFell')).toBe(true);
-    expect(r.state.hazards).toEqual([]);
+    // Del sector de arriba no queda fuego ni descargas: solo los charcos naturales del nuevo sector.
+    expect(r.state.hazards.every((h) => h.kind === 'water' && h.turns >= PERMANENT_HAZARD)).toBe(true);
   });
 
   it('la caída nunca mata: deja al menos 1 de vida', () => {
@@ -285,7 +286,7 @@ describe('muros agrietados y puertas secretas', () => {
 
 describe('minidesafíos y cámaras ocultas generadas', () => {
   const SEEDS = 80;
-  it('cada sector que no es de jefe trae un minidesafío con su objeto asegurado (ya identificado) y accesible', () => {
+  it('cada sector que no es de jefe trae un minidesafío con su objeto asegurado (sin identificar, en pila de 2) y accesible', () => {
     for (let seed = 1; seed <= SEEDS; seed++) {
       for (const floor of [1, 2, 4, 5]) {
         const lv = generateLevel({ seed, floor });
@@ -293,7 +294,8 @@ describe('minidesafíos y cámaras ocultas generadas', () => {
         expect(lv.challenge, ctx).not.toBeNull();
         const kind = lv.challenge as 'zarzal' | 'grieta' | 'isla';
         const item = lv.drops.find((d) => d.itemId === CHALLENGE_ITEM[kind]);
-        expect(item?.known, ctx).toBe(true);
+        expect(item?.known, ctx).toBeUndefined();
+        expect(item?.count, ctx).toBe(2);
         const stand = distancesFrom(lv.map, lv.playerStart, undefined, true);
         expect(stand[(item?.pos.y ?? 0) * lv.map.width + (item?.pos.x ?? 0)], `${ctx}: objeto inalcanzable`).toBeGreaterThanOrEqual(0);
         // La recompensa (un cofre) está en la alcoba.
@@ -351,13 +353,18 @@ describe('minidesafíos y cámaras ocultas generadas', () => {
     expect(tried).toBeGreaterThan(5);
   });
 
-  it('las cámaras ocultas existen en la mayoría de sectores, esconden tesoro y se abren al descubrirlas', () => {
+  it('hay UNA cámara oculta por fase (nunca en el sector del jefe), esconde tesoro y se abre al descubrirla', () => {
     let secrets = 0;
-    let total = 0;
+    let expected = 0;
     for (let seed = 1; seed <= SEEDS; seed++) {
       for (const floor of [1, 2, 4, 5]) {
         const lv = generateLevel({ seed, floor });
-        total++;
+        const wants = secretFloorOfPhase(seed, floor) === floor;
+        if (!wants) {
+          expect(lv.secret, `semilla ${seed} sector ${floor}`).toBeNull();
+          continue;
+        }
+        expected++;
         if (!lv.secret) continue;
         secrets++;
         const t = lv.map.tiles[lv.secret.door.y * lv.map.width + lv.secret.door.x];
@@ -367,40 +374,55 @@ describe('minidesafíos y cámaras ocultas generadas', () => {
         expect(loot, `semilla ${seed} sector ${floor}`).toBeGreaterThan(0);
         expect(distancesFrom(lv.map, lv.playerStart)[lv.secret.cells[4].y * lv.map.width + lv.secret.cells[4].x]).toBe(-1);
       }
+      for (const floor of [3, 6]) expect(generateLevel({ seed, floor, boss: true }).secret).toBeNull();
     }
-    expect(secrets / total).toBeGreaterThan(0.45);
-    expect(secrets / total).toBeLessThan(0.85);
+    // Casi siempre se logra tallar la cámara en el sector sorteado.
+    expect(expected).toBe(SEEDS * 2);
+    expect(secrets / expected).toBeGreaterThan(0.95);
   });
 
-  it('el sector avisa de su desafío al entrar (zarzal, muro agrietado o isla) y nombra el objeto asegurado', () => {
+  it('al entrar en el sector de la cámara oculta el registro avisa de que «se siente misterioso»', () => {
+    let seen = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = createGame({ seed, affinity: 'rayo' });
+      const hints = floorHints(g);
+      const has = g.map.tiles.includes('secret');
+      expect(hints.some((h) => h.includes('misterioso')), `semilla ${seed}`).toBe(has);
+      if (has) {
+        seen++;
+        expect(g.log.some((l) => l.includes('misterioso'))).toBe(true);
+      }
+    }
+    expect(seen).toBeGreaterThan(5);
+  });
+
+  it('el sector avisa de su desafío al entrar (zarzal, muro agrietado o isla) SIN nombrar el objeto asegurado', () => {
     const seen = new Set<string>();
-    for (let seed = 1; seed <= SEEDS && seen.size < 3; seed++) {
-      const g = createGame({ seed, affinity: 'ascua' });
-      const hints = terrainHints(g).join(' ');
-      if (g.map.tiles.includes('thorns')) {
-        expect(hints).toContain('zarzal');
-        expect(hints).toContain('Poción Ígnea');
-        seen.add('zarzal');
-      }
-      if (g.map.tiles.includes('cracked')) {
-        expect(hints).toContain('muro agrietado');
-        expect(hints).toContain('Sello Explosivo');
-        seen.add('grieta');
-      }
-      if (g.map.tiles.includes('chasm') && g.drops.some((d) => d.itemId === 'pocion:levitacion')) {
-        expect(hints).toContain('Levitación');
-        seen.add('isla');
+    for (let seed = 1; seed <= SEEDS * 3 && seen.size < 3; seed++) {
+      for (const floor of [1, 2, 4, 5]) {
+        const lv = generateLevel({ seed, floor });
+        if (!lv.challenge) continue;
+        const g = createGame({ seed, affinity: 'ascua' });
+        g.map = lv.map;
+        g.chests = lv.chests;
+        g.challenge = lv.challenge;
+        const hints = terrainHints(g).join(' ');
+        expect(hints).not.toMatch(/Ígnea|Explosivo|Levitación/);
+        if (lv.challenge === 'zarzal') expect(hints).toContain('zarzal');
+        if (lv.challenge === 'grieta') expect(hints).toContain('muro agrietado');
+        if (lv.challenge === 'isla') expect(hints).toContain('isla');
+        seen.add(lv.challenge);
       }
     }
     expect(seen.size).toBe(3);
   });
 
-  it('el objeto asegurado se identifica al recogerlo aunque la poción fuera desconocida', () => {
-    const g = createGame({ seed: 5, affinity: 'ascua' });
-    g.drops.push({ pos: { x: g.player.pos.x, y: g.player.pos.y }, itemId: 'pocion:ignea', count: 1, known: true });
-    g.player.known = g.player.known.filter((k) => k !== 'pocion:ignea');
+  it('el objeto asegurado NO se identifica al recogerlo: hay que probarlo (lanzarlo identifica la poción)', () => {
+    const g = createGame({ seed: 5, affinity: 'rayo' });
+    g.drops.push({ pos: { x: g.player.pos.x, y: g.player.pos.y }, itemId: 'pocion:ignea', count: 2 });
     const s = applyCommand(g, wait()).state;
-    expect(s.player.known).toContain('pocion:ignea');
-    expect(s.player.inventory['pocion:ignea']).toBe(1);
+    expect(s.player.known).not.toContain('pocion:ignea');
+    expect(s.player.inventory['pocion:ignea']).toBe(2);
+    expect(s.log.some((l) => l.includes('Ígnea'))).toBe(false);
   });
 });

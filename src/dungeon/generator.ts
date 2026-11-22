@@ -1,11 +1,12 @@
 import { BALANCE } from '../content/balance';
+import { PERMANENT_HAZARD } from '../core/terrain';
 import { DIRS, fromIdx, idx, inBounds, isStandable, isWalkable, manhattan } from '../core/grid';
 import { mixSeed, Rng } from '../core/rng';
 import { BOSS_BY_FLOOR, BOSS_FLOORS, BOSS_ID, ENEMIES } from '../content/enemies';
 import { GROUND_LOOT, MANUAL_FUSION, MANUAL_ITEM, VAULT_EXTRAS, VAULT_GEAR, coinAmount, lootTableFor, type LootEntry } from '../content/items';
 import { echoKind, echoStats, ECHO_FLOORS, type EchoRecord } from '../content/echo';
-import { NPC_BY_FLOOR, captiveKind, notesForFloor } from '../content/story';
-import type { Affinity, Chest, Drop, Enemy, GameMap, Npc, Scroll, TerrainKind, Vec } from '../core/types';
+import { ALTAR_KIND, NPC_BY_FLOOR, altarOffer, captiveKind, notesForFloor } from '../content/story';
+import type { Affinity, ChallengeKind, Chest, Drop, Enemy, GameMap, Hazard, Npc, Scroll, TerrainKind, Vec } from '../core/types';
 import { createBoss, createEnemy, pickEnemyDef } from './spawn';
 
 export interface Room {
@@ -23,9 +24,9 @@ export interface Vault {
 }
 
 /** Minidesafío de un sector: una recompensa tras un obstáculo que se resuelve con un objeto asegurado en el propio sector. */
-export type Challenge = 'zarzal' | 'grieta' | 'isla';
+export type Challenge = ChallengeKind;
 
-/** Objeto asegurado (y ya identificado) que resuelve cada minidesafío. */
+/** Objeto asegurado (sin identificar, en pila de 2) que resuelve cada minidesafío. */
 export const CHALLENGE_ITEM: Record<Challenge, string> = {
   zarzal: 'pocion:ignea',
   grieta: 'pergamino:explosivo',
@@ -52,6 +53,8 @@ export interface GeneratedLevel {
   /** Cámara oculta (puerta 'secret') y qué esconde. */
   secret: Vault | null;
   secretKind: string | null;
+  /** Charcos naturales del sector (permanentes: solo el fuego los evapora). */
+  hazards: Hazard[];
   rooms: Room[];
   /** Sala del jefe (la de la salida) en el último sector. */
   bossRoom: Room | null;
@@ -86,6 +89,13 @@ export function healFloorOfPhase(seed: number, floor: number): number {
  */
 export function strengthFloorOfPhase(seed: number, floor: number): number {
   return phaseFloor(seed, floor, 7373);
+}
+
+/**
+ * Cada fase (los sectores previos a un jefe) esconde UNA cámara oculta en un sector sin jefe de esa fase (misma semilla = mismo sector).
+ */
+export function secretFloorOfPhase(seed: number, floor: number): number {
+  return phaseFloor(seed, floor, 5151);
 }
 
 function phaseFloor(seed: number, floor: number, salt: number): number {
@@ -127,6 +137,13 @@ export function distancesFrom(map: GameMap, from: Vec, blocked?: ReadonlySet<num
   return dist;
 }
 
+/** Casillas donde se puede estar de pie y que se alcanzan a pie desde `from` (el vacío no cuenta). */
+function reachableStand(map: GameMap, from: Vec): number {
+  let n = 0;
+  for (const d of distancesFrom(map, from, undefined, true)) if (d >= 0) n++;
+  return n;
+}
+
 export function reachableCount(map: GameMap, from: Vec, blocked?: ReadonlySet<number>): number {
   let n = 0;
   for (const d of distancesFrom(map, from, blocked)) if (d >= 0) n++;
@@ -152,7 +169,7 @@ function carveCorridor(tiles: TerrainKind[], width: number, a: Vec, b: Vec, hori
   }
 }
 
-function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean, guaranteeHeal: boolean, extra: Rng, guaranteeStrength: boolean): GeneratedLevel | null {
+function buildLevel(rng: Rng, width: number, height: number, floor: number, withBoss: boolean, guaranteeHeal: boolean, extra: Rng, guaranteeStrength: boolean, wantSecret: boolean): GeneratedLevel | null {
   const tiles: TerrainKind[] = new Array<TerrainKind>(width * height).fill('wall');
   const rooms: Room[] = [];
 
@@ -519,7 +536,7 @@ function buildLevel(rng: Rng, width: number, height: number, floor: number, with
   }
 
   // 12. Desafío del sector, precipicios y cámara oculta (todo con el generador extra: los mapas conocidos no cambian).
-  const extras = addExtras({ extra, map, rooms, bossRoom, used, playerStart, exit, floor, chests, drops, enemies, chasmOk: !withBoss && !guaranteeStrength });
+  const extras = addExtras({ extra, map, rooms, bossRoom, used, playerStart, exit, floor, chests, drops, enemies, chasmOk: !withBoss && !guaranteeStrength, wantSecret });
 
   return { map, playerStart, exit, enemies, chests, npcs, scrolls, drops, vault, ...extras, rooms, bossRoom };
 }
@@ -537,6 +554,7 @@ interface ExtrasInput {
   drops: Drop[];
   enemies: Enemy[];
   chasmOk: boolean;
+  wantSecret: boolean;
 }
 
 interface ExtrasOutput {
@@ -544,6 +562,7 @@ interface ExtrasOutput {
   challengeNook: Vault | null;
   secret: Vault | null;
   secretKind: string | null;
+  hazards: Hazard[];
 }
 
 /** Pociones y pergaminos de una cámara oculta que NO perjudican (las malas no se esconden: se encuentran por ahí). */
@@ -552,8 +571,8 @@ const SECRET_SCROLLS = ['pergamino:cartografia', 'pergamino:clones', 'pergamino:
 
 function addExtras(a: ExtrasInput): ExtrasOutput {
   const { extra, map, rooms, bossRoom, used, playerStart, exit, floor, chests, drops, enemies } = a;
-  const out: ExtrasOutput = { challenge: null, challengeNook: null, secret: null, secretKind: null };
-  if (bossRoom) return out; // la arena del jefe no lleva desafíos ni escondites
+  const out: ExtrasOutput = { challenge: null, challengeNook: null, secret: null, secretKind: null, hazards: [] };
+  if (bossRoom) return out; // la arena del jefe no lleva desafíos, escondites ni charcos
   const free = (c: Vec): boolean => inBounds(map, c) && map.tiles[idx(map, c)] === 'floor' && !used.has(idx(map, c));
   const roomsOpen = rooms.filter((r) => r !== bossRoom);
   const spot = (): Vec | null => {
@@ -573,7 +592,8 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
   if (a.chasmOk && extra.chance(BALANCE.chasmChance)) {
     const patches = extra.chance(0.5) ? 2 : 1;
     for (let k = 0; k < patches; k++) {
-      for (let t = 0; t < 40; t++) {
+      const reachedBefore = reachableStand(map, playerStart);
+      for (let t = 0; t < 200; t++) {
         const r = roomsOpen[extra.int(0, roomsOpen.length - 1)];
         const w = extra.int(2, 3);
         const h = extra.int(2, 3);
@@ -584,9 +604,8 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
         for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) cells.push({ x, y });
         if (cells.some((c) => !free(c) || manhattan(c, playerStart) < 4 || manhattan(c, exit) < 3)) continue;
         for (const c of cells) map.tiles[idx(map, c)] = 'chasm';
-        const reach = distancesFrom(map, playerStart, undefined, true);
-        const standable = map.tiles.filter((_, i) => isStandable(map, fromIdx(map, i))).length;
-        if (reach.filter((d) => d >= 0).length === standable) {
+        // El parche no debe aislar nada que antes se alcanzara a pie (las cámaras selladas ya lo estaban: se compara con lo de antes).
+        if (reachableStand(map, playerStart) === reachedBefore - cells.length) {
           for (const c of cells) used.add(idx(map, c));
           break;
         }
@@ -607,7 +626,8 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
       continue;
     }
     used.add(idx(map, item));
-    drops.push({ pos: item, itemId: CHALLENGE_ITEM[kind], count: 1, known: true });
+    // Sin revelar qué es (hay que probarlo) y en pila de 2: así puedes gastar uno en probar lejos del obstáculo sin quedarte sin solución.
+    drops.push({ pos: item, itemId: CHALLENGE_ITEM[kind], count: 2 });
     const treasure = kind === 'isla' ? nook.cells.slice(9) : nook.cells;
     if (kind === 'isla') for (const c of nook.cells.slice(0, 9)) map.tiles[idx(map, c)] = 'chasm';
     chestAt(treasure[4]);
@@ -619,8 +639,9 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
   }
 
   // Cámara oculta: tras una pared que solo se descubre buscando. Casi siempre guarda algo bueno.
-  if (extra.chance(BALANCE.secretRoomChance)) {
-    const nook = carveNook(extra, map, rooms, bossRoom, used, { depth: 3, door: 'secret' });
+  if (a.wantSecret) {
+    let nook: Vault | null = null;
+    for (let k = 0; k < 4 && !nook; k++) nook = carveNook(extra, map, rooms, bossRoom, used, { depth: 3, door: 'secret' });
     if (nook) {
       const cells = nook.cells;
       let roll = extra.int(0, 99);
@@ -658,6 +679,31 @@ function addExtras(a: ExtrasInput): ExtrasOutput {
       for (const c of cells) used.add(idx(map, c));
       out.secret = nook;
       out.secretKind = kind;
+    }
+  }
+
+  // Charcos naturales: parches de agua sobre el suelo de las salas (apagan el fuego y conducen el rayo).
+  const [minPatches, maxPatches] = BALANCE.puddles.patches;
+  const [minSize, maxSize] = BALANCE.puddles.size;
+  const patches = extra.int(minPatches, maxPatches);
+  for (let k = 0; k < patches; k++) {
+    for (let t = 0; t < 30; t++) {
+      const r = roomsOpen[extra.int(0, roomsOpen.length - 1)];
+      const start = { x: extra.int(r.x, r.x + r.w - 1), y: extra.int(r.y, r.y + r.h - 1) };
+      if (map.tiles[idx(map, start)] !== 'floor' || manhattan(start, playerStart) < 3 || manhattan(start, exit) < 3) continue;
+      const size = extra.int(minSize, maxSize);
+      const cells: Vec[] = [start];
+      for (let g = 0; g < size * 6 && cells.length < size; g++) {
+        const base = cells[extra.int(0, cells.length - 1)];
+        const d = DIRS[extra.int(0, DIRS.length - 1)];
+        const n = { x: base.x + d.x, y: base.y + d.y };
+        if (n.x < r.x || n.x >= r.x + r.w || n.y < r.y || n.y >= r.y + r.h || map.tiles[idx(map, n)] !== 'floor') continue;
+        if (manhattan(n, playerStart) < 2 || manhattan(n, exit) < 2) continue; // ni en la casilla de entrada ni pegado a ella o a la escalera
+        if (cells.some((c) => c.x === n.x && c.y === n.y) || out.hazards.some((h) => h.pos.x === n.x && h.pos.y === n.y)) continue;
+        cells.push(n);
+      }
+      for (const c of cells) out.hazards.push({ pos: c, kind: 'water', turns: PERMANENT_HAZARD });
+      break;
     }
   }
   return out;
@@ -792,8 +838,12 @@ export function generateLevel(params: LevelParams): GeneratedLevel {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const heal = healFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
     const strength = strengthFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
-    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal, new Rng(mixSeed(params.seed, params.floor, attempt + 9001)), strength);
+    const secret = secretFloorOfPhase(params.seed, params.floor) === params.floor && !(params.boss ?? false);
+    const level = buildLevel(new Rng(mixSeed(params.seed, params.floor, attempt)), width, height, params.floor, params.boss ?? false, heal, new Rng(mixSeed(params.seed, params.floor, attempt + 9001)), strength, secret);
     if (level) {
+      // Qué ofrece cada altar (3 de las 9 opciones): se sortea con su propio generador, sin tocar el resto del sector.
+      const altarRng = new Rng(mixSeed(params.seed, params.floor, attempt + 9301));
+      for (const n of level.npcs) if (n.kind === ALTAR_KIND) n.offer = altarOffer(altarRng);
       if (params.echo && !(params.boss ?? false)) placeEcho(level, new Rng(mixSeed(params.seed, params.floor, attempt + 9201)), params.echo, params.floor);
       if (params.companion && !(params.boss ?? false)) placeCaptive(level, new Rng(mixSeed(params.seed, params.floor, attempt + 9101)), params.companion);
       return level;

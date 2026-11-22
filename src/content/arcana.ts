@@ -123,8 +123,8 @@ export const STARTING_KNOWN: Record<Affinity, readonly string[]> = {
   rayo: ['pocion:kiro_mayor', 'pergamino:inmovil'],
 };
 
-/** Lo que todo shinobi reconoce desde el principio, sea cual sea su afinidad: la Poción de Fuerza (las hay aseguradas) y la de Levitación. */
-export const ALWAYS_KNOWN: readonly string[] = ['pocion:fuerza'];
+/** Lo que todo shinobi reconoce desde el principio, sea cual sea su afinidad: nada. Hasta la Poción de Fuerza hay que descubrirla (probándola o lanzándola). */
+export const ALWAYS_KNOWN: readonly string[] = [];
 
 /** Reparte las apariencias al azar. `random` devuelve [0,1) y avanza el generador de la partida. */
 export function shuffleAppearances(random: () => number): Record<string, string> {

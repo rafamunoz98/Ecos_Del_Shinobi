@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AFFINITIES, AFFINITY_BEATS, ADVANTAGE, RESISTANCE, affinityFactor, beats, companionAffinityFor, scaleDamage, strongVs, weakTo } from '../content/affinities';
 import { ALWAYS_KNOWN, POTIONS } from '../content/arcana';
 import { BALANCE } from '../content/balance';
+import { itemName } from '../content/names';
 import { ENEMIES } from '../content/enemies';
 import { FISTS_ID, WEAPONS } from '../content/weapons';
 import { canWield, effectivePower, weaponReq } from '../core/combat';
@@ -85,10 +86,13 @@ describe('fuerza, puños y requisitos de arma', () => {
     expect(applyCommand(cursed, equip(FISTS_ID)).reason).toBe('cursed');
   });
 
-  it('la Poción de Fuerza se conoce de entrada y no sale al azar', () => {
-    expect(ALWAYS_KNOWN).toContain('pocion:fuerza');
-    for (const a of AFFINITIES) expect(createGame({ seed: 1, affinity: a }).player.known).toContain('pocion:fuerza');
+  it('la Poción de Fuerza NO se conoce de entrada (hay que probarla, como cualquier poción) y no sale al azar', () => {
+    expect(ALWAYS_KNOWN).not.toContain('pocion:fuerza');
+    for (const a of AFFINITIES) expect(createGame({ seed: 1, affinity: a }).player.known).not.toContain('pocion:fuerza');
     expect(POTIONS.fuerza.weight).toBe(0);
+    const g = createGame({ seed: 2, affinity: 'rayo' });
+    expect(itemName('pocion:fuerza', g)).toMatch(/^Poción /);
+    expect(itemName('pocion:fuerza', g)).not.toContain('Fuerza');
   });
 
   it('cada fase asegura UNA Poción de Fuerza en un sector sin jefe, alcanzable y antes del jefe', () => {
@@ -178,7 +182,14 @@ describe('pociones arrojables', () => {
 
   it('se valida el alcance, la existencia y que no se lancen pergaminos', () => {
     const s = withPotion('pocion:ignea');
-    expect(applyCommand(s, throwItem('pocion:ignea', { x: 9, y: 1 })).reason).toBe('out_of_range');
+    const wall = '#'.repeat(23);
+    const far = makeGame([wall, '#@' + '.'.repeat(20) + '#', wall], (g) => {
+      g.player.inventory['pocion:ignea'] = 1;
+    });
+    // Las pociones llegan lejos (9 casillas), más que cualquier arrojadiza, pero no infinito.
+    expect(BALANCE.potionThrow.range).toBeGreaterThanOrEqual(9);
+    expect(applyCommand(far, throwItem('pocion:ignea', { x: 1 + BALANCE.potionThrow.range, y: 1 })).reason).toBeUndefined();
+    expect(applyCommand(far, throwItem('pocion:ignea', { x: 2 + BALANCE.potionThrow.range, y: 1 })).reason).toBe('out_of_range');
     expect(applyCommand(s, throwItem('pocion:veneno', { x: 3, y: 1 })).reason).toBe('no_item');
     s.player.inventory['pergamino:explosivo'] = 1;
     expect(applyCommand(s, throwItem('pergamino:explosivo', { x: 3, y: 1 })).reason).toBe('not_throwable');
